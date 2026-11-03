@@ -8,13 +8,59 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 import prova_visual_linux as prova
 
 
 class CandidatoVisualTest(unittest.TestCase):
+    def test_gerenciador_espera_propriedades_e_confirma_janela_de_controle(self):
+        ausente = subprocess.CompletedProcess([], 0, '_NET_SUPPORTED: not found', '')
+        raiz = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_SUPPORTED(ATOM) = _NET_ACTIVE_WINDOW, _NET_WM_NAME\n', '')
+        filho = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_WM_NAME(UTF8_STRING) = "Openbox"\n', '')
+        with patch.object(prova.subprocess, 'run', side_effect=[ausente, raiz, filho]) as executar, \
+                patch.object(prova.time, 'sleep'), patch.object(prova.time, 'monotonic', side_effect=[0, 0, 0, 1, 1, 1]):
+            prova.aguardar_gerenciador({}, Mock(poll=Mock(return_value=None)), timeout=5)
+        self.assertEqual(executar.call_count, 3)
+        self.assertEqual(executar.call_args.args[0][2], '0x2a')
+
+    def test_gerenciador_ausente_ou_encerrado_falha_sem_iniciar_terminal(self):
+        ausente = subprocess.CompletedProcess([], 0, '_NET_SUPPORTED: not found', '')
+        with patch.object(prova.subprocess, 'run', return_value=ausente), patch.object(prova.time, 'sleep'), \
+                patch.object(prova.time, 'monotonic', side_effect=[0, 0, 0, 6]):
+            with self.assertRaises(TimeoutError):
+                prova.aguardar_gerenciador({}, Mock(poll=Mock(return_value=None)), timeout=5)
+
+    def test_resposta_valida_apos_prazo_nao_e_aceita(self):
+        raiz = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_SUPPORTED(ATOM) = _NET_ACTIVE_WINDOW\n', '')
+        filho = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_WM_NAME(UTF8_STRING) = "Openbox"\n', '')
+        with patch.object(prova.subprocess, 'run', side_effect=[raiz, filho]) as executar, \
+                patch.object(prova.time, 'monotonic', side_effect=[0, 0, 4.5, 5]):
+            with self.assertRaises(TimeoutError):
+                prova.aguardar_gerenciador({}, Mock(poll=Mock(return_value=None)), timeout=5)
+        self.assertEqual(executar.call_args.kwargs['timeout'], 0.5)
+
+    def test_gerenciador_encerrado_durante_consulta_nao_e_aceito(self):
+        raiz = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_SUPPORTED(ATOM) = _NET_ACTIVE_WINDOW\n', '')
+        filho = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_WM_NAME(UTF8_STRING) = "Openbox"\n', '')
+        with patch.object(prova.subprocess, 'run', side_effect=[raiz, filho]), \
+                patch.object(prova.time, 'monotonic', return_value=0):
+            with self.assertRaises(RuntimeError):
+                prova.aguardar_gerenciador({}, Mock(poll=Mock(side_effect=[None, 1])), timeout=5)
+        with patch.object(prova.subprocess, 'run') as executar:
+            with self.assertRaises(RuntimeError):
+                prova.aguardar_gerenciador({}, Mock(poll=Mock(return_value=1)))
+        executar.assert_not_called()
+
+    def test_janela_de_controle_divergente_nao_indica_prontidao(self):
+        raiz = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2a\n_NET_SUPPORTED(ATOM) = _NET_ACTIVE_WINDOW\n', '')
+        filho = subprocess.CompletedProcess([], 0, '_NET_SUPPORTING_WM_CHECK(WINDOW): window id # 0x2b\n_NET_WM_NAME(UTF8_STRING) = "Openbox"\n', '')
+        with patch.object(prova.subprocess, 'run', side_effect=[raiz, filho]), patch.object(prova.time, 'sleep'), \
+                patch.object(prova.time, 'monotonic', side_effect=[0, 0, 0, 6]):
+            with self.assertRaises(TimeoutError):
+                prova.aguardar_gerenciador({}, Mock(poll=Mock(return_value=None)), timeout=5)
+
     def test_estado_mapa_reconhece_grafias_e_nao_deduz_estado_ausente(self):
         for entrada, esperado in [('IsUnMapped', 'IsUnmapped'), ('IsUnmapped', 'IsUnmapped'),
                                   ('IsUnviewable', 'IsUnviewable'), ('IsViewable', 'IsViewable')]:

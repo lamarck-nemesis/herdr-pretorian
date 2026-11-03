@@ -90,6 +90,40 @@ def candidato_no_terminal(exe, terminal_pid):
     return False
 
 
+def aguardar_gerenciador(ambiente, wm, timeout=10):
+    prazo = time.monotonic() + timeout
+    while True:
+        restante = prazo - time.monotonic()
+        if restante <= 0:
+            break
+        if wm.poll() is not None:
+            raise RuntimeError('Gerenciador de janelas encerrou antes de ficar pronto')
+        raiz = subprocess.run(['xprop', '-root', '_NET_SUPPORTING_WM_CHECK', '_NET_SUPPORTED'],
+                              env=ambiente, capture_output=True, text=True, timeout=min(2, restante))
+        identificador = re.search(r'_NET_SUPPORTING_WM_CHECK\(WINDOW\):\s*window id # (0x[0-9a-fA-F]+)', raiz.stdout)
+        suporte = re.search(r'(?<![\w])_NET_ACTIVE_WINDOW(?![\w])', raiz.stdout)
+        if raiz.returncode == 0 and identificador and int(identificador.group(1), 16) and suporte:
+            restante = prazo - time.monotonic()
+            if restante <= 0:
+                break
+            janela = identificador.group(1)
+            filho = subprocess.run(['xprop', '-id', janela, '_NET_SUPPORTING_WM_CHECK', '_NET_WM_NAME'],
+                                   env=ambiente, capture_output=True, text=True, timeout=min(2, restante))
+            confirmacao = re.search(r'_NET_SUPPORTING_WM_CHECK\(WINDOW\):\s*window id # (0x[0-9a-fA-F]+)', filho.stdout)
+            nome = re.search(r'_NET_WM_NAME\(UTF8_STRING\)\s*=\s*"Openbox"', filho.stdout, re.IGNORECASE)
+            if filho.returncode == 0 and confirmacao and int(confirmacao.group(1), 16) == int(janela, 16) and nome:
+                if time.monotonic() >= prazo:
+                    break
+                if wm.poll() is not None:
+                    raise RuntimeError('Gerenciador de janelas encerrou antes de ficar pronto')
+                return
+        restante = prazo - time.monotonic()
+        if restante <= 0:
+            break
+        time.sleep(min(0.1, restante))
+    raise TimeoutError('Gerenciador de janelas não confirmou suporte à ativação')
+
+
 def stderr_sanitizado(arquivo):
     arquivo.flush()
     arquivo.seek(0)
@@ -276,6 +310,9 @@ def main():
                 raise ValueError('Fontconfig selecionou outra fonte')
             etapa = 'iniciar_janela'
             wm = subprocess.Popen(['openbox'], env=ambiente, stdout=subprocess.DEVNULL, stderr=erro_wm, start_new_session=True)
+            etapa = 'aguardar_gerenciador'
+            aguardar_gerenciador(ambiente, wm)
+            etapa = 'iniciar_janela'
             comando = ['/usr/bin/xterm'] + args_xterm[1:-2] + [str(exe), '--session', 'pretorian-visual']
             terminal = subprocess.Popen(comando, env=ambiente, cwd=casa / 'trabalho', stdout=subprocess.DEVNULL,
                                         stderr=erro_terminal, start_new_session=True)
