@@ -1,0 +1,16 @@
+[
+  "@XTERM@",
+  "-fa",
+  "JetBrains Mono",
+  "-fs",
+  "13",
+  "-T",
+  "Pretorian",
+  "-bg",
+  "#f6f7f9",
+  "-fg",
+  "#2f3344",
+  "-e",
+  "@DESTINO@/pretorian",
+  "--interno"
+]
