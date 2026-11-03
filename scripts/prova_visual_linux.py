@@ -102,6 +102,13 @@ def stderr_sanitizado(arquivo):
     return {'texto': texto, 'truncado': len(conteudo) > 16384}
 
 
+def estado_mapa(texto):
+    estado = re.search(r'Map State:\s*(IsViewable|IsUnviewable|IsUn[Mm]apped)\b', texto)
+    if not estado:
+        return 'desconhecido'
+    return 'IsUnmapped' if estado.group(1) in ('IsUnMapped', 'IsUnmapped') else estado.group(1)
+
+
 def inventario_janelas(ambiente, terminal_pid):
     try:
         busca = subprocess.run(['xdotool', 'search', '--class', 'XTerm'], env=ambiente,
@@ -113,17 +120,30 @@ def inventario_janelas(ambiente, terminal_pid):
         janelas = []
         for numero in sorted(ids)[:64]:
             janela = str(numero)
-            props = subprocess.run(['xprop', '-id', janela, '_NET_WM_PID', 'WM_CLASS', 'WM_NAME'],
+            props = subprocess.run(['xprop', '-id', janela, '_NET_WM_PID', 'WM_CLASS', 'WM_NAME', 'WM_STATE'],
                                    env=ambiente, capture_output=True, text=True, timeout=5)
             info = subprocess.run(['xwininfo', '-id', janela], env=ambiente,
                                   capture_output=True, text=True, timeout=5)
             pid = re.search(r'_NET_WM_PID\(CARDINAL\)\s*=\s*(\d+)', props.stdout)
-            estado = re.search(r'Map State:\s*(IsViewable|IsUnviewable|IsUnmapped)', info.stdout)
+            wm_state = re.search(r'window state:\s*(Normal|Iconic|Withdrawn)\b', props.stdout)
+            pai_estado = None
+            corresponde = bool(pid and int(pid.group(1)) == terminal_pid)
+            if corresponde:
+                arvore_pai = subprocess.run(['xwininfo', '-id', janela, '-tree'], env=ambiente,
+                                            capture_output=True, text=True, timeout=5)
+                pai = re.search(r'Parent window id:\s*(0x[0-9a-fA-F]+)', arvore_pai.stdout)
+                if pai:
+                    info_pai = subprocess.run(['xwininfo', '-id', pai.group(1)], env=ambiente,
+                                              capture_output=True, text=True, timeout=5)
+                    pai_estado = estado_mapa(info_pai.stdout)
+                else:
+                    pai_estado = 'desconhecido'
             janelas.append({'id': janela, 'pid': int(pid.group(1)) if pid else None,
-                            'pid_corresponde_terminal': bool(pid and int(pid.group(1)) == terminal_pid),
+                            'pid_corresponde_terminal': corresponde,
                             'classe_xterm': '"XTerm"' in props.stdout,
                             'titulo_pretorian': '"Pretorian"' in props.stdout,
-                            'estado': estado.group(1) if estado else None,
+                            'estado': estado_mapa(info.stdout), 'estado_pai': pai_estado,
+                            'estado_wm': wm_state.group(1) if wm_state else 'desconhecido',
                             'xprop_status': props.returncode, 'xwininfo_status': info.returncode})
         return {'busca_status': busca.returncode, 'arvore_status': arvore.returncode,
                 'quantidade_total': len(ids), 'janelas': janelas}
@@ -319,6 +339,7 @@ def main():
                            'busca_por_pid': ultima_busca,
                            'xterm_status': terminal.poll() if terminal else None,
                            'openbox_status': wm.poll() if wm else None,
+                           'candidato_descendente': candidato_no_terminal(exe, terminal.pid) if terminal else None,
                            'stderr_xterm': stderr_sanitizado(erro_terminal),
                            'stderr_openbox': stderr_sanitizado(erro_wm),
                            'inventario_x11': inventario_janelas(ambiente, terminal.pid if terminal else None)}

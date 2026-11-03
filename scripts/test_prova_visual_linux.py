@@ -15,6 +15,28 @@ import prova_visual_linux as prova
 
 
 class CandidatoVisualTest(unittest.TestCase):
+    def test_estado_mapa_reconhece_grafias_e_nao_deduz_estado_ausente(self):
+        for entrada, esperado in [('IsUnMapped', 'IsUnmapped'), ('IsUnmapped', 'IsUnmapped'),
+                                  ('IsUnviewable', 'IsUnviewable'), ('IsViewable', 'IsViewable')]:
+            with self.subTest(entrada=entrada):
+                self.assertEqual(prova.estado_mapa('  Map State: ' + entrada), esperado)
+        self.assertEqual(prova.estado_mapa('sem informação'), 'desconhecido')
+
+    def test_inventario_registra_pai_e_estado_do_gerenciador_sem_titulo_bruto(self):
+        respostas = [subprocess.CompletedProcess([], 0, '42\n', ''),
+                     subprocess.CompletedProcess([], 0, '  0x2a "privado"\n', ''),
+                     subprocess.CompletedProcess([], 0, '_NET_WM_PID(CARDINAL) = 123\nWM_CLASS(STRING) = "xterm", "XTerm"\nWM_NAME(STRING) = "privado"\nWM_STATE(WM_STATE):\n window state: Iconic\n', ''),
+                     subprocess.CompletedProcess([], 0, ' Map State: IsUnMapped\n', ''),
+                     subprocess.CompletedProcess([], 0, ' Parent window id: 0x2b\n', ''),
+                     subprocess.CompletedProcess([], 0, ' Map State: IsUnviewable\n', '')]
+        with patch.object(prova.subprocess, 'run', side_effect=respostas):
+            dados = prova.inventario_janelas({}, 123)
+        janela = dados['janelas'][0]
+        self.assertTrue(janela['pid_corresponde_terminal'])
+        self.assertEqual((janela['estado'], janela['estado_pai'], janela['estado_wm']),
+                         ('IsUnmapped', 'IsUnviewable', 'Iconic'))
+        self.assertNotIn('privado', json.dumps(dados))
+
     def test_diagnostico_limita_e_oculta_endereco_caminho_e_credencial(self):
         stderr = io.BytesIO(b'xterm: erro /home/pessoa/privado token=segredo https://exemplo.invalid/a\n')
         resultado = prova.stderr_sanitizado(stderr)
