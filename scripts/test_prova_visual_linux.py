@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,35 @@ import prova_visual_linux as prova
 
 
 class CandidatoVisualTest(unittest.TestCase):
+    def test_diagnostico_limita_e_oculta_endereco_caminho_e_credencial(self):
+        stderr = io.BytesIO(b'xterm: erro /home/pessoa/privado token=segredo https://exemplo.invalid/a\n')
+        resultado = prova.stderr_sanitizado(stderr)
+        self.assertNotIn('pessoa', resultado['texto'])
+        self.assertNotIn('segredo', resultado['texto'])
+        self.assertNotIn('exemplo.invalid', resultado['texto'])
+        self.assertIn('xterm: erro', resultado['texto'])
+        self.assertFalse(resultado['truncado'])
+        self.assertTrue(prova.stderr_sanitizado(io.BytesIO(b'a' * 16385))['truncado'])
+        for linha in (b'Authorization: Bearer SEGREDO_SINTETICO\n',
+                      b'password="SEGREDO COM ESPACOS"\n'):
+            texto = prova.stderr_sanitizado(io.BytesIO(linha))['texto']
+            self.assertNotIn('SEGREDO', texto)
+            self.assertNotIn('ESPACOS', texto)
+            self.assertIn('[removido]', texto)
+
+    def test_inventario_distingue_janela_sem_pid_e_nao_expoe_titulo(self):
+        respostas = [subprocess.CompletedProcess([], 0, '42\n', ''),
+                     subprocess.CompletedProcess([], 0, '  0x2a "título privado"\n', ''),
+                     subprocess.CompletedProcess([], 0, '_NET_WM_PID: not found.\nWM_CLASS(STRING) = "xterm", "XTerm"\nWM_NAME(STRING) = "privado"', ''),
+                     subprocess.CompletedProcess([], 0, '  Map State: IsViewable\n', '')]
+        with patch.object(prova.subprocess, 'run', side_effect=respostas):
+            dados = prova.inventario_janelas({}, 123)
+        janela = dados['janelas'][0]
+        self.assertIsNone(janela['pid'])
+        self.assertTrue(janela['classe_xterm'])
+        self.assertEqual(janela['estado'], 'IsViewable')
+        self.assertNotIn('privado', json.dumps(dados))
+
     @unittest.skipUnless(sys.platform.startswith('linux'), 'exige /proc e pidfd Linux')
     def test_falha_limpa_pai_e_filho_de_executavel_distinto_antes_da_pasta(self):
         with tempfile.TemporaryDirectory() as raiz, patch.dict(os.environ, {'RUNNER_TEMP': raiz}):

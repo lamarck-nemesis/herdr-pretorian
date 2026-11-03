@@ -387,6 +387,14 @@ jobs:
         shell: bash
         run: |
           xvfb-run -a -s '-screen 0 1440x900x24' python3 scripts/prova_visual_linux.py --candidato "$RUNNER_TEMP/candidato/pretorian-candidato" --fonte "$RUNNER_TEMP/JetBrainsMono-Regular.ttf" --destino "$RUNNER_TEMP/evidencia-visual" --commit "$CANDIDATO_COMMIT" --zip-sha "$CANDIDATO_ZIP" --bin-sha "$CANDIDATO_BINARIO" --run "$CANDIDATO_RUN" --tentativa "$CANDIDATO_TENTATIVA" --artefato "$CANDIDATO_ARTEFATO"
+      - name: Guardar diagnóstico de falha visual
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: diagnostico-visual-linux-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidencia-visual/diagnostico.json
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: prova-visual-linux-${{ github.run_attempt }}

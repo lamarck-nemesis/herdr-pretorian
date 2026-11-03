@@ -90,6 +90,47 @@ def candidato_no_terminal(exe, terminal_pid):
     return False
 
 
+def stderr_sanitizado(arquivo):
+    arquivo.flush()
+    arquivo.seek(0)
+    conteudo = arquivo.read(16385)
+    texto = conteudo[:16384].decode('utf-8', errors='replace')
+    texto = ''.join(c for c in texto if c.isprintable() or c in '\n\t')
+    texto = re.sub(r'(?im)\b(token|password|senha|authorization|secret)[ \t]*[:=][^\n]*', r'\1=[removido]', texto)
+    texto = re.sub(r'https?://\S+', '[endereço removido]', texto)
+    texto = re.sub(r'(?<![\w])/(?:[^\s:\'\"]+)', '[caminho removido]', texto)
+    return {'texto': texto, 'truncado': len(conteudo) > 16384}
+
+
+def inventario_janelas(ambiente, terminal_pid):
+    try:
+        busca = subprocess.run(['xdotool', 'search', '--class', 'XTerm'], env=ambiente,
+                               capture_output=True, text=True, timeout=5)
+        arvore = subprocess.run(['xwininfo', '-root', '-tree'], env=ambiente,
+                                capture_output=True, text=True, timeout=5)
+        ids = {int(s) for s in busca.stdout.splitlines() if s.isascii() and s.isdigit()}
+        ids.update(int(s, 16) for s in re.findall(r'^\s*(0x[0-9a-fA-F]+)\b', arvore.stdout, re.MULTILINE))
+        janelas = []
+        for numero in sorted(ids)[:64]:
+            janela = str(numero)
+            props = subprocess.run(['xprop', '-id', janela, '_NET_WM_PID', 'WM_CLASS', 'WM_NAME'],
+                                   env=ambiente, capture_output=True, text=True, timeout=5)
+            info = subprocess.run(['xwininfo', '-id', janela], env=ambiente,
+                                  capture_output=True, text=True, timeout=5)
+            pid = re.search(r'_NET_WM_PID\(CARDINAL\)\s*=\s*(\d+)', props.stdout)
+            estado = re.search(r'Map State:\s*(IsViewable|IsUnviewable|IsUnmapped)', info.stdout)
+            janelas.append({'id': janela, 'pid': int(pid.group(1)) if pid else None,
+                            'pid_corresponde_terminal': bool(pid and int(pid.group(1)) == terminal_pid),
+                            'classe_xterm': '"XTerm"' in props.stdout,
+                            'titulo_pretorian': '"Pretorian"' in props.stdout,
+                            'estado': estado.group(1) if estado else None,
+                            'xprop_status': props.returncode, 'xwininfo_status': info.returncode})
+        return {'busca_status': busca.returncode, 'arvore_status': arvore.returncode,
+                'quantidade_total': len(ids), 'janelas': janelas}
+    except (OSError, subprocess.SubprocessError) as erro:
+        return {'erro_tipo': type(erro).__name__, 'janelas': []}
+
+
 def processos_marcados(marcador):
     chave = ('PRETORIAN_PROVA_VISUAL=' + marcador).encode()
     encontrados = []
@@ -203,27 +244,36 @@ def main():
                         PRETORIAN_HERDR_STATE_DIR=str(casa / 'estado'), PRETORIAN_HERDR_SOCKET_DIR=str(casa / 'socket'),
                         SHELL='/bin/sh', USER='pretorian')
         ambiente['PRETORIAN_PROVA_VISUAL'] = marcador
+        erro_wm = tempfile.TemporaryFile()
+        erro_terminal = tempfile.TemporaryFile()
+        etapa = 'fonte'
+        ultima_busca = None
+        inicio = time.monotonic()
         try:
             subprocess.run(['fc-cache', '-f', str(fonte_path.parent)], env=ambiente, check=True, timeout=20)
             encontrada = subprocess.check_output(['fc-match', '-f', '%{file}', 'JetBrains Mono'], env=ambiente, text=True, timeout=10)
             if Path(encontrada).resolve() != fonte_path.resolve():
                 raise ValueError('Fontconfig selecionou outra fonte')
-            wm = subprocess.Popen(['openbox'], env=ambiente, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            etapa = 'iniciar_janela'
+            wm = subprocess.Popen(['openbox'], env=ambiente, stdout=subprocess.DEVNULL, stderr=erro_wm, start_new_session=True)
             comando = ['/usr/bin/xterm'] + args_xterm[1:-2] + [str(exe), '--session', 'pretorian-visual']
             terminal = subprocess.Popen(comando, env=ambiente, cwd=casa / 'trabalho', stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL, start_new_session=True)
+                                        stderr=erro_terminal, start_new_session=True)
+            etapa = 'buscar_janela_por_pid'
             janela = ''
             for _ in range(100):
                 if terminal.poll() is not None:
                     raise ValueError('Terminal encerrou antes da captura')
                 resultado = subprocess.run(['xdotool', 'search', '--onlyvisible', '--pid', str(terminal.pid)], env=ambiente,
                                            capture_output=True, text=True, timeout=3)
+                ultima_busca = {'status': resultado.returncode, 'quantidade': len(resultado.stdout.splitlines())}
                 if resultado.returncode == 0 and resultado.stdout.strip():
                     janela = resultado.stdout.splitlines()[0]
                     break
                 time.sleep(0.1)
             if not janela:
                 raise ValueError('Janela não encontrada')
+            etapa = 'ativar_janela'
             subprocess.run(['xdotool', 'windowactivate', '--sync', janela], env=ambiente, check=True, timeout=10)
             ativo = False
             for _ in range(100):
@@ -233,6 +283,7 @@ def main():
                 time.sleep(0.1)
             if not ativo:
                 raise ValueError('Herdr candidato não está em execução')
+            etapa = 'captura'
             time.sleep(2)
             titulo = subprocess.check_output(['xprop', '-id', janela, 'WM_NAME'], env=ambiente, text=True, timeout=10)
             if '"Pretorian"' not in titulo:
@@ -261,6 +312,18 @@ def main():
                          'fonte_resolvida_e_mapeada': True, 'adaptacao': 'Cauda após -e substituída pelo Herdr candidato.',
                          'limite': 'Display virtual; sem lançador, instalação, agente, identidade, login ou homologação.'}
             (destino / 'resultado.json').write_text(json.dumps(resultado, ensure_ascii=False, indent=2) + '\n')
+        except Exception as erro:
+            diagnostico = {'etapa': etapa, 'erro_tipo': type(erro).__name__,
+                           'duracao_segundos': round(time.monotonic() - inicio, 2),
+                           'xterm_iniciado': terminal is not None, 'openbox_iniciado': wm is not None,
+                           'busca_por_pid': ultima_busca,
+                           'xterm_status': terminal.poll() if terminal else None,
+                           'openbox_status': wm.poll() if wm else None,
+                           'stderr_xterm': stderr_sanitizado(erro_terminal),
+                           'stderr_openbox': stderr_sanitizado(erro_wm),
+                           'inventario_x11': inventario_janelas(ambiente, terminal.pid if terminal else None)}
+            (destino / 'diagnostico.json').write_text(json.dumps(diagnostico, ensure_ascii=False, indent=2) + '\n')
+            raise
         finally:
             try:
                 subprocess.run([str(exe), '--session', 'pretorian-visual', 'server', 'stop'], env=ambiente,
@@ -269,7 +332,11 @@ def main():
                 try:
                     parar(terminal)
                 finally:
-                    parar(wm)
+                    try:
+                        parar(wm)
+                    finally:
+                        erro_terminal.close()
+                        erro_wm.close()
 
 
 if __name__ == '__main__':
