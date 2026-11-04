@@ -1,0 +1,31 @@
+[terminal]
+new_cwd = "current"
+
+[ui]
+window_title = "Pretorian"
+tab_bar_right = [{ type = "text", text = "Pretorian" }]
+
+[theme]
+name = "catppuccin-latte"
+auto_switch = false
+
+[theme.custom]
+accent = "#464c65"
+panel_bg = "#ffffff"
+sidebar_bg = "#f6f7f9"
+active_row_bg = "#f1f3f5"
+selection_bg = "#e0e4eb"
+surface0 = "#f1f3f5"
+surface1 = "#e0e4eb"
+surface_dim = "#f6f7f9"
+overlay0 = "#686c75"
+overlay1 = "#686c75"
+text = "#2f3344"
+subtext0 = "#686c75"
+mauve = "#464c65"
+green = "#686c75"
+yellow = "#686c75"
+red = "#a1514c"
+blue = "#464c65"
+teal = "#686c75"
+peach = "#686c75"

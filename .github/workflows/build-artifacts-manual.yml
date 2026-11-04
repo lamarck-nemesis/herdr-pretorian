@@ -3,6 +3,28 @@ name: Build artifacts (manual)
 on:
   workflow_dispatch:
     inputs:
+      prova_visual:
+        description: Capturar somente a aparência de candidato Linux existente
+        type: boolean
+        default: false
+      candidato_run:
+        description: Identificador da construção candidata
+        type: string
+      candidato_tentativa:
+        description: Tentativa da construção candidata
+        type: string
+      candidato_artefato:
+        description: Identificador do artefato Linux
+        type: string
+      candidato_commit:
+        description: Commit completo da construção candidata
+        type: string
+      candidato_zip_sha256:
+        description: SHA-256 do ZIP candidato
+        type: string
+      candidato_binario_sha256:
+        description: SHA-256 do executável candidato
+        type: string
       build_group:
         description: which artifacts to build
         required: true
@@ -42,7 +64,7 @@ env:
 
 jobs:
   build-linux:
-    if: ${{ inputs.build_group == 'linux' || inputs.build_group == 'all' }}
+    if: ${{ !inputs.prova_visual && (inputs.build_group == 'linux' || inputs.build_group == 'all') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -146,7 +168,7 @@ jobs:
           retention-days: 7
 
   build-macos:
-    if: ${{ inputs.build_group == 'macos' || inputs.build_group == 'all' }}
+    if: ${{ !inputs.prova_visual && (inputs.build_group == 'macos' || inputs.build_group == 'all') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -229,7 +251,7 @@ jobs:
           retention-days: 7
 
   build-windows:
-    if: ${{ inputs.build_group == 'windows' || inputs.build_group == 'all' }}
+    if: ${{ !inputs.prova_visual && (inputs.build_group == 'windows' || inputs.build_group == 'all') }}
     runs-on: windows-latest
     env:
       LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
@@ -314,4 +336,68 @@ jobs:
             vendor/libghostty-vt/LICENSE
             vendor/portable-pty/LICENSE.md
             packaging/licenses/
+          retention-days: 7
+
+  prova-visual-linux:
+    if: ${{ inputs.prova_visual }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CANDIDATO_RUN: ${{ inputs.candidato_run }}
+      CANDIDATO_TENTATIVA: ${{ inputs.candidato_tentativa }}
+      CANDIDATO_ARTEFATO: ${{ inputs.candidato_artefato }}
+      CANDIDATO_COMMIT: ${{ inputs.candidato_commit }}
+      CANDIDATO_ZIP: ${{ inputs.candidato_zip_sha256 }}
+      CANDIDATO_BINARIO: ${{ inputs.candidato_binario_sha256 }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/test_prova_visual_linux.py
+      - name: Conferir origem da construção e do artefato
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          [[ "$CANDIDATO_RUN" =~ ^[0-9]+$ && "$CANDIDATO_TENTATIVA" =~ ^[0-9]+$ && "$CANDIDATO_ARTEFATO" =~ ^[0-9]+$ ]]
+          [[ "$CANDIDATO_COMMIT" =~ ^[a-f0-9]{40}$ && "$CANDIDATO_ZIP" =~ ^[a-f0-9]{64}$ && "$CANDIDATO_BINARIO" =~ ^[a-f0-9]{64}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATO_RUN/attempts/$CANDIDATO_TENTATIVA" > "$RUNNER_TEMP/run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$CANDIDATO_ARTEFATO" > "$RUNNER_TEMP/artefato.json"
+          jq -e --arg sha "$CANDIDATO_COMMIT" --argjson tentativa "$CANDIDATO_TENTATIVA" '.head_sha == $sha and .run_attempt == $tentativa and .conclusion == "success" and .path == ".github/workflows/build-artifacts-manual.yml"' "$RUNNER_TEMP/run.json" > /dev/null
+          jq -e --argjson run "$CANDIDATO_RUN" '.workflow_run.id == $run and .expired == false and .name == "herdr-linux-x86_64-ReleaseSafe-simd-false"' "$RUNNER_TEMP/artefato.json" > /dev/null
+          jq -n -e --slurpfile r "$RUNNER_TEMP/run.json" --slurpfile a "$RUNNER_TEMP/artefato.json" '$a[0].created_at >= $r[0].run_started_at and $a[0].created_at <= $r[0].updated_at' > /dev/null
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ inputs.candidato_artefato }}
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidato_run }}
+          path: ${{ runner.temp }}/candidato
+      - name: Preparar terminal e fonte pública
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xterm openbox xdotool x11-utils imagemagick fontconfig xauth tesseract-ocr
+          curl --fail --location --silent --show-error https://raw.githubusercontent.com/JetBrains/JetBrainsMono/v2.304/fonts/ttf/JetBrainsMono-Regular.ttf -o "$RUNNER_TEMP/JetBrainsMono-Regular.ttf"
+      - name: Capturar candidato sem autenticação
+        shell: bash
+        run: |
+          xvfb-run -a -s '-screen 0 1440x900x24' python3 scripts/prova_visual_linux.py --candidato "$RUNNER_TEMP/candidato/pretorian-candidato" --fonte "$RUNNER_TEMP/JetBrainsMono-Regular.ttf" --destino "$RUNNER_TEMP/evidencia-visual" --commit "$CANDIDATO_COMMIT" --zip-sha "$CANDIDATO_ZIP" --bin-sha "$CANDIDATO_BINARIO" --run "$CANDIDATO_RUN" --tentativa "$CANDIDATO_TENTATIVA" --artefato "$CANDIDATO_ARTEFATO"
+      - name: Guardar diagnóstico de falha visual
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: diagnostico-visual-linux-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidencia-visual/diagnostico.json
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: prova-visual-linux-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidencia-visual/*
+          if-no-files-found: error
           retention-days: 7
