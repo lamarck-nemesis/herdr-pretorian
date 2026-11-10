@@ -1,0 +1,16 @@
+{
+  "repositorio": "lamarck-nemesis/pretorian-monorepo",
+  "commit": "62e829281b6967fe7124d8a52b3ff9586edd6a3a",
+  "configuracao": "operacao-cli/comum/abrir_pretorian.py:abrir",
+  "argumentos": "operacao-cli/comum/instalar_fonte.py:configurar_terminal",
+  "fontes_sha256": {
+    "operacao-cli/comum/abrir_pretorian.py": "fcbfc6feae67d07f344945bc02c34c68593b416548c1b51c51aa99ede5659de4",
+    "operacao-cli/comum/instalar_fonte.py": "d856061534aa0d95f3b08eb79f05ccf6d610f1172f098cf52afe4764e309d4ba"
+  },
+  "geracao": "Preparação do agente e início do fork interceptados; caminhos locais substituídos por marcadores.",
+  "arquivos": {
+    "aparencia.toml": "61346721810fa110f706e7c2ba315179bcf67d35d642809f20b546434fcb555d",
+    "xterm.json": "50e365d8bbb792419951b8444c4ef77dd24ff60e2360aca778392f5c7a98c7f0"
+  },
+  "fonte_sha256": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f"
+}
