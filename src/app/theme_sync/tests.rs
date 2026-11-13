@@ -15,7 +15,25 @@ const LIGHT: RgbColor = RgbColor {
     b: 255,
 };
 
+/// Tema que acompanha o hospedeiro; o padrão (Pretorian) fixa as cores dos painéis.
 fn app() -> App {
+    app_com_tema("catppuccin")
+}
+
+fn app_com_tema(nome: &str) -> App {
+    let (_, api_rx) = mpsc::unbounded_channel();
+    let config: crate::config::Config =
+        toml::from_str(&format!("[theme]\nname = \"{nome}\"\n")).unwrap();
+    App::new(
+        &config,
+        crate::app::AppPolicy::TEST,
+        None,
+        api_rx,
+        crate::api::EventHub::default(),
+    )
+}
+
+fn app_pretorian() -> App {
     let (_, api_rx) = mpsc::unbounded_channel();
     App::new(
         &crate::config::Config::default(),
@@ -209,4 +227,61 @@ async fn pane_created_during_appearance_hold_gets_consistent_pair() {
     for (_, runtime) in app.terminal_runtimes.drain() {
         runtime.shutdown();
     }
+}
+
+const FUNDO_PRETORIAN: &[u8] = b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\";
+
+#[tokio::test]
+async fn tema_pretorian_fixa_fundo_claro_dos_paineis_em_hospedeiro_escuro() {
+    let mut app = app_pretorian();
+    background(&mut app, DARK);
+    app.set_host_terminal_appearance_state(Some(HostAppearance::Dark), true);
+    let (runtime, mut rx) = TerminalRuntime::test_with_channel(80, 24);
+    runtime.apply_host_terminal_theme(app.pane_terminal_theme());
+    runtime.apply_host_terminal_appearance(app.pane_host_terminal_appearance());
+    runtime.test_process_pty_bytes(b"\x1b[?2031h");
+    let id = TerminalId::alloc();
+    app.terminal_runtimes.insert(id.clone(), runtime);
+
+    assert_eq!(
+        query(&app, &id, b"\x1b]11;?\x07"),
+        [Bytes::copy_from_slice(FUNDO_PRETORIAN)]
+    );
+    assert_eq!(
+        query(&app, &id, b"\x1b[?996n"),
+        [Bytes::from_static(b"\x1b[?997;2n")]
+    );
+
+    // Uma mudança de aparência do hospedeiro não troca o fundo fixo dos painéis.
+    background(&mut app, LIGHT);
+    app.set_host_terminal_appearance_state(Some(HostAppearance::Light), true);
+    background(&mut app, DARK);
+    app.set_host_terminal_appearance_state(Some(HostAppearance::Dark), true);
+    assert_eq!(
+        query(&app, &id, b"\x1b]11;?\x07"),
+        [Bytes::copy_from_slice(FUNDO_PRETORIAN)]
+    );
+    assert_eq!(
+        query(&app, &id, b"\x1b[?996n"),
+        [Bytes::from_static(b"\x1b[?997;2n")]
+    );
+    while let Ok(report) = rx.try_recv() {
+        assert_ne!(
+            report,
+            b"\x1b[?997;1n"[..],
+            "painel não pode ser avisado de tema escuro"
+        );
+    }
+}
+
+#[test]
+fn outros_temas_seguem_o_hospedeiro() {
+    let mut app = app_com_tema("tokyo-night");
+    background(&mut app, DARK);
+    assert_eq!(app.pane_terminal_theme(), app.state.host_terminal_theme);
+    app.set_host_terminal_appearance_state(Some(HostAppearance::Dark), true);
+    assert_eq!(
+        app.pane_host_terminal_appearance(),
+        Some(HostAppearance::Dark)
+    );
 }

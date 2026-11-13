@@ -22,7 +22,7 @@ pub(crate) struct PopupPaneState {
     pub height: Option<crate::popup_size::PopupSize>,
 }
 
-use crate::terminal_theme::{HostAppearance, TerminalTheme};
+use crate::terminal_theme::{HostAppearance, RgbColor, TerminalTheme};
 use crate::workspace::Workspace;
 
 // ---------------------------------------------------------------------------
@@ -121,6 +121,30 @@ impl Palette {
             blue: Color::Rgb(30, 102, 245),
             teal: Color::Rgb(23, 146, 153),
             peach: Color::Rgb(254, 100, 11),
+        }
+    }
+
+    /// No tema Pretorian os painéis usam fundo e texto próprios, independentes do terminal
+    /// hospedeiro. Sem isso, foot, Windows Terminal (WSL) e qualquer terminal escuro mostram a
+    /// barra lateral clara ao lado de painéis escuros. Devolve `(texto, fundo)` quando vale.
+    pub fn cores_paineis_fixas(&self, theme_name: &str) -> Option<(RgbColor, RgbColor)> {
+        if crate::config::canonical_theme_name(theme_name) != Some("pretorian") {
+            return None;
+        }
+        match (self.text, self.panel_bg) {
+            (Color::Rgb(tr, tg, tb), Color::Rgb(fr, fg, fb)) => Some((
+                RgbColor {
+                    r: tr,
+                    g: tg,
+                    b: tb,
+                },
+                RgbColor {
+                    r: fr,
+                    g: fg,
+                    b: fb,
+                },
+            )),
+            _ => None,
         }
     }
 
@@ -1382,6 +1406,24 @@ mod tests {
             Palette::pretorian()
         );
         assert_eq!(Palette::from_name("pretorian"), Some(Palette::pretorian()));
+    }
+
+    #[test]
+    fn cores_paineis_fixas_so_no_tema_pretorian() {
+        let (texto, fundo) = Palette::pretorian()
+            .cores_paineis_fixas("pretorian")
+            .expect("tema Pretorian fixa as cores dos painéis");
+        assert_eq!((texto.r, texto.g, texto.b), (47, 51, 68));
+        assert_eq!((fundo.r, fundo.g, fundo.b), (255, 255, 255));
+        assert!(Palette::pretorian()
+            .cores_paineis_fixas("Pretorian")
+            .is_some());
+        assert!(Palette::catppuccin_latte()
+            .cores_paineis_fixas("catppuccin-latte")
+            .is_none());
+        let mut transparente = Palette::pretorian();
+        transparente.panel_bg = Color::Reset;
+        assert!(transparente.cores_paineis_fixas("pretorian").is_none());
     }
 
     #[test]
