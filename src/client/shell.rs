@@ -243,7 +243,31 @@ fn panel_contrast_fg(palette: &Palette) -> ratatui::style::Color {
     }
 }
 
-fn blit_pane_surface(target: &mut FrameData, source: &FrameData, area: Rect) {
+/// Cores padrão `(texto, fundo)` já codificadas para o protocolo, quando o tema fixa as cores
+/// dos painéis (tema Pretorian). Células sem cor própria (`Reset`) recebem essas cores em vez
+/// das do terminal hospedeiro.
+fn cores_paineis_codificadas(palette: &Palette, theme_name: &str) -> Option<(u32, u32)> {
+    palette
+        .cores_paineis_fixas(theme_name)
+        .map(|(texto, fundo)| {
+            (
+                crate::protocol::color_to_u32(ratatui::style::Color::Rgb(
+                    texto.r, texto.g, texto.b,
+                )),
+                crate::protocol::color_to_u32(ratatui::style::Color::Rgb(
+                    fundo.r, fundo.g, fundo.b,
+                )),
+            )
+        })
+}
+
+fn blit_pane_surface(
+    target: &mut FrameData,
+    source: &FrameData,
+    area: Rect,
+    cores_fixas: Option<(u32, u32)>,
+) {
+    let padrao = crate::protocol::color_to_u32(ratatui::style::Color::Reset);
     let copy_width = source.width.min(area.width);
     let copy_height = source.height.min(area.height);
     let hyperlink_base = target.hyperlinks.len() as u32;
@@ -262,6 +286,14 @@ fn blit_pane_surface(target: &mut FrameData, source: &FrameData, area: Rect) {
                 continue;
             };
             *target_cell = source_cell.clone();
+            if let Some((texto, fundo)) = cores_fixas {
+                if target_cell.fg == padrao {
+                    target_cell.fg = texto;
+                }
+                if target_cell.bg == padrao {
+                    target_cell.bg = fundo;
+                }
+            }
             target_cell.hyperlink = source_cell.hyperlink.and_then(|index| {
                 ((index as usize) < source.hyperlinks.len()).then_some(hyperlink_base + index)
             });

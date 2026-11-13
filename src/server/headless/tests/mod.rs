@@ -4026,6 +4026,10 @@ async fn foreground_switch_coalesces_pending_appearance_before_releasing_colors(
 
     for incoming in [Some(HostAppearance::Dark), None] {
         let mut server = test_headless_server();
+        // O tema padrão (Pretorian) fixa as cores dos painéis; aqui vale um que segue o hospedeiro.
+        server.app.state.theme_name = "catppuccin".into();
+        server.app.state.palette = crate::app::state::Palette::catppuccin();
+        server.app.state.theme_runtime.manual_name = "catppuccin".into();
         server.app.set_host_terminal_theme(TerminalTheme {
             background: Some(RgbColor {
                 r: 17,

@@ -135,7 +135,7 @@ impl App {
             rows,
             cols,
             self.state.pane_scrollback_limit_bytes,
-            self.state.host_terminal_theme,
+            self.pane_terminal_theme(),
             self.pane_host_terminal_appearance(),
             crate::pane::PaneShellConfig::new(&self.state.default_shell, self.state.shell_mode),
             self.event_tx.clone(),
