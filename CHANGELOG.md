@@ -2,15 +2,6 @@
 
 ## Unreleased
 
-### Pretorian
-- Tema claro `pretorian`, título externo `Pretorian` e cabeçalho `Pretorian · Nome` passam a ser o padrão embutido; um `config.toml` explícito continua prevalecendo.
-- Nova seção **usuário** nas configurações grava `[pretorian] nome` e atualiza o cabeçalho sem reiniciar.
-- Configuração e estado ficam em `~/.config/pretorian` e `~/.local/state/pretorian`, sem tocar em um Herdr pessoal.
-- Botões `esc fechar` e `↵ continuar` deixam de sair cortados; avisos acentuados são medidos em colunas.
-- Mensagens próprias de conexão, sessão, servidor, ponte remota e validação de configuração traduzidas; `just instalar` compila e instala `pretorian` a partir do clone.
-- `just instalar` no Windows grava `%LOCALAPPDATA%\Programs\pretorian\pretorian.exe` com a pasta `conpty` ao lado; `NOTICE` registra que este é um fork modificado do Herdr.
-- No tema `pretorian` os painéis usam fundo e texto próprios (`#ffffff`/`#2f3344`) e informam tema claro aos programas internos, sem depender das cores do terminal hospedeiro; foot e Windows Terminal via WSL deixam de mostrar painéis escuros ao lado da barra lateral clara.
-
 ## [0.9.5] - 2026-10-14
 
 This is a hotfix release for v0.9.4. See the v0.9.4 notes for the full feature release: https://github.com/herdrdev/herdr/releases/tag/v0.9.4

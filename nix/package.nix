@@ -50,6 +50,7 @@ rustPlatform.buildRustPackage {
         ../build.rs
         ../Cargo.lock
         ../Cargo.toml
+        ../VERSION
         ../skills/herdr/SKILL.md
       ]
     );
