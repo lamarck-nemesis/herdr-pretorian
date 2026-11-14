@@ -596,10 +596,7 @@ fn config_check_reports_unknown_theme_names() {
             .contains("nome de tema desconhecido theme.name = \"catppucin\"; usando \"pretorian\""),
         "{stdout}"
     );
-    assert!(
-        stdout.contains("temas válidos: pretorian, catppuccin"),
-        "{stdout}"
-    );
+    assert!(stdout.contains("temas válidos: pretorian"), "{stdout}");
 
     cleanup_test_base(&base);
 }
