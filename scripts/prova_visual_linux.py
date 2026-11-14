@@ -342,8 +342,8 @@ def main():
                 raise ValueError('Herdr candidato não está em execução')
             etapa = 'captura'
             time.sleep(2)
-            titulo = subprocess.check_output(['xprop', '-id', janela, 'WM_NAME'], env=ambiente, text=True, timeout=10)
-            if '"Pretorian"' not in titulo:
+            titulo = subprocess.check_output(['xprop', '-id', janela, '_NET_WM_NAME'], env=ambiente, text=True, timeout=10)
+            if '"LSA • prεtοrιαn"' not in titulo:
                 raise ValueError('Título externo divergente')
             mapas = Path(f'/proc/{terminal.pid}/maps').read_text()
             if str(fonte_path) not in mapas:
@@ -360,8 +360,8 @@ def main():
                 raise ValueError('Captura inválida')
             texto = subprocess.check_output(['tesseract', str(destino / 'cliente.png'), 'stdout'],
                                              env=ambiente, text=True, stderr=subprocess.DEVNULL, timeout=20)
-            if 'Pretorian' not in texto:
-                raise ValueError('Cabeçalho Pretorian não identificado na captura')
+            if 'Trabalho' not in texto:
+                raise ValueError('Cabeçalho Área de Trabalho não identificado na captura')
             resultado = {'run': args.run, 'tentativa': args.tentativa, 'artefato': args.artefato, 'commit_fork': args.commit,
                          'sha256_zip': args.zip_sha, 'sha256_executavel': args.bin_sha,
                          'origem_aparencia': origem, 'sha256_tela': digest(imagem), 'sha256_cliente': digest(cliente),
