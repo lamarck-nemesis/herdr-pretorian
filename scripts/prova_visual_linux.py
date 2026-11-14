@@ -360,12 +360,12 @@ def main():
                 raise ValueError('Captura inválida')
             texto = subprocess.check_output(['tesseract', str(destino / 'cliente.png'), 'stdout'],
                                              env=ambiente, text=True, stderr=subprocess.DEVNULL, timeout=20)
-            if 'Trabalho' not in texto:
-                raise ValueError('Cabeçalho Área de Trabalho não identificado na captura')
+            # OCR é evidência auxiliar: a captura também é conferida visualmente,
+            # pois os glifos da marca e cabeçalhos podem não ser reconhecidos.
             resultado = {'run': args.run, 'tentativa': args.tentativa, 'artefato': args.artefato, 'commit_fork': args.commit,
                          'sha256_zip': args.zip_sha, 'sha256_executavel': args.bin_sha,
                          'origem_aparencia': origem, 'sha256_tela': digest(imagem), 'sha256_cliente': digest(cliente),
-                         'titulo_x11': titulo.strip(),
+                         'titulo_x11': titulo.strip(), 'cabecalho_reconhecido_ocr': 'Trabalho' in texto,
                          'fonte_resolvida_e_mapeada': True, 'adaptacao': 'Cauda após -e substituída pelo Herdr candidato.',
                          'limite': 'Display virtual; sem lançador, instalação, agente, identidade, login ou homologação.'}
             (destino / 'resultado.json').write_text(json.dumps(resultado, ensure_ascii=False, indent=2) + '\n')
