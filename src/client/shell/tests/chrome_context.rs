@@ -148,7 +148,7 @@ fn focused_last_overflow_tab_shows_its_full_label() {
 fn focused_workspace_change_reveals_new_workspace_in_full_sidebar() {
     let mut initial = snapshot();
     let template = initial.workspaces[0].clone();
-    initial.workspaces = (1..=12)
+    initial.workspaces = (1..=24)
         .map(|number| ClientShellWorkspace {
             workspace_id: format!("ws_{number}"),
             number,
@@ -168,13 +168,13 @@ fn focused_workspace_change_reveals_new_workspace_in_full_sidebar() {
         .hits
         .workspaces
         .iter()
-        .all(|hit| hit.workspace_id != "ws_12"));
+        .all(|hit| hit.workspace_id != "ws_24"));
 
     let mut update = state.snapshot.as_deref().expect("snapshot").clone();
     update.revision = 2;
-    update.focused_workspace_id = Some("ws_12".into());
+    update.focused_workspace_id = Some("ws_24".into());
     for workspace in &mut update.workspaces {
-        workspace.focused = workspace.workspace_id == "ws_12";
+        workspace.focused = workspace.workspace_id == "ws_24";
     }
     let mut updated_surface = surface();
     updated_surface.projection_revision = 2;
@@ -188,12 +188,13 @@ fn focused_workspace_change_reveals_new_workspace_in_full_sidebar() {
         .hits
         .workspaces
         .iter()
-        .any(|hit| hit.workspace_id == "ws_12"));
+        .any(|hit| hit.workspace_id == "ws_24"));
 }
 
 #[test]
 fn client_owned_sidebar_dividers_resize_live() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.config.show_agent_panel = true;
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("expanded sidebar");
@@ -234,7 +235,7 @@ fn client_owned_sidebar_dividers_resize_live() {
         .map(|cell| cell.symbol.as_str())
         .collect();
     assert!(
-        waiting_text.contains(" espaços"),
+        waiting_text.contains(" Área de Trabalho"),
         "local sidebar must keep spaces while resizing: {waiting_text}"
     );
     assert!(!waiting_text.contains(" máquinas"));
@@ -273,7 +274,7 @@ fn client_owned_sidebar_dividers_resize_live() {
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect();
-    assert!(recovered_text.contains(" espaços"));
+    assert!(recovered_text.contains(" Área de Trabalho"));
     assert!(recovered_text.contains("LIVE"));
     assert!(!state.hits.panes.is_empty());
     let section_divider = state.hits.sidebar_section_divider;

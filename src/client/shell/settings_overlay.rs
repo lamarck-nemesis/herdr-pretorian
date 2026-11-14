@@ -132,36 +132,6 @@ pub(super) fn render_settings_overlay(
         ClientSettingsSection::Usuario => {
             cursor = render_usuario_section(buffer, content, settings, palette);
         }
-        ClientSettingsSection::Theme => {
-            let visible = usize::from(content.height);
-            let scroll = settings.selected.saturating_sub(visible.saturating_sub(1));
-            for (visible_index, (index, name)) in crate::config::THEME_NAMES
-                .iter()
-                .enumerate()
-                .skip(scroll)
-                .take(visible)
-                .enumerate()
-            {
-                let rect = Rect::new(
-                    content.x,
-                    content.y + visible_index as u16,
-                    content.width,
-                    1,
-                );
-                draw_choice(
-                    buffer,
-                    rect,
-                    name,
-                    index == settings.selected,
-                    super::super::settings::normalized_theme_name(name)
-                        == super::super::settings::normalized_theme_name(
-                            &settings.original_theme_name,
-                        ),
-                    palette,
-                );
-                choice_hits.push((rect, index));
-            }
-        }
         ClientSettingsSection::Indicators => {
             render_choice_section(
                 buffer,
@@ -170,7 +140,7 @@ pub(super) fn render_settings_overlay(
                 "escolha cores ou símbolos para cada estado",
                 &[
                     "pontos coloridos  ● ● ● ○ ·",
-                    "símbolos distintos  × ◐ ✓ ○ ·",
+                    "símbolos distintos  ▲ ◐ ✓ ○ ·",
                 ],
                 settings.selected,
                 palette,
@@ -288,7 +258,7 @@ fn render_usuario_section(
         area.x,
         area.y + 1,
         area.width,
-        "aparece no cabeçalho como Pretorian · nome",
+        "aparece no título da janela depois da marca",
         Style::default().fg(palette.overlay1).bg(palette.panel_bg),
     );
     if area.height < 6 {

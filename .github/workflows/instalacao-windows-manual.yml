@@ -36,6 +36,11 @@ jobs:
           if (-not (Test-Path $instalado)) { throw "pretorian.exe nao instalado em $instalado" }
           if (-not (Test-Path (Join-Path (Split-Path $instalado) "conpty\conpty.dll"))) { throw "conpty ausente ao lado do pretorian.exe instalado" }
           & $instalado --version
+          $fragmento = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\Fragments\Pretorian\pretorian.json"
+          $perfil = (Get-Content -Raw $fragmento | ConvertFrom-Json).profiles[0]
+          if ($perfil.tabColor -ne "#464c65") { throw "perfil do Windows Terminal sem a cor do Pretorian" }
+          if (-not (Test-Path $perfil.icon)) { throw "icone do perfil ausente em $($perfil.icon)" }
+          if (-not (Test-Path (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Pretorian.lnk"))) { throw "atalho Pretorian ausente no menu Iniciar" }
           $cfg = & $instalado --default-config
           if (-not ($cfg | Select-String -Quiet 'name = "pretorian"')) { throw "config padrao sem tema pretorian" }
           if (-not ($cfg | Select-String -Quiet 'window_title = "Pretorian"')) { throw "config padrao sem titulo Pretorian" }

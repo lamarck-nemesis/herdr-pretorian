@@ -1153,7 +1153,7 @@ fn current_release_notes_use_whats_new_without_attention_badge() {
 }
 
 #[test]
-fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overlay() {
+fn client_settings_close_and_endpoint_integrations_are_owned_by_overlay() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
@@ -1165,22 +1165,14 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Theme,
+            section: ClientSettingsSection::Usuario,
             ..
         }))
     ));
-    let original_theme = state.config.theme_name.clone();
-    let original_palette = state.config.palette.clone();
-    state.handle_input_bytes(b"j");
-    assert_ne!(state.config.theme_name, original_theme);
-    assert_ne!(state.config.palette.accent, original_palette.accent);
     state.handle_input_bytes(b"\x1b");
     assert!(state.overlay.is_none());
-    assert_eq!(state.config.theme_name, original_theme);
-    assert_eq!(state.config.palette.accent, original_palette.accent);
 
     state.open_settings_overlay();
-    state.handle_input_bytes(b"j");
     state.handle_input_bytes(b"\t");
     state
         .compose(106, 30)
@@ -1192,8 +1184,6 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
         modifiers: KeyModifiers::empty(),
     })]);
     assert!(state.overlay.is_none());
-    assert_eq!(state.config.theme_name, original_theme);
-    assert_eq!(state.config.palette.accent, original_palette.accent);
 
     state.open_settings_overlay();
     state.compose(106, 30).expect("settings overlay");

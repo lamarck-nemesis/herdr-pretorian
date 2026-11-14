@@ -20,6 +20,7 @@ fn remote_profile() -> SavedSshEndpoint {
 #[test]
 fn filtered_combined_sidebar_shows_empty_message_in_portuguese() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.config.show_agent_panel = true;
     state.set_endpoint_catalog(&[remote_profile()]);
     let mut projected = snapshot();
     projected.agent_view_label = Some("Equipe".into());
@@ -520,6 +521,7 @@ fn selecting_a_reconnecting_machine_retries_it() {
 
 fn state_with_scrollable_agents() -> (ClientShellState, ClientEndpointId) {
     let (mut state, remote) = state_with_remote();
+    state.config.show_agent_panel = true;
     for endpoint_id in [ClientEndpointId::Local, remote.clone()] {
         let mut projection = state
             .endpoints
@@ -1389,7 +1391,7 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
     );
 
     state.workspace_scroll = usize::MAX;
-    state.compose(100, 18).expect("scrolled endpoint frame");
+    state.compose(100, 12).expect("scrolled endpoint frame");
     let metrics = state
         .hits
         .workspace_scroll_metrics
@@ -1476,6 +1478,7 @@ fn aggregate_agents_use_configured_rows_machine_token_and_status_colors() {
         AgentSidebarToken::Agent,
     ]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1502,7 +1505,7 @@ fn aggregate_agents_use_configured_rows_machine_token_and_status_colors() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("○ Local · local agent"), "frame: {text}");
-    assert!(text.contains("× Build · remote agent"), "frame: {text}");
+    assert!(text.contains("▲ Build · remote agent"), "frame: {text}");
     assert!(text.contains("agrupados"), "frame: {text}");
     let toggle = state.hits.agent_sort_toggle;
     assert!(!toggle.is_empty());
@@ -1524,7 +1527,7 @@ fn aggregate_agents_use_configured_rows_machine_token_and_status_colors() {
     assert!(buffer
         .content()
         .iter()
-        .any(|cell| cell.symbol() == "×" && cell.fg == state.config.palette.red));
+        .any(|cell| cell.symbol() == "▲" && cell.fg == state.config.palette.red));
 }
 
 #[test]
@@ -1536,6 +1539,7 @@ fn current_workspace_agent_view_excludes_same_workspace_id_on_other_machine() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1602,6 +1606,7 @@ fn current_workspace_or_blocked_keeps_foreign_attention_only() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1672,6 +1677,7 @@ fn selected_default_view_ignores_inactive_endpoint_projection() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1769,6 +1775,7 @@ fn legacy_custom_views_keep_v1_per_endpoint_projection() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1815,6 +1822,7 @@ fn selected_custom_sort_orders_rendering_and_indexed_navigation() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -1946,6 +1954,7 @@ fn aggregate_priority_uses_client_observed_recency_across_machines() {
     config.ui.sidebar.agents.rows =
         vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
     state.set_endpoint_catalog(&[profile]);
@@ -2407,6 +2416,7 @@ fn disconnected_active_endpoint_freezes_surface_and_marks_cached_ui_stale() {
     use crate::config::{AgentSidebarToken, StatusIndicatorStyle};
 
     let (mut state, endpoint_id) = state_with_remote();
+    state.config.show_agent_panel = true;
     state.config.status_indicators = StatusIndicatorStyle::Symbols;
     state.config.agents.rows = vec![vec![
         AgentSidebarToken::StateIcon,
@@ -2456,7 +2466,7 @@ fn disconnected_active_endpoint_freezes_surface_and_marks_cached_ui_stale() {
     let stale_icon = buffer
         .content()
         .iter()
-        .find(|cell| cell.symbol() == "×")
+        .find(|cell| cell.symbol() == "▲")
         .expect("stale blocked icon");
     assert_eq!(stale_icon.fg, state.config.palette.overlay0);
 }

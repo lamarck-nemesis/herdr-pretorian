@@ -29,14 +29,14 @@ pub use self::{
         ToastClipboardPosition, ToastConfig, ToastDelivery, ToastHerdrPosition,
         UpdateChannelConfig, MAX_TOAST_DELAY_SECONDS,
     },
-    pretorian::{cabecalho, sanitizar_nome, PretorianConfig},
+    pretorian::{cabecalho, sanitizar_nome, PretorianConfig, MARCA, SEPARADOR},
     sidebar::{
         AgentSidebarToken, AgentsSidebarConfig, SidebarConfig, SidebarTokenStyle,
         SpaceSidebarToken, SpacesSidebarConfig,
     },
     sound::SoundConfig,
     tab_bar::TabBarRightEntryConfig,
-    theme::{parse_color, CustomThemeColors, ModeThemeColors, ThemeConfig, THEME_NAMES},
+    theme::{parse_color, CustomThemeColors, ModeThemeColors, ThemeConfig},
     window_title::{WindowTitlePart, WindowTitleTemplate, WindowTitleToken},
 };
 

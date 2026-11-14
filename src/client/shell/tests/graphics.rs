@@ -232,7 +232,6 @@ fn endpoint_notice_and_multiline_diagnostic_cover_the_actual_rows() {
 
 #[test]
 fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
-    let palette = ClientShellConfig::from_config(&Config::default()).palette;
     let overlays = vec![
         ClientShellOverlay::Onboarding,
         ClientShellOverlay::ProductAnnouncement(crate::app::state::ProductAnnouncementState {
@@ -310,11 +309,9 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
         }),
         ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay { highlighted: 0 }),
         ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Theme,
+            section: ClientSettingsSection::Usuario,
             selected: 0,
             nome: TextEditor::default(),
-            original_theme_name: String::new(),
-            original_palette: palette,
             integrations: Vec::new(),
             integration_messages: Vec::new(),
             loading_integrations: false,

@@ -72,16 +72,14 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # onboarding = true
 
 [theme]
-# Built-in themes: pretorian, catppuccin, terminal, tokyo-night, dracula,
-#                  nord, gruvbox, one-dark, solarized, kanagawa, rose-pine,
-#                  vesper
+# Built-in themes: pretorian
 # name = "pretorian"
 
 # Follow host terminal light/dark appearance and switch Herdr UI themes.
 # Existing manual behavior is unchanged unless this is true.
 # auto_switch = false
-# dark_name = "catppuccin"
-# light_name = "catppuccin-latte"
+# dark_name = "pretorian"
+# light_name = "pretorian"
 
 # Override individual color tokens on top of the base theme.
 # Accepts: hex (#rrggbb), named colors, rgb(r,g,b), or panel_bg = "reset"
@@ -99,7 +97,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # panel_bg = "#eff1f5"
 # text = "#4c4f69"
 
-# Seção própria do Pretorian. O nome aparece no cabeçalho como "Pretorian · Nome";
+# Seção própria do Pretorian. O nome aparece no título da janela, depois da marca;
 # também pode ser definido em configurações > usuário. Um ui.tab_bar_right explícito
 # substitui esse cabeçalho.
 # [pretorian]
@@ -344,7 +342,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 
 # Agent status indicators: "dots" preserves the compact color marks; "symbols" uses
 # distinct static glyphs for blocked, working, done, idle, and unknown states.
-# status_indicators = "dots"
+# status_indicators = "symbols"
 
 # Accent color for highlights, borders, and navigation UI.
 # Accepts: hex (#89b4fa), named colors (cyan, blue, magenta), or rgb(r,g,b)

@@ -111,8 +111,9 @@ enum LegacyAgentPanelScopeConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusIndicatorStyle {
-    #[default]
     Dots,
+    /// Padrão do Pretorian: o tema usa uma só cor para os estados, então a forma os distingue.
+    #[default]
     Symbols,
 }
 
@@ -1226,7 +1227,7 @@ impl Default for UiConfig {
             window_title: super::window_title::default_window_title(),
             agent_panel_sort: AgentPanelSortConfig::Spaces,
             _legacy_agent_panel_scope: None,
-            status_indicators: StatusIndicatorStyle::Dots,
+            status_indicators: StatusIndicatorStyle::Symbols,
             sidebar: SidebarConfig::default(),
             accent: "cyan".into(),
             toast: ToastConfig::default(),
@@ -1477,20 +1478,20 @@ agent_panel_scope = "current"
     }
 
     #[test]
-    fn status_indicator_style_defaults_to_dots_and_parses_symbols() {
+    fn status_indicator_style_defaults_to_symbols_and_parses_dots() {
         assert_eq!(
             Config::default().ui.status_indicators,
-            StatusIndicatorStyle::Dots
+            StatusIndicatorStyle::Symbols
         );
 
         let config: Config = toml::from_str(
             r#"
 [ui]
-status_indicators = "symbols"
+status_indicators = "dots"
 "#,
         )
         .unwrap();
-        assert_eq!(config.ui.status_indicators, StatusIndicatorStyle::Symbols);
+        assert_eq!(config.ui.status_indicators, StatusIndicatorStyle::Dots);
     }
 
     #[test]

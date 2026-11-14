@@ -532,11 +532,11 @@ mod tests {
     }
 
     #[test]
-    fn app_padrao_mostra_cabecalho_pretorian() {
+    fn app_padrao_mostra_assinatura_na_barra_de_abas() {
         let app = test_app();
         assert_eq!(
             app.state.tab_bar_right,
-            vec![TabBarStatusSegment::Text(Some("Pretorian".into()))]
+            vec![TabBarStatusSegment::Text(Some("⌘ nεαd.tεch │ 2026".into()))]
         );
     }
 
