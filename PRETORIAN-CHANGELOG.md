@@ -9,6 +9,12 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.1.2] - 2026-11-14
+
+### Alterado
+- Tema Pretorian no terminal inteiro, marca no título da janela, nome na barra lateral e menu simplificado.
+- Instalação por `just instalar` configura o perfil Pretorian no terminal do Windows e do macOS.
+
 ## [0.1.1] - 2026-11-14
 
 ### Corrigido
