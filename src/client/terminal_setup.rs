@@ -28,8 +28,11 @@ use super::frame_output::clear_received_kitty_graphics;
 /// Sets up the terminal for client mode (raw mode, optional mouse, keyboard enhancements).
 ///
 /// Returns a guard that restores the terminal when dropped.
-pub(super) fn setup_terminal(mouse_capture: bool) -> io::Result<TerminalGuard> {
-    setup_terminal_with_capabilities(true, mouse_capture)
+pub(super) fn setup_terminal(
+    mouse_capture: bool,
+    host_default_colors: Option<HostDefaultColors>,
+) -> io::Result<TerminalGuard> {
+    setup_terminal_with_capabilities(true, mouse_capture, host_default_colors)
 }
 
 /// Sets up a direct attach terminal.
@@ -38,12 +41,13 @@ pub(super) fn setup_terminal(mouse_capture: bool) -> io::Result<TerminalGuard> {
 /// capture lets wheel events drive the attached viewport or reach child
 /// programs that requested mouse input.
 pub(super) fn setup_direct_attach_terminal(mouse_capture: bool) -> io::Result<TerminalGuard> {
-    setup_terminal_with_capabilities(false, mouse_capture)
+    setup_terminal_with_capabilities(false, mouse_capture, None)
 }
 
 pub(super) fn setup_terminal_with_capabilities(
     enable_client_protocols: bool,
     mouse_capture: bool,
+    host_default_colors: Option<HostDefaultColors>,
 ) -> io::Result<TerminalGuard> {
     ratatui::init();
     let mut terminal_guard = TerminalGuard {
@@ -54,6 +58,7 @@ pub(super) fn setup_terminal_with_capabilities(
         reset_modify_other_keys: false,
         modify_other_keys_sequence: None,
         reset_host_color_scheme_reports: false,
+        restore_host_default_colors: None,
         restore_claimed: Arc::new(AtomicBool::new(false)),
         restored: false,
         #[cfg(windows)]
@@ -77,7 +82,13 @@ pub(super) fn setup_terminal_with_capabilities(
     let (host_probe, buffered_host_input) = if enable_client_protocols {
         terminal_guard.reset_keyboard_enhancements = true;
         push_keyboard_enhancement_flags()?;
-        let (probe, buffered_input) = query_host_capabilities(true);
+        let (probe, mut buffered_input) =
+            query_host_capabilities(true, host_default_colors.is_some());
+        if let Some(colors) = host_default_colors {
+            let original = take_default_color_responses(&mut buffered_input);
+            terminal_guard.restore_host_default_colors = Some(original);
+            write_host_default_colors(&mut io::stdout(), colors)?;
+        }
         set_mouse_capture(mouse_capture, false)?;
         execute!(io::stdout(), EnableBracketedPaste, EnableFocusChange)?;
         if host_color_scheme_reports {
@@ -89,7 +100,7 @@ pub(super) fn setup_terminal_with_capabilities(
         if should_enable_host_color_scheme_reports(true) {
             write_host_color_scheme_report_mode(&mut io::stdout(), false)?;
         }
-        let (probe, buffered_input) = query_host_capabilities(false);
+        let (probe, buffered_input) = query_host_capabilities(false, false);
         set_mouse_capture(mouse_capture, false)?;
         execute!(io::stdout(), EnableBracketedPaste)?;
         (probe, buffered_input)
@@ -143,6 +154,8 @@ pub(super) struct TerminalGuard {
     /// The modifyOtherKeys sequence written at setup, re-sent on refresh.
     modify_other_keys_sequence: Option<&'static [u8]>,
     reset_host_color_scheme_reports: bool,
+    /// Presente quando o tema impôs suas cores ao terminal hospedeiro na abertura.
+    restore_host_default_colors: Option<HostDefaultColorsRestore>,
     restore_claimed: Arc<AtomicBool>,
     restored: bool,
     #[cfg(windows)]
@@ -171,18 +184,26 @@ pub(super) struct HostTerminalProbe {
 }
 
 #[cfg(not(windows))]
-fn query_host_capabilities(query_keyboard: bool) -> (HostTerminalProbe, Vec<u8>) {
+fn query_host_capabilities(
+    query_keyboard: bool,
+    query_default_colors: bool,
+) -> (HostTerminalProbe, Vec<u8>) {
     const FULL_QUERY: &[u8] = b"\x1b[?1016$p\x1b[?u\x1b[c";
     const PIXEL_MOUSE_QUERY: &[u8] = b"\x1b[?1016$p\x1b[c";
 
     let mut buffered_input = Vec::new();
-    let query = if query_keyboard {
+    // As cores vão antes do DA final: a resposta ao DA encerra a leitura.
+    let mut query = Vec::new();
+    if query_default_colors {
+        query.extend_from_slice(crate::terminal_theme::HOST_COLOR_QUERY_SEQUENCE.as_bytes());
+    }
+    query.extend_from_slice(if query_keyboard {
         FULL_QUERY
     } else {
         PIXEL_MOUSE_QUERY
-    };
+    });
     if let Err(err) = io::stdout()
-        .write_all(query)
+        .write_all(&query)
         .and_then(|()| io::stdout().flush())
     {
         tracing::debug!(%err, "host capability query unavailable");
@@ -383,8 +404,96 @@ fn host_control_string_end(bytes: &[u8]) -> Option<Option<usize>> {
 }
 
 #[cfg(windows)]
-fn query_host_capabilities(_query_keyboard: bool) -> (HostTerminalProbe, Vec<u8>) {
+fn query_host_capabilities(
+    _query_keyboard: bool,
+    _query_default_colors: bool,
+) -> (HostTerminalProbe, Vec<u8>) {
     (HostTerminalProbe::default(), Vec::new())
+}
+
+/// Cores padrão que o tema impõe ao terminal hospedeiro enquanto o Pretorian está aberto.
+/// O conteúdo dos painéis usa a cor padrão do hospedeiro; sem isso, um terminal escuro
+/// deixa os painéis pretos dentro da moldura clara.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct HostDefaultColors {
+    pub(super) foreground: crate::terminal_theme::RgbColor,
+    pub(super) background: crate::terminal_theme::RgbColor,
+}
+
+/// Cores que o hospedeiro informou antes da troca. O Terminal da Apple ignora o
+/// reset (OSC 110/111), então a devolução precisa regravar o valor original.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct HostDefaultColorsRestore {
+    foreground: Option<crate::terminal_theme::RgbColor>,
+    background: Option<crate::terminal_theme::RgbColor>,
+}
+
+pub(super) fn write_host_default_colors(
+    writer: &mut impl io::Write,
+    colors: HostDefaultColors,
+) -> io::Result<()> {
+    use crate::terminal_theme::{osc_set_default_color_sequence, DefaultColorKind};
+    writer.write_all(
+        osc_set_default_color_sequence(DefaultColorKind::Foreground, colors.foreground).as_bytes(),
+    )?;
+    writer.write_all(
+        osc_set_default_color_sequence(DefaultColorKind::Background, colors.background).as_bytes(),
+    )?;
+    writer.flush()
+}
+
+pub(super) fn write_host_default_colors_restore(
+    writer: &mut impl io::Write,
+    original: HostDefaultColorsRestore,
+) -> io::Result<()> {
+    use crate::terminal_theme::{
+        osc_reset_default_color_sequence, osc_set_default_color_sequence, DefaultColorKind,
+    };
+    for (kind, color) in [
+        (DefaultColorKind::Foreground, original.foreground),
+        (DefaultColorKind::Background, original.background),
+    ] {
+        writer.write_all(osc_reset_default_color_sequence(kind).as_bytes())?;
+        if let Some(color) = color {
+            writer.write_all(osc_set_default_color_sequence(kind, color).as_bytes())?;
+        }
+    }
+    writer.flush()
+}
+
+/// Retira do buffer as respostas OSC 10/11 da sondagem inicial e devolve as cores lidas.
+fn take_default_color_responses(buffered_input: &mut Vec<u8>) -> HostDefaultColorsRestore {
+    use crate::terminal_theme::{parse_default_color_response, DefaultColorKind};
+    let mut original = HostDefaultColorsRestore::default();
+    let mut offset = 0;
+    while offset < buffered_input.len() {
+        let rest = &buffered_input[offset..];
+        if !(rest.starts_with(b"\x1b]10;") || rest.starts_with(b"\x1b]11;")) {
+            offset += 1;
+            continue;
+        }
+        let terminator = rest[2..]
+            .iter()
+            .enumerate()
+            .find_map(|(index, byte)| match byte {
+                0x07 => Some(index + 3),
+                0x1b if rest.get(index + 3) == Some(&b'\\') => Some(index + 4),
+                _ => None,
+            });
+        let Some(length) = terminator else {
+            break;
+        };
+        let parsed = std::str::from_utf8(&rest[..length])
+            .ok()
+            .and_then(parse_default_color_response);
+        match parsed {
+            Some((DefaultColorKind::Foreground, color)) => original.foreground = Some(color),
+            Some((DefaultColorKind::Background, color)) => original.background = Some(color),
+            None => {}
+        }
+        buffered_input.drain(offset..offset + length);
+    }
+    original
 }
 
 pub(super) fn write_host_color_scheme_report_mode(
@@ -664,6 +773,7 @@ fn restore_terminal_state_once(
     reset_keyboard_enhancements: bool,
     reset_modify_other_keys: bool,
     reset_host_color_scheme_reports: bool,
+    restore_host_default_colors: Option<HostDefaultColorsRestore>,
     #[cfg(windows)] restore_windows_input_mode: &WindowsInputModeRestore,
 ) -> io::Result<()> {
     if restore_claimed.swap(true, Ordering::AcqRel) {
@@ -675,6 +785,7 @@ fn restore_terminal_state_once(
         reset_keyboard_enhancements,
         reset_modify_other_keys,
         reset_host_color_scheme_reports,
+        restore_host_default_colors,
         #[cfg(windows)]
         restore_windows_input_mode,
     )
@@ -684,6 +795,7 @@ fn restore_terminal_state(
     reset_keyboard_enhancements: bool,
     reset_modify_other_keys: bool,
     reset_host_color_scheme_reports: bool,
+    restore_host_default_colors: Option<HostDefaultColorsRestore>,
     #[cfg(windows)] restore_windows_input_mode: Option<u32>,
 ) -> io::Result<()> {
     let _ = clear_received_kitty_graphics(&mut io::stdout());
@@ -713,6 +825,11 @@ fn restore_terminal_state(
     if !is_ssh_session() {
         let _ = disable_windows_native_mouse_capture();
     }
+
+    if let Some(original) = restore_host_default_colors {
+        let _ = write_host_default_colors_restore(&mut io::stdout(), original);
+    }
+    let _ = crate::terminal_effects::write_window_brand_reset(&mut io::stdout());
 
     let restore_result = ratatui::try_restore();
     let postlude_result =
@@ -859,6 +976,7 @@ impl TerminalGuard {
         let reset_keyboard_enhancements = self.reset_keyboard_enhancements;
         let reset_modify_other_keys = self.reset_modify_other_keys;
         let reset_host_color_scheme_reports = self.reset_host_color_scheme_reports;
+        let restore_host_default_colors = self.restore_host_default_colors;
         #[cfg(windows)]
         let restore_windows_input_mode = self.restore_windows_input_mode.clone();
         move || {
@@ -867,6 +985,7 @@ impl TerminalGuard {
                 reset_keyboard_enhancements,
                 reset_modify_other_keys,
                 reset_host_color_scheme_reports,
+                restore_host_default_colors,
                 #[cfg(windows)]
                 &restore_windows_input_mode,
             );
@@ -880,6 +999,7 @@ impl TerminalGuard {
             self.reset_keyboard_enhancements,
             self.reset_modify_other_keys,
             self.reset_host_color_scheme_reports,
+            self.restore_host_default_colors,
             #[cfg(windows)]
             &self.restore_windows_input_mode,
         )
@@ -894,6 +1014,7 @@ impl Drop for TerminalGuard {
                 self.reset_keyboard_enhancements,
                 self.reset_modify_other_keys,
                 self.reset_host_color_scheme_reports,
+                self.restore_host_default_colors,
                 #[cfg(windows)]
                 &self.restore_windows_input_mode,
             );
@@ -904,6 +1025,50 @@ impl Drop for TerminalGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cores_do_tema_sao_impostas_e_devolvidas_ao_hospedeiro() {
+        use crate::terminal_theme::RgbColor;
+        let escuro = RgbColor {
+            r: 0x10,
+            g: 0x10,
+            b: 0x10,
+        };
+        let claro = RgbColor {
+            r: 0xff,
+            g: 0xff,
+            b: 0xff,
+        };
+
+        // Respostas da sondagem misturadas com uma tecla digitada cedo demais.
+        let mut buffered =
+            b"\x1b]10;rgb:d0d0/d0d0/d0d0\x1b\\a\x1b]11;rgb:1010/1010/1010\x07".to_vec();
+        let original = take_default_color_responses(&mut buffered);
+        assert_eq!(buffered, b"a");
+        assert_eq!(original.background, Some(escuro));
+
+        let mut imposto = Vec::new();
+        write_host_default_colors(
+            &mut imposto,
+            HostDefaultColors {
+                foreground: escuro,
+                background: claro,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            imposto,
+            b"\x1b]10;rgb:10/10/10\x1b\\\x1b]11;rgb:ff/ff/ff\x1b\\"
+        );
+
+        // O reset vem antes da regravação: o Terminal da Apple ignora o reset.
+        let mut devolvido = Vec::new();
+        write_host_default_colors_restore(&mut devolvido, original).unwrap();
+        assert_eq!(
+            devolvido,
+            b"\x1b]110\x1b\\\x1b]10;rgb:d0/d0/d0\x1b\\\x1b]111\x1b\\\x1b]11;rgb:10/10/10\x1b\\"
+        );
+    }
 
     #[cfg(windows)]
     #[test]
@@ -978,6 +1143,7 @@ mod tests {
             reset_modify_other_keys: modify_other_keys_sequence.is_some(),
             modify_other_keys_sequence,
             reset_host_color_scheme_reports: false,
+            restore_host_default_colors: None,
             restore_claimed: Arc::new(AtomicBool::new(false)),
             // Keep Drop from writing restore sequences to the test's stdout.
             restored: true,

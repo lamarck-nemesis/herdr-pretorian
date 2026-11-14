@@ -13,7 +13,7 @@ test:
 
 # Run repository maintenance contract tests
 maintenance-test:
-    {{python}} -m unittest scripts.test_agent_detection_manifest_check scripts.test_changelog scripts.test_config_reference_check scripts.test_docs_translation_parity scripts.test_hermes_integration_asset scripts.test_package_windows_conpty scripts.test_package_rust_licenses scripts.test_package_toolchain_licenses scripts.test_package_pretorian_candidate scripts.test_pretorian_bootstrap_arch scripts.test_preview scripts.test_release scripts.test_unix_installer scripts.test_vendor_libghostty_vt scripts.test_vendor_portable_pty scripts.test_windows_cross scripts.test_windows_input
+    {{python}} -m unittest scripts.test_agent_detection_manifest_check scripts.test_changelog scripts.test_config_reference_check scripts.test_docs_translation_parity scripts.test_hermes_integration_asset scripts.test_package_windows_conpty scripts.test_package_rust_licenses scripts.test_package_toolchain_licenses scripts.test_package_pretorian_candidate scripts.test_pretorian_bootstrap_arch scripts.test_configurar_terminal scripts.test_preview scripts.test_release scripts.test_unix_installer scripts.test_vendor_libghostty_vt scripts.test_vendor_portable_pty scripts.test_windows_cross scripts.test_windows_input
     bun test scripts/release-workflows.test.ts
 
 # Local interactive Windows Terminal input qualification (never runs in normal CI).
@@ -88,15 +88,16 @@ build:
 build:
     python scripts/package_windows_conpty.py build-local
 
-# Compila em release e instala como ~/.local/bin/pretorian, sem substituir um herdr pessoal
+# Compila em release, instala como ~/.local/bin/pretorian (sem substituir um herdr pessoal) e, no macOS, cria o perfil Pretorian do Terminal
 [unix]
 instalar destino=(env_var('HOME') / '.local/bin'):
     cargo build --release --locked
     mkdir -p "{{destino}}"
     install -m 755 "${CARGO_TARGET_DIR:-target}/release/herdr" "{{destino}}/pretorian"
     @echo "instalado em {{destino}}/pretorian"
+    {{python}} scripts/configurar_terminal.py
 
-# Compila com o ConPTY e instala como %LOCALAPPDATA%\Programs\pretorian\pretorian.exe; a pasta conpty precisa ficar ao lado do executável
+# Compila com o ConPTY, instala como %LOCALAPPDATA%\Programs\pretorian\pretorian.exe (a pasta conpty precisa ficar ao lado do executável) e cria o perfil Pretorian do Windows Terminal
 [script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
 [extension('.ps1')]
 [windows]
@@ -110,6 +111,8 @@ instalar destino=(env_var('LOCALAPPDATA') / 'Programs' / 'pretorian'):
     if (Test-Path "{{destino}}\conpty") { Remove-Item -Recurse -Force "{{destino}}\conpty" }
     Copy-Item -Recurse -Force "$alvo\release\conpty" "{{destino}}\conpty"
     Write-Output "instalado em {{destino}}\pretorian.exe"
+    python scripts/configurar_terminal.py --destino "{{destino}}"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 # Non-gating full-render scaling profile for background workspaces and active panes
 bench-render-scale:

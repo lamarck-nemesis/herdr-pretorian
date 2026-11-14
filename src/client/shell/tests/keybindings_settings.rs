@@ -986,7 +986,6 @@ fn secao_usuario_recebe_texto_e_mostra_previa() {
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.open_settings_overlay();
-    state.handle_input_bytes(b"\x1b[Z");
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
@@ -1004,14 +1003,14 @@ fn secao_usuario_recebe_texto_e_mostra_previa() {
     assert_eq!(settings.section, ClientSettingsSection::Usuario);
 
     let texto = texto_do_quadro(&mut state);
-    assert!(texto.contains("prévia: Pretorian · Ana jk Zé"), "{texto}");
+    assert!(texto.contains("prévia: Ana jk Zé"), "{texto}");
     assert!(state.hits.settings_choices.is_empty());
 
     state.handle_input_bytes(b"\t");
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Theme,
+            section: ClientSettingsSection::Indicators,
             ..
         }))
     ));
@@ -1035,7 +1034,6 @@ fn secao_usuario_grava_nome_e_pede_recarga() {
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.open_settings_overlay();
-    state.handle_input_bytes(b"\x1b[Z");
     state.handle_input_bytes(b" Ana ");
     let aplicado = state.handle_input_bytes(b"\r");
 

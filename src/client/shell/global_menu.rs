@@ -22,20 +22,10 @@ pub(super) fn global_menu_item_has_badge(
 pub(super) fn global_menu_items(
     snapshot: &ClientShellSnapshot,
 ) -> Vec<(&'static str, ClientGlobalMenuAction)> {
-    let mut items = vec![
-        (
-            "configurações",
-            ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
-        ),
-        (
-            "atalhos",
-            ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Help),
-        ),
-        (
-            "recarregar configuração",
-            ClientGlobalMenuAction::Binding(crate::input::KeybindAction::ReloadConfig),
-        ),
-    ];
+    let mut items = vec![(
+        "configurações",
+        ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
+    )];
     if snapshot.update_available.is_some() || snapshot.latest_release_notes_available {
         items.push((
             if snapshot.update_available.is_some() {

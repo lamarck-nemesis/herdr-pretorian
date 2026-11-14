@@ -26,12 +26,13 @@ pub(in crate::client::shell) fn workspace_active_background(
 
 pub(in crate::client::shell) fn collapsed_sidebar_sections(
     area: Rect,
+    show_agent_panel: bool,
 ) -> (Rect, Option<u16>, Rect) {
     let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     if content.is_empty() {
         return (Rect::default(), None, Rect::default());
     }
-    if content.height < 7 {
+    if !show_agent_panel || content.height < 7 {
         return (content, None, Rect::default());
     }
     let workspace_height = content.height.div_ceil(2);
@@ -41,6 +42,28 @@ pub(in crate::client::shell) fn collapsed_sidebar_sections(
         Rect::new(content.x, content.y, content.width, workspace_height),
         Some(divider_y),
         Rect::new(content.x, divider_y + 1, content.width, detail_height),
+    )
+}
+
+/// Divide a barra expandida em área de trabalho, seção de agentes e divisória arrastável.
+/// Sem a seção de agentes, a área de trabalho ocupa a altura toda.
+pub(in crate::client::shell) fn expanded_sidebar_sections(
+    area: Rect,
+    split_ratio: f32,
+    show_agent_panel: bool,
+) -> (Rect, Rect, Rect) {
+    if !show_agent_panel {
+        return (
+            Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height),
+            Rect::default(),
+            Rect::default(),
+        );
+    }
+    let (workspace_area, detail_area) = crate::ui::expanded_sidebar_sections(area, split_ratio);
+    (
+        workspace_area,
+        detail_area,
+        crate::ui::sidebar_section_divider_rect(area, split_ratio),
     )
 }
 
@@ -56,7 +79,8 @@ pub(crate) fn render_collapsed_sidebar(
     let selection_background = workspace_selection_background(palette);
     let active_background = workspace_active_background(palette, selected_workspace_id.is_some());
     render_sidebar_background(buffer, area, palette);
-    let (workspace_area, divider_y, detail_area) = collapsed_sidebar_sections(area);
+    let (workspace_area, divider_y, detail_area) =
+        collapsed_sidebar_sections(area, config.show_agent_panel);
     for (index, workspace) in snapshot
         .workspaces
         .iter()
@@ -211,29 +235,43 @@ pub(crate) fn render_sidebar(
     } else {
         Rect::new(area.right().saturating_sub(1), area.y, 1, area.height)
     };
-    let (workspace_area, detail_area) =
-        crate::ui::expanded_sidebar_sections(area, state.sidebar_section_split);
-    hits.sidebar_section_divider =
-        crate::ui::sidebar_section_divider_rect(area, state.sidebar_section_split);
+    let (workspace_area, detail_area, section_divider) =
+        expanded_sidebar_sections(area, state.sidebar_section_split, config.show_agent_panel);
+    hits.sidebar_section_divider = section_divider;
     put_text(
         buffer,
         workspace_area.x,
         workspace_area.y,
         workspace_area.width,
-        " espaços",
+        " Área de Trabalho",
         Style::default()
-            .fg(palette.overlay0)
+            .fg(palette.text)
             .add_modifier(Modifier::BOLD),
     );
+    // O nome do usuário entra como subtítulo e empurra a lista uma linha para baixo.
+    let header_rows = match config.nome_usuario.as_deref() {
+        Some(nome) => {
+            put_text(
+                buffer,
+                workspace_area.x.saturating_add(1),
+                workspace_area.y.saturating_add(1),
+                workspace_area.width.saturating_sub(1),
+                nome,
+                Style::default()
+                    .fg(palette.subtext0)
+                    .add_modifier(Modifier::ITALIC),
+            );
+            WORKSPACE_HEADER_ROWS + 1
+        }
+        None => WORKSPACE_HEADER_ROWS,
+    };
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(WORKSPACE_HEADER_ROWS),
+        workspace_area.y.saturating_add(header_rows),
         workspace_area.width,
-        workspace_area
-            .height
-            .saturating_sub(WORKSPACE_HEADER_ROWS + 1),
+        workspace_area.height.saturating_sub(header_rows + 1),
     );
     hits.workspace_body = body;
     let row_heights = entries
@@ -376,11 +414,16 @@ pub(crate) fn render_sidebar(
     }
 
     let footer_y = workspace_area.bottom().saturating_sub(1);
+    // As duas últimas colunas da linha são do botão de recolher a barra.
+    let footer_area = Rect {
+        width: workspace_area.width.saturating_sub(2),
+        ..workspace_area
+    };
     if config.mouse_capture {
         hits.new_workspace = Rect::new(
             workspace_area.x,
             footer_y,
-            5.min(workspace_area.width),
+            11.min(workspace_area.width),
             u16::from(workspace_area.height > 0),
         );
         put_text(
@@ -388,19 +431,19 @@ pub(crate) fn render_sidebar(
             workspace_area.x,
             footer_y,
             workspace_area.width,
-            " novo",
+            " nova pasta",
             Style::default().fg(palette.overlay0),
         );
         let attention = super::super::global_menu::global_menu_attention(snapshot);
         let launcher_width = if attention { 8 } else { 6 }.min(workspace_area.width);
         hits.global_launcher = Rect::new(
-            workspace_area.right().saturating_sub(launcher_width),
+            footer_area.right().saturating_sub(launcher_width),
             footer_y,
             launcher_width,
             1,
         );
         if attention {
-            let start_x = workspace_area.right().saturating_sub(6);
+            let start_x = footer_area.right().saturating_sub(6);
             put_text(
                 buffer,
                 start_x,
@@ -422,7 +465,7 @@ pub(crate) fn render_sidebar(
         } else {
             put_right_text(
                 buffer,
-                workspace_area,
+                footer_area,
                 footer_y,
                 "menu",
                 Style::default().fg(palette.overlay0),
@@ -430,14 +473,16 @@ pub(crate) fn render_sidebar(
         }
     }
 
-    super::render_agent_panel(
-        buffer,
-        detail_area,
-        snapshot,
-        config,
-        state.agent_scroll,
-        hits,
-    );
+    if config.show_agent_panel {
+        super::render_agent_panel(
+            buffer,
+            detail_area,
+            snapshot,
+            config,
+            state.agent_scroll,
+            hits,
+        );
+    }
 
     hits.sidebar_toggle = Rect::new(
         area.right().saturating_sub(2),

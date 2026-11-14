@@ -21,7 +21,8 @@ pub(super) fn render_collapsed(
 ) {
     let palette = &config.palette;
     super::render::render_sidebar_background(buffer, area, palette);
-    let (workspace_area, divider_y, detail_area) = super::sidebar::collapsed_sidebar_sections(area);
+    let (workspace_area, divider_y, detail_area) =
+        super::sidebar::collapsed_sidebar_sections(area, config.show_agent_panel);
     let mut total_rows = 0usize;
     let mut selected_row = None;
     let reveal = std::mem::take(state.reveal_navigation_workspace);
@@ -206,14 +207,16 @@ pub(super) fn render_collapsed(
             Style::default().fg(palette.surface_dim),
         );
     }
-    super::endpoint_agents::render_collapsed(
-        buffer,
-        detail_area,
-        state.endpoints,
-        state.active_endpoint_id,
-        config,
-        hits,
-    );
+    if config.show_agent_panel {
+        super::endpoint_agents::render_collapsed(
+            buffer,
+            detail_area,
+            state.endpoints,
+            state.active_endpoint_id,
+            config,
+            hits,
+        );
+    }
     hits.sidebar_toggle = if area.is_empty() || workspace_area.width == 0 {
         Rect::default()
     } else {
@@ -249,10 +252,12 @@ pub(super) fn render_expanded(
     } else {
         Rect::new(area.right().saturating_sub(1), area.y, 1, area.height)
     };
-    let (workspace_area, detail_area) =
-        crate::ui::expanded_sidebar_sections(area, state.sidebar_section_split);
-    hits.sidebar_section_divider =
-        crate::ui::sidebar_section_divider_rect(area, state.sidebar_section_split);
+    let (workspace_area, detail_area, section_divider) = super::sidebar::expanded_sidebar_sections(
+        area,
+        state.sidebar_section_split,
+        config.show_agent_panel,
+    );
+    hits.sidebar_section_divider = section_divider;
     put_text(
         buffer,
         workspace_area.x,
@@ -553,16 +558,18 @@ pub(super) fn render_expanded(
             }),
         );
     }
-    super::endpoint_agents::render_expanded(
-        buffer,
-        detail_area,
-        active_snapshot.and_then(|snapshot| snapshot.agent_view_label.as_deref()),
-        state.endpoints,
-        state.active_endpoint_id,
-        config,
-        state.agent_scroll,
-        hits,
-    );
+    if config.show_agent_panel {
+        super::endpoint_agents::render_expanded(
+            buffer,
+            detail_area,
+            active_snapshot.and_then(|snapshot| snapshot.agent_view_label.as_deref()),
+            state.endpoints,
+            state.active_endpoint_id,
+            config,
+            state.agent_scroll,
+            hits,
+        );
+    }
     hits.sidebar_toggle = Rect::new(
         area.right().saturating_sub(2),
         area.bottom().saturating_sub(1),

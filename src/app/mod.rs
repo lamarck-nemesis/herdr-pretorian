@@ -241,38 +241,6 @@ fn parse_cjk_ime_agents(names: &[String]) -> Vec<crate::detect::Agent> {
     out
 }
 
-fn normalize_theme_name(name: &str) -> String {
-    name.to_lowercase().replace([' ', '_'], "-")
-}
-
-fn sibling_theme_names(name: &str) -> (String, String) {
-    match normalize_theme_name(name).as_str() {
-        "pretorian" => ("catppuccin".to_string(), "pretorian".to_string()),
-        "catppuccin" | "catppuccin-mocha" | "catppuccin-latte" | "latte" | "light" => {
-            ("catppuccin".to_string(), "catppuccin-latte".to_string())
-        }
-        "tokyo-night" | "tokyonight" | "tokyo-night-day" | "tokyo-day" | "tokyonight-day" => {
-            ("tokyo-night".to_string(), "tokyo-night-day".to_string())
-        }
-        "gruvbox" | "gruvbox-dark" | "gruvbox-light" => {
-            ("gruvbox".to_string(), "gruvbox-light".to_string())
-        }
-        "one-dark" | "onedark" | "one-light" | "onelight" => {
-            ("one-dark".to_string(), "one-light".to_string())
-        }
-        "solarized" | "solarized-dark" | "solarized-light" => {
-            ("solarized".to_string(), "solarized-light".to_string())
-        }
-        "kanagawa" | "kanagawa-lotus" | "lotus" => {
-            ("kanagawa".to_string(), "kanagawa-lotus".to_string())
-        }
-        "rose-pine" | "rosepine" | "rose-pine-dawn" | "rosepine-dawn" | "dawn" => {
-            ("rose-pine".to_string(), "rose-pine-dawn".to_string())
-        }
-        _ => (name.to_string(), name.to_string()),
-    }
-}
-
 fn theme_runtime_config(
     config: &crate::config::Config,
     use_legacy_ui_accent: bool,
@@ -282,11 +250,18 @@ fn theme_runtime_config(
         .name
         .clone()
         .unwrap_or_else(|| "pretorian".to_string());
-    let (default_dark, default_light) = sibling_theme_names(&manual_name);
     state::ThemeRuntimeConfig {
         manual_name,
-        dark_name: config.theme.dark_name.clone().unwrap_or(default_dark),
-        light_name: config.theme.light_name.clone().unwrap_or(default_light),
+        dark_name: config
+            .theme
+            .dark_name
+            .clone()
+            .unwrap_or_else(|| "pretorian".to_string()),
+        light_name: config
+            .theme
+            .light_name
+            .clone()
+            .unwrap_or_else(|| "pretorian".to_string()),
         auto_switch: config.theme.auto_switch,
         custom: config.theme.custom.clone(),
         legacy_accent: (use_legacy_ui_accent
@@ -313,7 +288,7 @@ fn resolve_palette_for_theme_name(
             fallback = fallback_name,
             "unknown theme, falling back"
         );
-        state::Palette::from_name(fallback_name).unwrap_or_else(state::Palette::catppuccin)
+        state::Palette::from_name(fallback_name).unwrap_or_else(state::Palette::pretorian)
     });
 
     if let Some(custom) = &runtime.custom {
@@ -337,7 +312,7 @@ fn resolve_effective_theme(
         match appearance.unwrap_or(crate::terminal_theme::HostAppearance::Dark) {
             crate::terminal_theme::HostAppearance::Dark => (
                 &runtime.dark_name,
-                "catppuccin",
+                "pretorian",
                 runtime
                     .custom
                     .as_ref()
@@ -345,7 +320,7 @@ fn resolve_effective_theme(
             ),
             crate::terminal_theme::HostAppearance::Light => (
                 &runtime.light_name,
-                "catppuccin-latte",
+                "pretorian",
                 runtime
                     .custom
                     .as_ref()
@@ -363,13 +338,6 @@ fn resolve_effective_theme(
 
 pub(crate) fn client_theme_runtime_from_config(config: &Config) -> state::ThemeRuntimeConfig {
     theme_runtime_config(config, true)
-}
-
-pub(crate) fn client_palette_for_theme(
-    runtime: &state::ThemeRuntimeConfig,
-    name: &str,
-) -> state::Palette {
-    resolve_palette_for_theme_name(name, "pretorian", runtime, None)
 }
 
 pub(crate) fn client_palette_from_config(config: &Config) -> state::Palette {
@@ -703,7 +671,7 @@ impl App {
             &config.tab_bar_right_efetivo(),
             &config.ui.tab_bar_right_separator,
         );
-        app.configure_window_title(&config.ui.window_title);
+        app.configure_window_title(&config.window_title_efetivo());
         app.refresh_restored_workspace_git_metadata();
         Ok(app)
     }
@@ -936,7 +904,7 @@ impl App {
                     &config.tab_bar_right_efetivo(),
                     &config.ui.tab_bar_right_separator,
                 );
-                self.configure_window_title(&config.ui.window_title);
+                self.configure_window_title(&config.window_title_efetivo());
                 self.state.agent_panel_sort =
                     agent_panel_sort_from_config(config.ui.agent_panel_sort);
                 self.state.sidebar_agents = config.ui.sidebar.agents.clone();
@@ -1463,7 +1431,6 @@ mod tests {
     #[test]
     fn theme_auto_switch_is_opt_in_and_preserves_manual_default() {
         let mut config = Config::default();
-        config.theme.name = Some("tokyo-night".to_string());
         config.theme.custom = Some(crate::config::CustomThemeColors {
             light: Some(crate::config::ModeThemeColors {
                 accent: Some("#010203".to_string()),
@@ -1486,14 +1453,13 @@ mod tests {
         );
 
         assert!(!app.state.theme_runtime.auto_switch);
-        assert_eq!(app.state.theme_name, "tokyo-night");
-        assert_eq!(app.state.palette, state::Palette::tokyo_night());
+        assert_eq!(app.state.theme_name, "pretorian");
+        assert_eq!(app.state.palette, state::Palette::pretorian());
     }
 
     #[test]
-    fn theme_auto_switch_uses_sibling_map_and_explicit_appearance() {
+    fn theme_auto_switch_keeps_the_single_theme_for_light_and_dark_hosts() {
         let mut config = Config::default();
-        config.theme.name = Some("tokyo-night".to_string());
         config.theme.auto_switch = true;
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(
@@ -1504,20 +1470,20 @@ mod tests {
             crate::api::EventHub::default(),
         );
 
-        assert_eq!(app.state.theme_name, "tokyo-night");
-        assert!(app.set_host_terminal_appearance_state(
-            Some(crate::terminal_theme::HostAppearance::Light),
-            true,
-        ));
+        for appearance in [
+            crate::terminal_theme::HostAppearance::Light,
+            crate::terminal_theme::HostAppearance::Dark,
+        ] {
+            app.set_host_terminal_appearance_state(Some(appearance), true);
 
-        assert_eq!(app.state.theme_name, "tokyo-night-day");
-        assert_eq!(app.state.palette, state::Palette::tokyo_night_day());
+            assert_eq!(app.state.theme_name, "pretorian");
+            assert_eq!(app.state.palette, state::Palette::pretorian());
+        }
     }
 
     #[test]
     fn theme_auto_switch_applies_custom_overrides_after_active_base() {
         let mut config = Config::default();
-        config.theme.name = Some("gruvbox".to_string());
         config.theme.auto_switch = true;
         config.theme.custom = Some(crate::config::CustomThemeColors {
             accent: Some("#010203".to_string()),
@@ -1537,7 +1503,7 @@ mod tests {
             true,
         );
 
-        assert_eq!(app.state.theme_name, "gruvbox-light");
+        assert_eq!(app.state.theme_name, "pretorian");
         assert_eq!(
             app.state.palette.accent,
             ratatui::style::Color::Rgb(1, 2, 3)
@@ -1547,7 +1513,6 @@ mod tests {
     #[test]
     fn theme_auto_switch_layers_active_mode_overrides_last() {
         let mut config = Config::default();
-        config.theme.name = Some("gruvbox".to_string());
         config.theme.auto_switch = true;
         config.theme.custom = Some(crate::config::CustomThemeColors {
             accent: Some("#010203".to_string()),

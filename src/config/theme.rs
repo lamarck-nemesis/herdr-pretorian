@@ -1,49 +1,11 @@
 use serde::Deserialize;
 use tracing::warn;
 
-pub const THEME_NAMES: &[&str] = &[
-    "pretorian",
-    "catppuccin",
-    "catppuccin-latte",
-    "terminal",
-    "tokyo-night",
-    "tokyo-night-day",
-    "dracula",
-    "nord",
-    "gruvbox",
-    "gruvbox-light",
-    "one-dark",
-    "one-light",
-    "solarized",
-    "solarized-light",
-    "kanagawa",
-    "kanagawa-lotus",
-    "rose-pine",
-    "rose-pine-dawn",
-    "vesper",
-];
+pub const THEME_NAMES: &[&str] = &["pretorian"];
 
 pub(crate) fn canonical_theme_name(name: &str) -> Option<&'static str> {
     match name.to_lowercase().replace([' ', '_'], "-").as_str() {
         "pretorian" => Some("pretorian"),
-        "catppuccin" | "catppuccin-mocha" => Some("catppuccin"),
-        "catppuccin-latte" | "latte" | "light" => Some("catppuccin-latte"),
-        "terminal" => Some("terminal"),
-        "tokyo-night" | "tokyonight" => Some("tokyo-night"),
-        "tokyo-night-day" | "tokyo-day" | "tokyonight-day" => Some("tokyo-night-day"),
-        "dracula" => Some("dracula"),
-        "nord" => Some("nord"),
-        "gruvbox" | "gruvbox-dark" => Some("gruvbox"),
-        "gruvbox-light" => Some("gruvbox-light"),
-        "one-dark" | "onedark" => Some("one-dark"),
-        "one-light" | "onelight" => Some("one-light"),
-        "solarized" | "solarized-dark" => Some("solarized"),
-        "solarized-light" => Some("solarized-light"),
-        "kanagawa" => Some("kanagawa"),
-        "kanagawa-lotus" | "lotus" => Some("kanagawa-lotus"),
-        "rose-pine" | "rosepine" => Some("rose-pine"),
-        "rose-pine-dawn" | "rosepine-dawn" | "dawn" => Some("rose-pine-dawn"),
-        "vesper" => Some("vesper"),
         _ => None,
     }
 }
@@ -77,20 +39,16 @@ impl ThemeConfig {
     pub(crate) fn diagnostics(&self) -> Vec<String> {
         let valid = THEME_NAMES.join(", ");
         [
-            ("theme.name", self.name.as_deref(), "pretorian"),
-            ("theme.dark_name", self.dark_name.as_deref(), "catppuccin"),
-            (
-                "theme.light_name",
-                self.light_name.as_deref(),
-                "catppuccin-latte",
-            ),
+            ("theme.name", self.name.as_deref()),
+            ("theme.dark_name", self.dark_name.as_deref()),
+            ("theme.light_name", self.light_name.as_deref()),
         ]
         .into_iter()
-        .filter_map(|(field, value, fallback)| {
+        .filter_map(|(field, value)| {
             let value = value?;
             canonical_theme_name(value).is_none().then(|| {
                 format!(
-                    "nome de tema desconhecido {field} = {value:?}; usando {fallback:?}; temas válidos: {valid}"
+                    "nome de tema desconhecido {field} = {value:?}; usando \"pretorian\"; temas válidos: {valid}"
                 )
             })
         })
@@ -253,7 +211,7 @@ light_name = "lattee"
         assert!(diagnostics[0].contains("usando \"pretorian\""));
         assert!(diagnostics[1].contains("theme.dark_name = \"tokio-night\""));
         assert!(diagnostics[2].contains("theme.light_name = \"lattee\""));
-        assert!(diagnostics[2].contains("usando \"catppuccin-latte\""));
+        assert!(diagnostics[2].contains("usando \"pretorian\""));
     }
 
     #[test]
@@ -264,9 +222,19 @@ light_name = "lattee"
     }
 
     #[test]
-    fn theme_name_aliases_are_valid() {
-        for name in ["catppuccin-mocha", "tokyonight", "gruvbox-dark", "dawn"] {
-            assert!(canonical_theme_name(name).is_some(), "alias: {name}");
+    fn temas_removidos_nao_sao_validos() {
+        assert_eq!(THEME_NAMES, ["pretorian"]);
+        for name in [
+            "catppuccin",
+            "catppuccin-mocha",
+            "tokyonight",
+            "terminal",
+            "dawn",
+        ] {
+            assert!(
+                canonical_theme_name(name).is_none(),
+                "tema removido: {name}"
+            );
         }
     }
 

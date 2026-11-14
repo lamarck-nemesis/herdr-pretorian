@@ -708,6 +708,7 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
         ],
     );
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.config.show_agent_panel = true;
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
 
@@ -722,7 +723,7 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("× needs input"), "frame: {text}");
+    assert!(text.contains("▲ needs input"), "frame: {text}");
     assert!(text.contains("pi two"), "frame: {text}");
     assert!(text.contains("waiting for"), "frame: {text}");
     assert_eq!(
@@ -813,6 +814,7 @@ fn muted_agent_sidebar_rows_do_not_stack_terminal_faint() {
         focused: true,
     }];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.config.show_agent_panel = true;
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
     let frame = state.compose(106, 30).expect("agent sidebar frame");
@@ -915,6 +917,7 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
     projected.agent_view_label = Some("review".into());
     projected.agent_order = vec!["pane_2".into(), "pane_3".into()];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.config.show_agent_panel = true;
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("filtered agent sidebar");
@@ -988,6 +991,7 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
     let config =
         ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
     let mut state = ClientShellState::new(config);
+    state.config.show_agent_panel = true;
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("agent sidebar frame");
