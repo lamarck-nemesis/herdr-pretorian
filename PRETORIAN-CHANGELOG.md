@@ -9,6 +9,14 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.1.1] - 2026-11-14
+
+### Corrigido
+- Build macOS usa o runner macOS 15 e verifica a execução nativa do binário Apple Silicon.
+
+### Alterado
+- Reconstrução dos aplicativos da linha v2 com identificação Pretorian 0.1.1, mantendo a base Herdr 0.9.5.
+
 ## [0.1.0] - 2026-11-14
 
 Primeira versão numerada do fork, sobre o Herdr 0.9.5.
