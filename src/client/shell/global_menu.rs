@@ -4,6 +4,8 @@ use super::*;
 pub(super) enum ClientGlobalMenuAction {
     Binding(crate::input::KeybindAction),
     WhatsNew,
+    /// Fecha o cliente pedindo ao lançador que atualize o Pretorian e reabra a sessão.
+    Atualizar,
 }
 
 pub(super) fn global_menu_attention(snapshot: &ClientShellSnapshot) -> bool {
@@ -22,6 +24,13 @@ pub(super) fn global_menu_item_has_badge(
 pub(super) fn global_menu_items(
     snapshot: &ClientShellSnapshot,
 ) -> Vec<(&'static str, ClientGlobalMenuAction)> {
+    global_menu_items_for(snapshot, crate::terminal_effects::launcher_updates())
+}
+
+pub(super) fn global_menu_items_for(
+    snapshot: &ClientShellSnapshot,
+    launcher_updates: bool,
+) -> Vec<(&'static str, ClientGlobalMenuAction)> {
     let mut items = vec![(
         "configurações",
         ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
@@ -35,6 +44,9 @@ pub(super) fn global_menu_items(
             },
             ClientGlobalMenuAction::WhatsNew,
         ));
+    }
+    if launcher_updates {
+        items.push(("atualizar o Pretorian", ClientGlobalMenuAction::Atualizar));
     }
     items.push((
         "desconectar",
@@ -94,6 +106,10 @@ impl ClientShellState {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)
             }
             ClientGlobalMenuAction::WhatsNew => self.open_release_notes(),
+            ClientGlobalMenuAction::Atualizar => {
+                crate::terminal_effects::request_update();
+                outcome.detach = true;
+            }
         }
         outcome.repaint = true;
     }
