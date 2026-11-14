@@ -532,3 +532,25 @@ fn close_confirmation_error_becomes_client_owned_overlay_and_stable_workspace_cl
             if params.workspace_id == "ws_1" && !params.close_group
     ));
 }
+
+#[test]
+fn menu_oferece_atualizar_so_com_lancador_e_pede_a_saida_de_atualizacao() {
+    use crate::client::shell::global_menu::{global_menu_items_for, ClientGlobalMenuAction};
+
+    let projected = snapshot();
+    let sem_lancador = global_menu_items_for(&projected, false);
+    assert!(sem_lancador
+        .iter()
+        .all(|(_, action)| *action != ClientGlobalMenuAction::Atualizar));
+
+    let com_lancador = global_menu_items_for(&projected, true);
+    let posicao = com_lancador
+        .iter()
+        .position(|(label, _)| *label == "atualizar o Pretorian")
+        .expect("item de atualização");
+    assert_eq!(com_lancador[posicao].1, ClientGlobalMenuAction::Atualizar);
+    assert_eq!(
+        com_lancador.last().map(|(label, _)| *label),
+        Some("desconectar")
+    );
+}

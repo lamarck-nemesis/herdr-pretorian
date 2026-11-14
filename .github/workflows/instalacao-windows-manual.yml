@@ -36,6 +36,9 @@ jobs:
           if (-not (Test-Path $instalado)) { throw "pretorian.exe nao instalado em $instalado" }
           if (-not (Test-Path (Join-Path (Split-Path $instalado) "conpty\conpty.dll"))) { throw "conpty ausente ao lado do pretorian.exe instalado" }
           & $instalado --version
+          $origem = Get-Content (Join-Path (Split-Path $instalado) "pretorian.origem")
+          if ($origem[0] -ne (Get-Location).Path) { throw "pretorian.origem nao aponta para o clone: $($origem[0])" }
+          if ($origem[1] -ne (git rev-parse HEAD)) { throw "pretorian.origem sem o commit instalado: $($origem[1])" }
           $fragmento = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\Fragments\Pretorian\pretorian.json"
           $perfil = (Get-Content -Raw $fragmento | ConvertFrom-Json).profiles[0]
           if ($perfil.tabColor -ne "#464c65") { throw "perfil do Windows Terminal sem a cor do Pretorian" }

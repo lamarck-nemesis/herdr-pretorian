@@ -140,6 +140,8 @@ def cores_macos() -> dict[str, str]:
     return cores
 
 
+FONTE_MACOS = "/System/Applications/Utilities/Terminal.app/Contents/Resources/Fonts/SF-Mono-Regular.otf"
+
 TITULO_OCULTO_MACOS = [
     "ShowActiveProcessInTitle",
     "ShowActiveProcessArgumentsInTitle",
@@ -156,6 +158,7 @@ TITULO_OCULTO_MACOS = [
 # O Terminal guarda cores e fonte como objetos arquivados; só o AppKit os produz.
 GERADOR_PERFIL_MACOS = r"""
 ObjC.import('AppKit');
+ObjC.import('CoreText');
 function run(argv) {
   const entrada = JSON.parse(argv[0]);
   const arquivar = (objeto) => $.NSKeyedArchiver.archivedDataWithRootObject(objeto);
@@ -173,6 +176,9 @@ function run(argv) {
     const [r, g, b] = entrada.cores[chave];
     perfil.setObjectForKey(arquivar($.NSColor.colorWithSRGBRedGreenBlueAlpha(r, g, b, 1)), chave);
   }
+  // A SF Mono vem dentro do próprio Terminal e só ele a enxerga; registrá-la neste processo
+  // permite gravá-la no perfil sem copiar nem instalar a fonte.
+  $.CTFontManagerRegisterFontsForURL($.NSURL.fileURLWithPath(entrada.fonte), 1, null);
   const fonte = $.NSFont.fontWithNameSize('SFMono-Regular', entrada.tamanho);
   perfil.setObjectForKey(
     arquivar(fonte.isNil() ? $.NSFont.userFixedPitchFontOfSize(entrada.tamanho) : fonte),
@@ -198,15 +204,20 @@ def configurar_macos(pasta: Path, padrao: bool) -> list[Path]:
         "nome": NOME,
         "destino": str(perfil),
         "tamanho": TAMANHO_FONTE_PX,
+        "fonte": FONTE_MACOS,
         "marca": str(pasta / MARCA),
         "icone": str(ICONE_PNG),
         "titulo_oculto": TITULO_OCULTO_MACOS,
         "cores": {chave: _rgb(cor) for chave, cor in cores_macos().items()},
     }
+    anterior = perfil.read_bytes() if perfil.is_file() else None
     subprocess.run(
         ["osascript", "-l", "JavaScript", "-e", GERADOR_PERFIL_MACOS, json.dumps(entrada)],
         check=True,
     )
+    # Importar abre uma janela do Terminal; uma reinstalação sem mudança no perfil não deve abrir.
+    if anterior == perfil.read_bytes():
+        return [perfil, pasta / MARCA]
     # Reimportar sem apagar cria "Pretorian 1" em vez de atualizar o perfil.
     subprocess.run(
         [

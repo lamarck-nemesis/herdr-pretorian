@@ -95,6 +95,7 @@ instalar destino=(env_var('HOME') / '.local/bin'):
     mkdir -p "{{destino}}"
     install -m 755 "${CARGO_TARGET_DIR:-target}/release/herdr" "{{destino}}/pretorian"
     @echo "instalado em {{destino}}/pretorian"
+    printf '%s\n%s\n' "{{justfile_directory()}}" "$(git -C "{{justfile_directory()}}" rev-parse HEAD)" > "{{destino}}/pretorian.origem"
     {{python}} scripts/configurar_terminal.py
 
 # Compila com o ConPTY, instala como %LOCALAPPDATA%\Programs\pretorian\pretorian.exe (a pasta conpty precisa ficar ao lado do executável) e cria o perfil Pretorian do Windows Terminal
@@ -111,6 +112,7 @@ instalar destino=(env_var('LOCALAPPDATA') / 'Programs' / 'pretorian'):
     if (Test-Path "{{destino}}\conpty") { Remove-Item -Recurse -Force "{{destino}}\conpty" }
     Copy-Item -Recurse -Force "$alvo\release\conpty" "{{destino}}\conpty"
     Write-Output "instalado em {{destino}}\pretorian.exe"
+    Set-Content -Encoding utf8 "{{destino}}\pretorian.origem" @("{{justfile_directory()}}", (git -C "{{justfile_directory()}}" rev-parse HEAD))
     python scripts/configurar_terminal.py --destino "{{destino}}"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 

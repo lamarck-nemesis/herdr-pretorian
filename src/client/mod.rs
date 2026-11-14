@@ -404,6 +404,12 @@ fn run_client_with_mode(
     // Restore the terminal before printing any final status message.
     let terminal_restore_failed = terminal_guard.restore().is_err();
 
+    if crate::terminal_effects::update_requested() {
+        rt.shutdown_timeout(Duration::from_millis(100));
+        crate::logging::shutdown("client");
+        std::process::exit(crate::terminal_effects::UPDATE_EXIT_CODE);
+    }
+
     if let Err(err) = result {
         let _ = writeln!(io::stderr(), "herdr: {err}");
         rt.shutdown_timeout(Duration::from_millis(100));
