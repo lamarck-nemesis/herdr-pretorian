@@ -258,7 +258,7 @@ fn render_usuario_section(
         area.x,
         area.y + 1,
         area.width,
-        "aparece no título da janela depois da marca",
+        "aparece na barra lateral, abaixo de Área de Trabalho",
         Style::default().fg(palette.overlay1).bg(palette.panel_bg),
     );
     if area.height < 6 {
@@ -273,8 +273,7 @@ fn render_usuario_section(
         &settings.nome,
         input_style,
     );
-    let previa =
-        crate::config::cabecalho(crate::config::sanitizar_nome(settings.nome.as_str()).as_deref());
+    let previa = crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
     put_text(
         buffer,
         area.x,

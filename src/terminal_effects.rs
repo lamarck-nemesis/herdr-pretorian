@@ -23,7 +23,7 @@ fn brand_document_sequence() -> Option<&'static str> {
                 return None;
             }
             let path = std::path::Path::new(&std::env::var_os("HOME")?)
-                .join("Library/Application Support/pretorian")
+                .join("Library/Application Support/pretorian-terminal")
                 .join(crate::config::MARCA);
             path.is_file().then(|| {
                 let host = crate::platform::hostname().unwrap_or_default();
@@ -107,13 +107,13 @@ mod tests {
 
         output.clear();
         write_window_title(&mut output, None).unwrap();
-        assert_eq!(output, "\x1b]0;LSΛ prεtοrιαn\x07".as_bytes());
+        assert_eq!(output, "\x1b]0;LSA • prεtοrιαn\x07".as_bytes());
     }
 
     #[test]
     fn marca_no_arquivo_representado_sai_do_titulo_e_o_caminho_e_codificado() {
-        assert_eq!(title_without_brand("LSΛ prεtοrιαn │ Ana"), "Ana");
-        assert_eq!(title_without_brand("LSΛ prεtοrιαn"), "");
+        assert_eq!(title_without_brand("LSA • prεtοrιαn │ Ana"), "Ana");
+        assert_eq!(title_without_brand("LSA • prεtοrιαn"), "");
         assert_eq!(title_without_brand("outro título"), "outro título");
         assert_eq!(
             percent_encode_path("/Users/a/Application Support/LSΛ"),

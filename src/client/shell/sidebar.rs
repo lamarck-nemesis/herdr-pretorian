@@ -245,18 +245,33 @@ pub(crate) fn render_sidebar(
         workspace_area.width,
         " Área de Trabalho",
         Style::default()
-            .fg(palette.overlay0)
+            .fg(palette.text)
             .add_modifier(Modifier::BOLD),
     );
+    // O nome do usuário entra como subtítulo e empurra a lista uma linha para baixo.
+    let header_rows = match config.nome_usuario.as_deref() {
+        Some(nome) => {
+            put_text(
+                buffer,
+                workspace_area.x.saturating_add(1),
+                workspace_area.y.saturating_add(1),
+                workspace_area.width.saturating_sub(1),
+                nome,
+                Style::default()
+                    .fg(palette.subtext0)
+                    .add_modifier(Modifier::ITALIC),
+            );
+            WORKSPACE_HEADER_ROWS + 1
+        }
+        None => WORKSPACE_HEADER_ROWS,
+    };
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(WORKSPACE_HEADER_ROWS),
+        workspace_area.y.saturating_add(header_rows),
         workspace_area.width,
-        workspace_area
-            .height
-            .saturating_sub(WORKSPACE_HEADER_ROWS + 1),
+        workspace_area.height.saturating_sub(header_rows + 1),
     );
     hits.workspace_body = body;
     let row_heights = entries
@@ -408,7 +423,7 @@ pub(crate) fn render_sidebar(
         hits.new_workspace = Rect::new(
             workspace_area.x,
             footer_y,
-            5.min(workspace_area.width),
+            11.min(workspace_area.width),
             u16::from(workspace_area.height > 0),
         );
         put_text(
@@ -416,7 +431,7 @@ pub(crate) fn render_sidebar(
             workspace_area.x,
             footer_y,
             workspace_area.width,
-            " novo",
+            " nova pasta",
             Style::default().fg(palette.overlay0),
         );
         let attention = super::super::global_menu::global_menu_attention(snapshot);

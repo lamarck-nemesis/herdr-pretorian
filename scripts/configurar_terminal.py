@@ -20,7 +20,7 @@ ICONE_PNG = REPO_ROOT / "assets" / "pretorian" / "pretorian.png"
 
 NOME = "Pretorian"
 # Marca mostrada na barra de título da janela.
-MARCA = "LSΛ prεtοrιαn"
+MARCA = "LSA • prεtοrιαn"
 # GUID fixo: o Windows Terminal reconhece o mesmo perfil a cada reinstalação.
 GUID_PERFIL = "{6f1c2a5e-3b7d-5c41-9e2a-70726574726e}"
 MAUVE = "#464c65"
@@ -250,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif sys.platform == "darwin":
         criados = configurar_macos(
-            Path.home() / "Library" / "Application Support" / "pretorian", not args.sem_padrao
+            Path.home() / "Library" / "Application Support" / "pretorian-terminal", not args.sem_padrao
         )
     else:
         print("terminal não configurado: o perfil Pretorian existe para Windows e macOS")

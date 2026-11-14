@@ -13,80 +13,12 @@ pub(super) use overlays::{render_client_overlay, render_context_menu, render_glo
 pub(super) use sidebar::{render_collapsed_sidebar, render_sidebar, workspace_entries};
 pub(super) use tabs::{render_tab_bar, tab_bar_status_width};
 
-/// Peso máximo da cor de destaque sobre o fundo da barra lateral.
-const SIDEBAR_FLOW_STRENGTH: f32 = 0.11;
-
-fn sidebar_flow_time() -> f32 {
-    if cfg!(test) {
-        return 0.0;
-    }
-    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-    START
-        .get_or_init(std::time::Instant::now)
-        .elapsed()
-        .as_secs_f32()
-}
-
-/// Campo de fluxo do fundo das telas do desktop (`shader7.tsx`, modo 0), amostrado por
-/// célula: o brilho segue a intensidade do campo e pulsa com a direção dele.
-fn sidebar_flow_glow(x: f32, y: f32, time: f32) -> f32 {
-    let f = |px: f32, py: f32| {
-        (px + (py + time * 0.1).sin()).tanh() * (py * px * 0.1 + time * 0.2).sin()
-    };
-    const EP: f32 = 0.05;
-    let (mut px, mut py) = (x, y);
-    let (mut gx, mut gy) = (0.0, 0.0);
-    for _ in 0..8 {
-        let t0 = f(px, py);
-        gx = (f(px + EP, py) - t0) / EP;
-        gy = (f(px, py + EP) - t0) / EP;
-        px += 0.5 * -gy + gx / 200.0 + (time * 0.25).sin() / 10.0;
-        py += 0.5 * gx + gy / 200.0 + (time * 0.25).cos() / 10.0;
-    }
-    let magnitude = (gx * gx + gy * gy).sqrt();
-    let pulse = 0.5 + 0.5 * (gy.atan2(gx) * 2.0 + time * 0.75).sin();
-    let edge = (magnitude / 1.2).clamp(0.0, 1.0);
-    edge * edge * (3.0 - 2.0 * edge) * pulse * pulse
-}
-
-fn render_sidebar_flow(buffer: &mut Buffer, area: Rect, palette: &Palette) {
-    use ratatui::style::Color;
-    let (Color::Rgb(br, bg, bb), Color::Rgb(ar, ag, ab)) = (palette.sidebar_bg, palette.accent)
-    else {
-        return;
-    };
-    let time = sidebar_flow_time();
-    let mix = |base: u8, accent: u8, weight: f32| {
-        (f32::from(base) + (f32::from(accent) - f32::from(base)) * weight).round() as u8
-    };
-    for y in area.y..area.bottom() {
-        for x in area.x..area.right() {
-            // A célula tem cerca do dobro da altura da largura.
-            let glow = sidebar_flow_glow(
-                f32::from(x - area.x) * 0.11,
-                f32::from(y - area.y) * 0.22,
-                time,
-            );
-            // Poucos níveis: células vizinhas repetem a cor e a saída não se fragmenta.
-            let weight = (glow * 6.0).round() / 6.0 * SIDEBAR_FLOW_STRENGTH;
-            if let Some(cell) = buffer.cell_mut((x, y)) {
-                cell.set_bg(Color::Rgb(
-                    mix(br, ar, weight),
-                    mix(bg, ag, weight),
-                    mix(bb, ab, weight),
-                ));
-            }
-        }
-    }
-}
-
 pub(in crate::client::shell) fn render_sidebar_background(
     buffer: &mut Buffer,
     area: Rect,
     palette: &Palette,
 ) {
     buffer.set_style(area, Style::default().bg(palette.sidebar_bg));
-    render_sidebar_flow(buffer, area, palette);
     let separator_x = area.right().saturating_sub(1);
     for y in area.y..area.bottom() {
         if let Some(cell) = buffer.cell_mut((separator_x, y)) {

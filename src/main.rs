@@ -97,7 +97,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # panel_bg = "#eff1f5"
 # text = "#4c4f69"
 
-# Seção própria do Pretorian. O nome aparece no título da janela, depois da marca;
+# Seção própria do Pretorian. O nome aparece na barra lateral, abaixo de "Área de Trabalho";
 # também pode ser definido em configurações > usuário. Um ui.tab_bar_right explícito
 # substitui esse cabeçalho.
 # [pretorian]

@@ -1003,10 +1003,7 @@ fn secao_usuario_recebe_texto_e_mostra_previa() {
     assert_eq!(settings.section, ClientSettingsSection::Usuario);
 
     let texto = texto_do_quadro(&mut state);
-    assert!(
-        texto.contains("prévia: LSΛ prεtοrιαn │ Ana jk Zé"),
-        "{texto}"
-    );
+    assert!(texto.contains("prévia: Ana jk Zé"), "{texto}");
     assert!(state.hits.settings_choices.is_empty());
 
     state.handle_input_bytes(b"\t");

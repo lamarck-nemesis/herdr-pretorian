@@ -29,7 +29,7 @@ pub use self::{
         ToastClipboardPosition, ToastConfig, ToastDelivery, ToastHerdrPosition,
         UpdateChannelConfig, MAX_TOAST_DELAY_SECONDS,
     },
-    pretorian::{cabecalho, sanitizar_nome, PretorianConfig, MARCA, SEPARADOR},
+    pretorian::{sanitizar_nome, PretorianConfig, ASSINATURA, MARCA, SEPARADOR},
     sidebar::{
         AgentSidebarToken, AgentsSidebarConfig, SidebarConfig, SidebarTokenStyle,
         SpaceSidebarToken, SpacesSidebarConfig,

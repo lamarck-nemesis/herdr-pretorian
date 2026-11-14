@@ -406,22 +406,26 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("configurações"));
-    assert!(text.contains("atalhos"));
-    assert!(text.contains("recarregar configuração"));
+    assert!(!text.contains("atalhos"));
+    assert!(!text.contains("recarregar configuração"));
     assert!(text.contains("desconectar"));
 
-    let keybinds = state.hits.global_menu_rows[1].0;
-    let help = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: keybinds.x,
-        row: keybinds.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
-    assert!(help.actions.is_empty());
-    assert!(matches!(state.overlay, Some(ClientShellOverlay::Help(_))));
+    let settings_row = state.hits.global_menu_rows[0].0;
+    let settings =
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: settings_row.x,
+            row: settings_row.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+    assert!(settings.actions.is_empty());
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(_))
+    ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 1,
     }));
     let detach = state.handle_input_bytes(b"\r");
     assert!(detach.detach);
