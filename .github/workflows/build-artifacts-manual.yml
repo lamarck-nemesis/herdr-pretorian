@@ -175,10 +175,10 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-15
             name: herdr-macos-x86_64
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15
             name: herdr-macos-aarch64
     env:
       LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
@@ -208,6 +208,13 @@ jobs:
 
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Verificar execução nativa Apple Silicon
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          test "$(uname -m)" = arm64
+          target/${{ matrix.target }}/release/herdr --version
+          target/${{ matrix.target }}/release/herdr --help >/dev/null
 
       - name: Package original Rust and toolchain license notices
         run: |
