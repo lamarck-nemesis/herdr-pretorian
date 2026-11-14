@@ -24,6 +24,8 @@ pub(crate) struct ClientShellConfig {
     pub(super) spaces: SpacesSidebarConfig,
     pub(super) agents: crate::config::AgentsSidebarConfig,
     pub(super) agent_panel_sort: crate::config::AgentPanelSortConfig,
+    /// O Pretorian não mostra a seção de agentes na barra lateral; não há chave de configuração.
+    pub(super) show_agent_panel: bool,
     pub(super) status_indicators: crate::config::StatusIndicatorStyle,
     pub(super) sound_enabled: bool,
     pub(super) toast_delivery: crate::config::ToastDelivery,
@@ -385,7 +387,6 @@ pub(super) struct ClientGlobalMenuOverlay {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientSettingsSection {
     Usuario,
-    Theme,
     Indicators,
     Sound,
     Toast,
@@ -395,7 +396,6 @@ pub(super) enum ClientSettingsSection {
 impl ClientSettingsSection {
     pub(super) const ALL: &[Self] = &[
         Self::Usuario,
-        Self::Theme,
         Self::Indicators,
         Self::Sound,
         Self::Toast,
@@ -405,7 +405,6 @@ impl ClientSettingsSection {
     pub(super) fn label(self) -> &'static str {
         match self {
             Self::Usuario => "usuário",
-            Self::Theme => "tema",
             Self::Indicators => "indicadores",
             Self::Sound => "som",
             Self::Toast => "avisos",
@@ -419,8 +418,6 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) section: ClientSettingsSection,
     pub(super) selected: usize,
     pub(super) nome: TextEditor,
-    pub(super) original_theme_name: String,
-    pub(super) original_palette: Palette,
     pub(super) integrations: Vec<crate::api::schema::IntegrationInfo>,
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,

@@ -76,8 +76,29 @@ use terminal_geometry::{
 use terminal_geometry::{reported_cell_size_from_events, store_reported_cell_size};
 use terminal_setup::{
     effective_mouse_capture, effective_sgr_pixel_mouse, set_mouse_capture,
-    setup_direct_attach_terminal, setup_terminal, should_draw_host_cursor, TerminalGuard,
+    setup_direct_attach_terminal, setup_terminal, should_draw_host_cursor, HostDefaultColors,
+    TerminalGuard,
 };
+
+/// O tema Pretorian é claro e fixo: impõe fundo e texto ao terminal hospedeiro para os
+/// painéis não herdarem o fundo escuro do terminal. Outros temas seguem o hospedeiro.
+fn host_default_colors_for_theme(config: &crate::config::Config) -> Option<HostDefaultColors> {
+    let runtime = crate::app::client_theme_runtime_from_config(config);
+    if runtime.auto_switch
+        || crate::config::canonical_theme_name(&runtime.manual_name) != Some("pretorian")
+    {
+        return None;
+    }
+    let palette = crate::app::client_palette_from_config(config);
+    let rgb = |color| match color {
+        ratatui::style::Color::Rgb(r, g, b) => Some(crate::terminal_theme::RgbColor { r, g, b }),
+        _ => None,
+    };
+    Some(HostDefaultColors {
+        foreground: rgb(palette.text)?,
+        background: rgb(palette.panel_bg)?,
+    })
+}
 
 fn refresh_host_mouse_capture(enabled: bool, sgr_pixels: bool) {
     if let Err(err) = set_mouse_capture(enabled, sgr_pixels) {
@@ -202,6 +223,9 @@ fn run_client_with_mode(
             .with_process_endpoint_preferences(&socket_path)
     });
     let mouse_capture = loaded_config.config.ui.mouse_capture;
+    let host_default_colors = client_rendered_shell
+        .then(|| host_default_colors_for_theme(&loaded_config.config))
+        .flatten();
     let mouse_scroll_lines = loaded_config.config.ui.mouse_scroll_lines();
     let redraw_on_focus_gained = loaded_config.config.ui.redraw_on_focus_gained;
     let host_cursor = loaded_config.config.ui.host_cursor;
@@ -263,12 +287,15 @@ fn run_client_with_mode(
     let mut terminal_guard = if direct_attach {
         setup_direct_attach_terminal(mouse_capture)
     } else {
-        setup_terminal(mouse_capture)
+        setup_terminal(mouse_capture, host_default_colors)
     }
     .map_err(|err| {
         eprintln!("Pretorian: não foi possível preparar o terminal: {err}");
         err
     })?;
+    if client_rendered_shell {
+        let _ = crate::terminal_effects::write_window_brand(&mut io::stdout());
+    }
     loop_config.host_escape_disambiguation_active =
         terminal_guard.host_escape_disambiguation_active();
     loop_config.host_sgr_pixel_mouse = terminal_guard.host_sgr_pixel_mouse();

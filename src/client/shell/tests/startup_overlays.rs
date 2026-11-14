@@ -730,7 +730,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("● atualização pronta"));
-    let update_row = state.hits.global_menu_rows[3].0;
+    let update_row = state.hits.global_menu_rows[1].0;
     assert!(usize::from(update_row.width) >= "● atualização pronta".chars().count());
     let menu_buffer = menu.to_ratatui_buffer().expect("menu buffer");
     assert_eq!(
@@ -741,7 +741,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         menu_buffer[(update_row.x + 3, update_row.y)].fg,
         state.config.palette.text
     );
-    state.activate_global_menu_item(3, &mut ClientShellInput::default());
+    state.activate_global_menu_item(1, &mut ClientShellInput::default());
     let notes = state.compose(106, 30).expect("release notes");
     let bottom_row_start = usize::from(notes.width) * usize::from(notes.height - 1);
     let bottom_row = notes.cells[bottom_row_start..]
@@ -922,7 +922,7 @@ fn coalesced_release_notes_open_and_scroll_uses_current_geometry() {
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("initial shell");
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 1,
     }));
 
     state.handle_raw_events(vec![
@@ -993,7 +993,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 1,
     }));
     state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1015,7 +1015,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: 1,
     }));
     let closed = state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1153,7 +1153,7 @@ fn current_release_notes_use_whats_new_without_attention_badge() {
 }
 
 #[test]
-fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overlay() {
+fn client_settings_close_and_endpoint_integrations_are_owned_by_overlay() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
@@ -1165,22 +1165,14 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Theme,
+            section: ClientSettingsSection::Usuario,
             ..
         }))
     ));
-    let original_theme = state.config.theme_name.clone();
-    let original_palette = state.config.palette.clone();
-    state.handle_input_bytes(b"j");
-    assert_ne!(state.config.theme_name, original_theme);
-    assert_ne!(state.config.palette.accent, original_palette.accent);
     state.handle_input_bytes(b"\x1b");
     assert!(state.overlay.is_none());
-    assert_eq!(state.config.theme_name, original_theme);
-    assert_eq!(state.config.palette.accent, original_palette.accent);
 
     state.open_settings_overlay();
-    state.handle_input_bytes(b"j");
     state.handle_input_bytes(b"\t");
     state
         .compose(106, 30)
@@ -1192,8 +1184,6 @@ fn client_settings_preview_restore_and_endpoint_integrations_are_owned_by_overla
         modifiers: KeyModifiers::empty(),
     })]);
     assert!(state.overlay.is_none());
-    assert_eq!(state.config.theme_name, original_theme);
-    assert_eq!(state.config.palette.accent, original_palette.accent);
 
     state.open_settings_overlay();
     state.compose(106, 30).expect("settings overlay");

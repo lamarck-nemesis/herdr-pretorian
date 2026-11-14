@@ -188,7 +188,7 @@ fn status_icon(
         ) => "●",
         (StatusIndicatorStyle::Dots, AgentStatus::Idle) => "○",
         (StatusIndicatorStyle::Dots, AgentStatus::Unknown) => "·",
-        (StatusIndicatorStyle::Symbols, AgentStatus::Blocked) => "×",
+        (StatusIndicatorStyle::Symbols, AgentStatus::Blocked) => "▲",
         (StatusIndicatorStyle::Symbols, AgentStatus::Working) => "◐",
         (StatusIndicatorStyle::Symbols, AgentStatus::Done) => "✓",
         (StatusIndicatorStyle::Symbols, AgentStatus::Idle) => "○",

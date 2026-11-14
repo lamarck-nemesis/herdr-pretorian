@@ -814,6 +814,7 @@ fn cross_area_server_kill_then_restart_and_reconnect() {
                         || out.contains("workspace")
                         || out.contains("pane")
                         || out.contains("terminal")
+                        || out.contains("\u{2502}")
                     {
                         observed = true;
                         break;

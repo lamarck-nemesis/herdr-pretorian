@@ -1,18 +1,6 @@
 use super::*;
 use crossterm::event::{KeyCode, KeyModifiers};
 
-pub(super) fn normalized_theme_name(name: &str) -> String {
-    name.to_lowercase().replace([' ', '_'], "-")
-}
-
-fn theme_index(name: &str) -> usize {
-    let normalized = normalized_theme_name(name);
-    crate::config::THEME_NAMES
-        .iter()
-        .position(|candidate| normalized_theme_name(candidate) == normalized)
-        .unwrap_or(0)
-}
-
 fn indicator_index(style: crate::config::StatusIndicatorStyle) -> usize {
     usize::from(style == crate::config::StatusIndicatorStyle::Symbols)
 }
@@ -34,11 +22,9 @@ pub(super) fn integration_needs_install(info: &crate::api::schema::IntegrationIn
 impl ClientShellState {
     pub(super) fn open_settings_overlay(&mut self) {
         self.overlay = Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Theme,
-            selected: theme_index(&self.config.theme_name),
+            section: ClientSettingsSection::Usuario,
+            selected: 0,
             nome: TextEditor::new(self.config.nome_usuario.as_deref().unwrap_or(""), false),
-            original_theme_name: self.config.theme_name.clone(),
-            original_palette: self.config.palette.clone(),
             integrations: Vec::new(),
             integration_messages: Vec::new(),
             loading_integrations: false,
@@ -49,7 +35,6 @@ impl ClientShellState {
     fn selected_index_for_settings_section(&self, section: ClientSettingsSection) -> usize {
         match section {
             ClientSettingsSection::Usuario => 0,
-            ClientSettingsSection::Theme => theme_index(&self.config.theme_name),
             ClientSettingsSection::Indicators => indicator_index(self.config.status_indicators),
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
@@ -99,7 +84,6 @@ impl ClientShellState {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
                 ClientSettingsSection::Usuario => 0,
-                ClientSettingsSection::Theme => crate::config::THEME_NAMES.len(),
                 ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
@@ -119,9 +103,6 @@ impl ClientShellState {
         }
         settings.selected = (settings.selected as isize + delta)
             .clamp(0, count.saturating_sub(1) as isize) as usize;
-        if settings.section == ClientSettingsSection::Theme {
-            self.preview_selected_theme();
-        }
     }
 
     pub(super) fn select_settings_choice(&mut self, index: usize) {
@@ -131,35 +112,12 @@ impl ClientShellState {
                 settings.selected = index.min(count - 1);
             }
         }
-        if matches!(
-            self.overlay,
-            Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-                section: ClientSettingsSection::Theme,
-                ..
-            }))
-        ) {
-            self.preview_selected_theme();
-        }
-    }
-
-    fn preview_selected_theme(&mut self) {
-        let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_ref() else {
-            return;
-        };
-        let Some(name) = crate::config::THEME_NAMES.get(settings.selected) else {
-            return;
-        };
-        self.config.theme_name = (*name).to_owned();
-        self.config.palette =
-            crate::app::client_palette_for_theme(&self.config.theme_runtime, name);
     }
 
     pub(super) fn cancel_settings_overlay(&mut self) {
-        let Some(ClientShellOverlay::Settings(settings)) = self.overlay.take() else {
-            return;
-        };
-        self.config.theme_name = settings.original_theme_name;
-        self.config.palette = settings.original_palette;
+        if matches!(self.overlay, Some(ClientShellOverlay::Settings(_))) {
+            self.overlay = None;
+        }
     }
 
     fn save_settings_edit(
@@ -195,14 +153,6 @@ impl ClientShellState {
                 let nome =
                     crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
                 self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome);
-            }
-            ClientSettingsSection::Theme => {
-                let Some(name) = crate::config::THEME_NAMES.get(selected).copied() else {
-                    return;
-                };
-                if self.save_settings_edit(crate::config::ConfigEdit::Theme(name), outcome) {
-                    self.overlay = None;
-                }
             }
             ClientSettingsSection::Indicators => {
                 let style = if selected == 0 {
