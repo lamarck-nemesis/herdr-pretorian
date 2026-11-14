@@ -203,10 +203,14 @@ def configurar_macos(pasta: Path, padrao: bool) -> list[Path]:
         "titulo_oculto": TITULO_OCULTO_MACOS,
         "cores": {chave: _rgb(cor) for chave, cor in cores_macos().items()},
     }
+    anterior = perfil.read_bytes() if perfil.is_file() else None
     subprocess.run(
         ["osascript", "-l", "JavaScript", "-e", GERADOR_PERFIL_MACOS, json.dumps(entrada)],
         check=True,
     )
+    # Importar abre uma janela do Terminal; uma reinstalação sem mudança no perfil não deve abrir.
+    if anterior == perfil.read_bytes():
+        return [perfil, pasta / MARCA]
     # Reimportar sem apagar cria "Pretorian 1" em vez de atualizar o perfil.
     subprocess.run(
         [
