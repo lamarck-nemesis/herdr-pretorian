@@ -94,7 +94,8 @@ instalar destino=(env_var('HOME') / '.local/bin'):
     cargo build --release --locked
     mkdir -p "{{destino}}"
     install -m 755 "${CARGO_TARGET_DIR:-target}/release/herdr" "{{destino}}/pretorian"
-    @echo "instalado em {{destino}}/pretorian"
+    @printf '\n  \033[32m✓\033[0m pretorian instalado em %s/pretorian\n' "{{destino}}"
+    @case ":$PATH:" in *":{{destino}}:"*) printf '  → execute: pretorian\n\n' ;; *) printf '  \033[33m!\033[0m %s não está no PATH; acrescente: export PATH="%s:$PATH"\n\n' "{{destino}}" "{{destino}}" ;; esac
 
 # Compila com o ConPTY e instala como %LOCALAPPDATA%\Programs\pretorian\pretorian.exe; a pasta conpty precisa ficar ao lado do executável
 [script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]
