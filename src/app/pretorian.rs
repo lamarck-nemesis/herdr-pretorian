@@ -8,6 +8,9 @@ impl App {
         perfil: &Path,
         extra_env: &mut Vec<(String, String)>,
     ) -> Result<Option<Vec<String>>, String> {
+        if self.state.pretorian_inicio_gerenciado {
+            return Ok(None);
+        }
         let mut comando =
             crate::config::comando_agente(self.state.pretorian_agente.as_deref(), perfil)?;
         let (Some(provedor), Some(argv)) =
@@ -53,5 +56,31 @@ impl App {
             }
         }
         Ok(comando)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn inicio_gerenciado_deixa_o_lancador_validar_e_iniciar_o_agente() {
+        let (_tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &crate::config::Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.pretorian_inicio_gerenciado = true;
+        app.state.pretorian_agente = Some("claude".into());
+        let mut ambiente = vec![("PRESERVADO".into(), "valor".into())];
+        assert_eq!(
+            app.comando_pretorian(Path::new("perfil"), &mut ambiente)
+                .unwrap(),
+            None
+        );
+        assert_eq!(ambiente, vec![("PRESERVADO".into(), "valor".into())]);
     }
 }
