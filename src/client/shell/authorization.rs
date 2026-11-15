@@ -229,6 +229,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn falha_remove_link_e_codigo_e_nao_aceita_sucesso_atrasado() {
+        for falha in [Evento::Terminou(false), Evento::Falhou] {
+            let (envio, eventos) = mpsc::channel();
+            let mut auth = Autorizacao {
+                mensagem: String::new(),
+                url: None,
+                codigo: None,
+                eventos,
+                cancelar: Arc::new(AtomicBool::new(false)),
+                concluida: false,
+            };
+            envio
+                .send(Evento::Link("https://auth.openai.com/codex/device".into()))
+                .unwrap();
+            envio.send(Evento::Codigo("ABCD-EFGHI".into())).unwrap();
+            assert!(auth.atualizar());
+            assert!(auth.url.is_some());
+            assert!(auth.codigo.is_some());
+            envio.send(falha).unwrap();
+            envio.send(Evento::Terminou(true)).unwrap();
+            assert!(auth.atualizar());
+            assert!(auth.url.is_none());
+            assert!(auth.codigo.is_none());
+            assert!(auth.mensagem.contains("não concluída"));
+            assert!(!auth.atualizar());
+        }
+    }
+
+    #[test]
     fn conclusao_nao_reabre_link_atrasado_e_fechar_sinaliza_cancelamento() {
         let (envio, eventos) = mpsc::channel();
         let cancelar = Arc::new(AtomicBool::new(false));
