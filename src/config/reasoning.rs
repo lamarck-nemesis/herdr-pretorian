@@ -107,9 +107,51 @@ pub fn mestre_e_doutor_iguais(provedor: &str, ambiente: impl Fn(&str) -> Option<
     }
 }
 
+pub fn resolver_raciocinio(
+    provedor: &str,
+    nivel: &str,
+    ambiente: impl Fn(&str) -> Option<String>,
+) -> Result<serde_json::Value, String> {
+    let nivel: NivelRaciocinio = serde_json::from_value(serde_json::json!(nivel))
+        .map_err(|_| "Nível de raciocínio inválido.")?;
+    if !provedores_disponiveis(ambiente("PRETORIAN_PROVEDORES").as_deref()).contains(&provedor) {
+        return Err("Provedor indisponível nesta instalação.".into());
+    }
+    let (modelo, esforco) = configuracao_modelo(provedor, nivel, ambiente)?;
+    Ok(serde_json::json!({
+        "versao": 1,
+        "provedor": provedor,
+        "agente": if provedor == "codex" { "codex" } else { "claude" },
+        "nivel": nivel.chave(),
+        "modelo": modelo,
+        "esforco": esforco,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolucao_publica_reutiliza_catalogo_sem_ler_segredos() {
+        let escolha = resolver_raciocinio("deepseek", "doutor", |chave| {
+            assert!(!chave.contains("KEY") && !chave.contains("TOKEN"));
+            (chave == "PRETORIAN_DEEPSEEK_DOUTOR_ESFORCO").then(|| "xhigh".into())
+        })
+        .unwrap();
+        assert_eq!(
+            escolha,
+            serde_json::json!({"versao": 1, "provedor": "deepseek",
+            "agente": "claude", "nivel": "doutor", "modelo": "deepseek-v4-pro", "esforco": "high"})
+        );
+        assert!(resolver_raciocinio("codex", "desconhecido", |_| None).is_err());
+        assert!(resolver_raciocinio("desconhecido", "mestre", |_| None).is_err());
+        assert!(
+            resolver_raciocinio("codex", "mestre", |chave| (chave == "PRETORIAN_PROVEDORES")
+                .then(String::new))
+            .is_err()
+        );
+    }
 
     #[test]
     fn igualdade_de_configuracao_considera_esforco_efetivo_e_substituicoes() {

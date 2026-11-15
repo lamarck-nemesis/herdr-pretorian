@@ -526,7 +526,27 @@ fn main() -> io::Result<()> {
         }
     };
     if raw_args.len() == 2 && raw_args[1] == "--pretorian-capabilities" {
-        println!("{}", serde_json::json!({"inicio_automatico": true}));
+        println!(
+            "{}",
+            serde_json::json!({"inicio_automatico": true, "resolucao_raciocinio": 1})
+        );
+        return Ok(());
+    }
+    if raw_args
+        .get(1)
+        .is_some_and(|arg| arg == "--pretorian-raciocinio")
+    {
+        if raw_args.len() != 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Uso: --pretorian-raciocinio PROVEDOR NIVEL",
+            ));
+        }
+        let escolha = config::resolver_raciocinio(&raw_args[2], &raw_args[3], |chave| {
+            std::env::var(chave).ok()
+        })
+        .map_err(|erro| io::Error::new(io::ErrorKind::InvalidInput, erro))?;
+        println!("{escolha}");
         return Ok(());
     }
     #[cfg(windows)]

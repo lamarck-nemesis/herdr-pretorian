@@ -6,7 +6,8 @@ mod model;
 mod pretorian;
 mod reasoning;
 pub use reasoning::{
-    configuracao_modelo, mestre_e_doutor_iguais, provedores_disponiveis, NivelRaciocinio,
+    configuracao_modelo, mestre_e_doutor_iguais, provedores_disponiveis, resolver_raciocinio,
+    NivelRaciocinio,
 };
 
 mod sidebar;
