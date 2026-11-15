@@ -134,7 +134,7 @@ impl App {
             .map(PathBuf::from)
             .unwrap_or_else(|| initial_cwd.clone());
         let comando = self
-            .comando_pretorian(&perfil, &mut extra_env)
+            .comando_pretorian(&perfil, &mut extra_env, true)
             .map_err(std::io::Error::other)?;
         let (ws, terminal, runtime) = Workspace::new_with_extra_env(
             initial_cwd,

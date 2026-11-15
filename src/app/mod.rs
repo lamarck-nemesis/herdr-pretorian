@@ -529,6 +529,7 @@ impl App {
             cjk_ime_cursor_shape: config.experimental.cjk_ime_cursor_shape.to_decscusr(),
             kitty_graphics_enabled: config.kitty_graphics_enabled(),
             default_shell: config.terminal.default_shell.clone(),
+            pretorian_primeiro_agente_identificado: false,
             pretorian_inicio_gerenciado: std::env::var("PRETORIAN_INICIO_GERENCIADO")
                 .is_ok_and(|v| v == "1"),
             pretorian_nivel: config.pretorian.nivel,

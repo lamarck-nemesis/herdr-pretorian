@@ -1271,7 +1271,7 @@ impl App {
         serde_json::to_string(&response).unwrap()
     }
 
-    fn handle_notification_show(
+    pub(super) fn handle_notification_show(
         &mut self,
         id: String,
         params: crate::api::schema::NotificationShowParams,

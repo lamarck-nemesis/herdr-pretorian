@@ -62,7 +62,8 @@ impl App {
         } else {
             return encode_error(id, "workspace_not_found", "no active workspace");
         };
-        let cwd = cwd.map(PathBuf::from).unwrap_or_else(|| {
+        let cwd_explicito = cwd.is_some();
+        let mut cwd = cwd.map(PathBuf::from).unwrap_or_else(|| {
             self.resolve_new_terminal_cwd(self.focused_pane_cwd_in_workspace(ws_idx))
         });
         let (rows, cols) = self.state.new_pane_size(crate::ui::NewPanePlacement::Alone);
@@ -83,7 +84,24 @@ impl App {
                     .map(|ws| ws.identity_cwd.clone())
                     .unwrap_or_else(|| cwd.clone())
             });
-        let comando = match self.comando_pretorian(&perfil, &mut extra_env) {
+        if self.state.pretorian_inicio_gerenciado {
+            if cwd_explicito && cwd.canonicalize().ok() != perfil.canonicalize().ok() {
+                return encode_error(id, "invalid_cwd", "A nova aba deve usar a pasta do perfil.");
+            }
+            cwd = perfil.clone();
+            if !extra_env.is_empty() {
+                return encode_error(
+                    id,
+                    "invalid_env",
+                    "A aba gerenciada usa o ambiente validado pelo lançador.",
+                );
+            }
+        }
+        let iniciador = match self.preparar_iniciador_aba(&perfil) {
+            Ok(iniciador) => iniciador,
+            Err(message) => return encode_error(id, "invalid_agent", message),
+        };
+        let comando = match self.comando_pretorian(&perfil, &mut extra_env, false) {
             Ok(comando) => comando,
             Err(message) => return encode_error(id, "invalid_agent", message),
         };
@@ -144,6 +162,12 @@ impl App {
                 }
                 self.schedule_session_save();
                 self.emit_tab_created_events(ws_idx, tab_idx);
+                if let Some(iniciador) = iniciador {
+                    let pane = self
+                        .root_pane_info(ws_idx, tab_idx)
+                        .expect("new tab has a root pane");
+                    self.iniciar_aba_gerenciada(iniciador, &pane);
+                }
                 encode_success(
                     id,
                     self.tab_created_result(ws_idx, tab_idx)
@@ -454,6 +478,35 @@ mod tests {
                     && tabs[2].tab_id == moved_id
             )
         }));
+    }
+
+    #[tokio::test]
+    async fn nova_aba_gerenciada_recusa_partida_antes_do_primeiro_agente() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![Workspace::test_new("tabs")];
+        app.state.active = Some(0);
+        app.state.pretorian_inicio_gerenciado = true;
+        app.state.pretorian_agente = Some("codex".into());
+        let response = app.handle_tab_create(
+            "req".into(),
+            TabCreateParams {
+                workspace_id: None,
+                cwd: None,
+                focus: true,
+                label: None,
+                env: Default::default(),
+            },
+        );
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["error"]["code"], "invalid_agent");
+        assert_eq!(app.state.workspaces[0].tabs.len(), 1);
     }
 
     #[tokio::test]
