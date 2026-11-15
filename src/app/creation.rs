@@ -127,9 +127,15 @@ impl App {
         &mut self,
         initial_cwd: PathBuf,
         focus: bool,
-        extra_env: Vec<(String, String)>,
+        mut extra_env: Vec<(String, String)>,
     ) -> std::io::Result<usize> {
         let (rows, cols) = self.state.new_pane_size(crate::ui::NewPanePlacement::Alone);
+        let perfil = std::env::var_os("PRETORIAN_PASTA_PERFIL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| initial_cwd.clone());
+        let comando = self
+            .comando_pretorian(&perfil, &mut extra_env)
+            .map_err(std::io::Error::other)?;
         let (ws, terminal, runtime) = Workspace::new_with_extra_env(
             initial_cwd,
             rows,
@@ -142,6 +148,7 @@ impl App {
             self.render_notify.clone(),
             self.render_dirty.clone(),
             extra_env,
+            comando.as_deref(),
         )?;
         self.terminal_runtimes.insert(terminal.id.clone(), runtime);
         self.state.terminals.insert(terminal.id.clone(), terminal);

@@ -20,6 +20,7 @@ mod custom_commands;
 mod git_refresh;
 mod ids;
 mod popup;
+mod pretorian;
 mod runtime;
 mod session;
 pub mod state;
@@ -528,6 +529,12 @@ impl App {
             cjk_ime_cursor_shape: config.experimental.cjk_ime_cursor_shape.to_decscusr(),
             kitty_graphics_enabled: config.kitty_graphics_enabled(),
             default_shell: config.terminal.default_shell.clone(),
+            pretorian_nivel: config.pretorian.nivel,
+            pretorian_agente: config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
             shell_mode: config.terminal.shell_mode,
             new_terminal_cwd: config.terminal.new_cwd.clone(),
             pane_scrollback_limit_bytes: config.advanced.scrollback_limit_bytes,
@@ -992,6 +999,15 @@ impl App {
             {
                 self.next_agent_manifest_update_check = Some(now);
             }
+        }
+
+        if !invalid_section("pretorian") {
+            self.state.pretorian_nivel = config.pretorian.nivel;
+            self.state.pretorian_agente = config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
         }
 
         if !invalid_section("terminal") {

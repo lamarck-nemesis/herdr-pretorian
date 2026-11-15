@@ -120,7 +120,7 @@ impl ClientShellState {
         }
     }
 
-    fn save_settings_edit(
+    pub(super) fn save_settings_edit(
         &mut self,
         edit: crate::config::ConfigEdit<'_>,
         outcome: &mut ClientShellInput,

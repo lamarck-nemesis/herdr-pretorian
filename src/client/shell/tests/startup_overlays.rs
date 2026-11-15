@@ -923,6 +923,7 @@ fn coalesced_release_notes_open_and_scroll_uses_current_geometry() {
     state.compose(106, 30).expect("initial shell");
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
         highlighted: 1,
+        ..Default::default()
     }));
 
     state.handle_raw_events(vec![
@@ -994,6 +995,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
         highlighted: 1,
+        ..Default::default()
     }));
     state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1016,6 +1018,7 @@ fn coalesced_release_notes_open_and_mouse_uses_current_geometry() {
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
         highlighted: 1,
+        ..Default::default()
     }));
     let closed = state.handle_raw_events(vec![
         RawInputEvent::Key(crate::input::TerminalKey::new(
@@ -1159,6 +1162,7 @@ fn client_settings_close_and_endpoint_integrations_are_owned_by_overlay() {
     state.set_pane_surface(surface());
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
         highlighted: 0,
+        ..Default::default()
     }));
     let open = state.handle_input_bytes(b"\r");
     assert!(open.actions.is_empty());

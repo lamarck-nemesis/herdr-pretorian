@@ -133,6 +133,12 @@ impl ClientShellConfig {
             copy_on_select: config.ui.copy_on_select,
             clipboard_toast_enabled: config.ui.toast.clipboard.enabled,
             clipboard_toast_position: config.ui.toast.clipboard.position,
+            provedor_raciocinio: config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
+            nivel_raciocinio: config.pretorian.nivel,
             nome_usuario: config
                 .pretorian
                 .nome
@@ -387,6 +393,12 @@ impl ClientShellConfig {
                 config.experimental.switch_ascii_input_source_in_prefix;
         }
         if !invalid_section("pretorian") {
+            self.provedor_raciocinio = config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
+            self.nivel_raciocinio = config.pretorian.nivel;
             self.nome_usuario = config
                 .pretorian
                 .nome

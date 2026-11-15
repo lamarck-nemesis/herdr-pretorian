@@ -307,7 +307,10 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
             y: 8,
             highlighted: 0,
         }),
-        ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay { highlighted: 0 }),
+        ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
+            highlighted: 0,
+            ..Default::default()
+        }),
         ClientShellOverlay::Settings(ClientSettingsOverlay {
             section: ClientSettingsSection::Usuario,
             selected: 0,

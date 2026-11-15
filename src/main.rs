@@ -102,6 +102,8 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # substitui esse cabeçalho.
 # [pretorian]
 # nome = ""
+# agente = "codex"
+# nivel = "especialista"
 #
 # [theme.custom.dark]
 # panel_bg = "#1e1e2e"
@@ -523,6 +525,10 @@ fn main() -> io::Result<()> {
             std::process::exit(2);
         }
     };
+    if raw_args.len() == 2 && raw_args[1] == "--pretorian-capabilities" {
+        println!("{}", serde_json::json!({"inicio_automatico": true}));
+        return Ok(());
+    }
     #[cfg(windows)]
     if let Some(result) = platform::maybe_activate_desktop_notification(&raw_args) {
         return result;

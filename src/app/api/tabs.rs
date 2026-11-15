@@ -70,9 +70,22 @@ impl App {
         let scrollback_limit_bytes = self.state.pane_scrollback_limit_bytes;
         let host_terminal_theme = self.state.host_terminal_theme;
         let host_terminal_appearance = self.pane_host_terminal_appearance();
-        let extra_env = match super::env::normalize_launch_env(env) {
+        let mut extra_env = match super::env::normalize_launch_env(env) {
             Ok(env) => env,
             Err((code, message)) => return encode_error(id, &code, message),
+        };
+        let perfil = std::env::var_os("PRETORIAN_PASTA_PERFIL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                self.state
+                    .workspaces
+                    .get(ws_idx)
+                    .map(|ws| ws.identity_cwd.clone())
+                    .unwrap_or_else(|| cwd.clone())
+            });
+        let comando = match self.comando_pretorian(&perfil, &mut extra_env) {
+            Ok(comando) => comando,
+            Err(message) => return encode_error(id, "invalid_agent", message),
         };
         let result = self
             .state
@@ -80,6 +93,18 @@ impl App {
             .get_mut(ws_idx)
             .ok_or_else(|| std::io::Error::other("workspace disappeared"))
             .and_then(|ws| {
+                if let Some(argv) = comando.as_deref() {
+                    return ws.create_tab_argv_command(
+                        rows,
+                        cols,
+                        cwd,
+                        argv,
+                        extra_env,
+                        scrollback_limit_bytes,
+                        host_terminal_theme,
+                        host_terminal_appearance,
+                    );
+                }
                 ws.create_tab(
                     rows,
                     cols,
@@ -429,6 +454,34 @@ mod tests {
                     && tabs[2].tab_id == moved_id
             )
         }));
+    }
+
+    #[tokio::test]
+    async fn nova_aba_recusa_agente_invalido_sem_criar_terminal() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![Workspace::test_new("tabs")];
+        app.state.active = Some(0);
+        app.state.pretorian_agente = Some("invalido".into());
+        let response = app.handle_tab_create(
+            "req".into(),
+            TabCreateParams {
+                workspace_id: None,
+                cwd: None,
+                focus: true,
+                label: None,
+                env: Default::default(),
+            },
+        );
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["error"]["code"], "invalid_agent");
+        assert_eq!(app.state.workspaces[0].tabs.len(), 1);
     }
 
     #[tokio::test]

@@ -425,7 +425,8 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 1,
+        highlighted: 2,
+        ..Default::default()
     }));
     let detach = state.handle_input_bytes(b"\r");
     assert!(detach.detach);
@@ -552,5 +553,70 @@ fn menu_oferece_atualizar_so_com_lancador_e_pede_a_saida_de_atualizacao() {
     assert_eq!(
         com_lancador.last().map(|(label, _)| *label),
         Some("desconectar")
+    );
+}
+
+#[test]
+fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
+    use crate::client::shell::global_menu::{ClientGlobalMenuAction as A, PaginaRaciocinio as P};
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.toggle_global_menu();
+    let raiz = super::super::global_menu::global_menu_items(state.snapshot.as_deref().unwrap());
+    let item = raiz
+        .iter()
+        .position(|(_, a)| *a == A::Pagina(P::Raciocinio))
+        .unwrap();
+    let mut outcome = ClientShellInput::default();
+    state.activate_global_menu_item(item, &mut outcome);
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("menu de raciocínio");
+    };
+    assert_eq!(
+        menu.items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .map(|(texto, _)| *texto)
+            .collect::<Vec<_>>(),
+        vec!["Trocar", "Autorizar", "Configurar", "Voltar"]
+    );
+    state.activate_global_menu_item(2, &mut outcome);
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("perfis de uso");
+    };
+    assert_eq!(menu.highlighted, 2);
+    let itens = menu.items(state.snapshot.as_deref().unwrap());
+    assert!(itens[2].0.contains("Especialista (padrão)"));
+    assert!(itens[4].0.contains("maior tempo e consumo"));
+    let frame = state.compose(120, 30).unwrap();
+    let texto = frame
+        .cells
+        .iter()
+        .map(|celula| celula.symbol.as_str())
+        .collect::<String>();
+    assert!(texto.contains("Especialista (padrão)"));
+}
+
+#[test]
+fn troca_de_raciocinio_destaca_o_provedor_atual() {
+    use crate::client::shell::global_menu::PaginaRaciocinio as P;
+    let mut config = Config::default();
+    config.pretorian.agente = Some("claude".into());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
+        pagina: P::Raciocinio,
+        provedores: vec!["codex", "claude"],
+        ..Default::default()
+    }));
+    state.activate_global_menu_item(0, &mut ClientShellInput::default());
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("seleção de provedor");
+    };
+    assert_eq!(menu.pagina, P::Trocar);
+    assert_eq!(menu.highlighted, 1);
+    assert_eq!(
+        menu.items(state.snapshot.as_deref().unwrap())[menu.highlighted].0,
+        "Claude"
     );
 }

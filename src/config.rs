@@ -4,6 +4,9 @@ mod io;
 mod keybinds;
 mod model;
 mod pretorian;
+mod reasoning;
+pub use reasoning::{configuracao_modelo, provedores_disponiveis, NivelRaciocinio};
+
 mod sidebar;
 mod sound;
 mod tab_bar;
@@ -29,7 +32,7 @@ pub use self::{
         ToastClipboardPosition, ToastConfig, ToastDelivery, ToastHerdrPosition,
         UpdateChannelConfig, MAX_TOAST_DELAY_SECONDS,
     },
-    pretorian::{sanitizar_nome, PretorianConfig, ASSINATURA, MARCA, SEPARADOR},
+    pretorian::{comando_agente, sanitizar_nome, PretorianConfig, ASSINATURA, MARCA, SEPARADOR},
     sidebar::{
         AgentSidebarToken, AgentsSidebarConfig, SidebarConfig, SidebarTokenStyle,
         SpaceSidebarToken, SpacesSidebarConfig,
