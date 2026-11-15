@@ -20,7 +20,7 @@ on:
       - "src/detect/manifest_update.rs"
       - "src/detect/manifests/**"
   push:
-    branches: [master, main, development, chaos]
+    branches: [master, main, dev, chaos]
     paths:
       - ".github/workflows/distribution.yml"
       - "distribution/**"
