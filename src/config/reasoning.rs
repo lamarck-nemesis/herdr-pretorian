@@ -36,7 +36,7 @@ impl NivelRaciocinio {
             Self::Graduado => "Graduado · rotinas bem definidas e primeiras versões",
             Self::Especialista => "Especialista (padrão) · analisar e revisar com profundidade",
             Self::Mestre => "Mestre · problemas complexos e comparação de alternativas",
-            Self::Doutor => "Doutor · investigação aprofundada; maior tempo e consumo",
+            Self::Doutor => "Doutor · investigar hipóteses e revisar problemas difíceis",
         }
     }
 
@@ -89,12 +89,53 @@ pub fn configuracao_modelo(
     if !["low", "medium", "high", "xhigh", "max"].contains(&esforco.as_str()) {
         return Err("O esforço configurado para este perfil é inválido.".into());
     }
+    let esforco = if provedor == "deepseek" && matches!(esforco.as_str(), "medium" | "xhigh") {
+        "high".into()
+    } else {
+        esforco
+    };
     Ok((modelo, esforco))
+}
+
+pub fn mestre_e_doutor_iguais(provedor: &str, ambiente: impl Fn(&str) -> Option<String>) -> bool {
+    match (
+        configuracao_modelo(provedor, NivelRaciocinio::Mestre, &ambiente),
+        configuracao_modelo(provedor, NivelRaciocinio::Doutor, &ambiente),
+    ) {
+        (Ok(mestre), Ok(doutor)) => mestre == doutor,
+        _ => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn igualdade_de_configuracao_considera_esforco_efetivo_e_substituicoes() {
+        assert!(mestre_e_doutor_iguais("deepseek", |_| None));
+        assert!(!mestre_e_doutor_iguais("codex", |_| None));
+        assert!(!mestre_e_doutor_iguais("invalido", |_| None));
+        assert!(!mestre_e_doutor_iguais("deepseek", |chave| {
+            (chave == "PRETORIAN_DEEPSEEK_DOUTOR_MODELO").then(|| "outro-modelo".into())
+        }));
+        assert!(mestre_e_doutor_iguais("deepseek", |chave| {
+            if chave.ends_with("MESTRE_ESFORCO") {
+                Some("medium".into())
+            } else if chave.ends_with("DOUTOR_ESFORCO") {
+                Some("xhigh".into())
+            } else {
+                None
+            }
+        }));
+        for esforco in ["medium", "xhigh"] {
+            let (_, efetivo) = configuracao_modelo("deepseek", NivelRaciocinio::Doutor, |chave| {
+                chave.ends_with("_ESFORCO").then(|| esforco.into())
+            })
+            .unwrap();
+            assert_eq!(efetivo, "high");
+        }
+    }
 
     #[test]
     fn especialista_e_padrao_e_modelos_podem_mudar_sem_trocar_o_perfil() {

@@ -57,6 +57,10 @@ impl ClientGlobalMenuOverlay {
             P::Configurar => crate::config::NivelRaciocinio::TODOS
                 .into_iter()
                 .map(|n| (n.descricao(), A::Nivel(n)))
+                .chain(self.mestre_doutor_iguais.then_some((
+                    "Mestre e Doutor usam a mesma configuração nesta instalação.",
+                    A::Nada,
+                )))
                 .chain(std::iter::once(("Voltar", A::Pagina(P::Raciocinio))))
                 .collect(),
         }
@@ -136,6 +140,7 @@ impl ClientShellState {
             self.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                 highlighted: 0,
                 pagina: PaginaRaciocinio::Principal,
+                mestre_doutor_iguais: false,
                 autorizacao: None,
                 provedores: crate::config::provedores_disponiveis(
                     std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
@@ -225,6 +230,7 @@ impl ClientShellState {
                             Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                                 highlighted: 0,
                                 pagina: PaginaRaciocinio::Autorizar,
+                                mestre_doutor_iguais: false,
                                 provedores,
                                 autorizacao: Some(autorizacao),
                             }))
@@ -251,6 +257,11 @@ impl ClientShellState {
                 self.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                     highlighted,
                     pagina,
+                    mestre_doutor_iguais: pagina == PaginaRaciocinio::Configurar
+                        && crate::config::mestre_e_doutor_iguais(
+                            self.config.provedor_raciocinio.as_deref().unwrap_or(""),
+                            |chave| std::env::var(chave).ok(),
+                        ),
                     provedores,
                     autorizacao: None,
                 }));

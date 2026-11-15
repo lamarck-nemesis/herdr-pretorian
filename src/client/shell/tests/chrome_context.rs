@@ -587,7 +587,7 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
     assert_eq!(menu.highlighted, 2);
     let itens = menu.items(state.snapshot.as_deref().unwrap());
     assert!(itens[2].0.contains("Especialista (padrão)"));
-    assert!(itens[4].0.contains("maior tempo e consumo"));
+    assert!(itens[4].0.contains("investigar hipóteses"));
     let frame = state.compose(120, 30).unwrap();
     let texto = frame
         .cells
@@ -619,4 +619,21 @@ fn troca_de_raciocinio_destaca_o_provedor_atual() {
         menu.items(state.snapshot.as_deref().unwrap())[menu.highlighted].0,
         "Claude"
     );
+}
+
+#[test]
+fn raciocinio_mostra_configuracao_repetida_sem_ocultar_os_niveis() {
+    use crate::client::shell::global_menu::{ClientGlobalMenuAction as A, PaginaRaciocinio as P};
+    let menu = ClientGlobalMenuOverlay {
+        pagina: P::Configurar,
+        mestre_doutor_iguais: true,
+        ..Default::default()
+    };
+    let snap = snapshot();
+    let itens = menu.items(&snap);
+    assert_eq!(itens.len(), 7);
+    assert_eq!(itens[4].1, A::Nivel(crate::config::NivelRaciocinio::Doutor));
+    assert!(itens[5].0.contains("mesma configuração"));
+    assert_eq!(itens[5].1, A::Nada);
+    assert_eq!(itens[6].1, A::Pagina(P::Raciocinio));
 }
