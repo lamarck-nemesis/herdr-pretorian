@@ -5,6 +5,7 @@ mod keybinds;
 mod model;
 mod pretorian;
 mod reasoning;
+mod reasoning_preferences;
 pub use reasoning::{
     configuracao_modelo, mestre_e_doutor_iguais, provedores_disponiveis, resolver_raciocinio,
     NivelRaciocinio,

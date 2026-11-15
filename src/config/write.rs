@@ -88,6 +88,12 @@ pub(crate) fn update_file_at(
 }
 
 pub(crate) fn write_edit(edit: ConfigEdit<'_>) -> Result<(), String> {
+    if matches!(edit, ConfigEdit::Agente(_) | ConfigEdit::Nivel(_)) {
+        if let Some(path) = super::reasoning_preferences::path() {
+            let loaded = super::Config::load();
+            return super::reasoning_preferences::save(&path, &loaded.config, edit);
+        }
+    }
     update_file_at(&super::config_path(), edit.description(), |content| {
         Ok(edit.apply(content))
     })
