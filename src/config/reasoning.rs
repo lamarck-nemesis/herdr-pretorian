@@ -50,7 +50,7 @@ impl NivelRaciocinio {
             ("claude", Self::Estagiario) => ("haiku", "low"),
             ("claude", Self::Graduado) => ("sonnet", "medium"),
             ("claude", Self::Especialista) => ("opus", "high"),
-            ("claude", Self::Mestre) => ("fable", "medium"),
+            ("claude", Self::Mestre) => ("fable", "high"),
             ("claude", Self::Doutor) => ("fable", "xhigh"),
             ("deepseek", Self::Estagiario) => ("deepseek-flash", "low"),
             ("deepseek", Self::Graduado) => ("deepseek-flash", "high"),
