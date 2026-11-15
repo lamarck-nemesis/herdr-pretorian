@@ -16,7 +16,7 @@ on:
       - "skills/**"
       - "vendor/**"
   push:
-    branches: [master]
+    branches: [master, main, development, chaos]
     paths:
       - ".github/workflows/nix.yml"
       - "assets/**"
