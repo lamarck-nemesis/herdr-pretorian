@@ -40,6 +40,26 @@ fn executar_limitado(mut comando: Command, limite: Duration) -> std::io::Result<
     }
 }
 
+fn ambiente_deepseek(modelo: &str, extra_env: &mut Vec<(String, String)>) -> Result<(), String> {
+    let chave = std::env::var("DEEPSEEK_API_KEY")
+        .ok()
+        .filter(|valor| !valor.trim().is_empty())
+        .ok_or("A chave do DeepSeek ainda não está disponível nesta instalação.")?;
+    extra_env.extend([
+        (
+            "ANTHROPIC_BASE_URL".into(),
+            "https://api.deepseek.com/anthropic".into(),
+        ),
+        ("ANTHROPIC_AUTH_TOKEN".into(), chave),
+        ("ANTHROPIC_API_KEY".into(), String::new()),
+        ("ANTHROPIC_DEFAULT_HAIKU_MODEL".into(), modelo.to_owned()),
+        ("ANTHROPIC_DEFAULT_SONNET_MODEL".into(), modelo.to_owned()),
+        ("ANTHROPIC_DEFAULT_OPUS_MODEL".into(), modelo.to_owned()),
+        ("CLAUDE_CODE_SUBAGENT_MODEL".into(), modelo.to_owned()),
+    ]);
+    Ok(())
+}
+
 impl App {
     pub(super) fn preparar_iniciador_aba(
         &mut self,
@@ -171,6 +191,28 @@ impl App {
         inicial: bool,
     ) -> Result<Option<Vec<String>>, String> {
         if self.state.pretorian_inicio_gerenciado && inicial {
+            let parametro = |chave: &str| {
+                extra_env
+                    .iter()
+                    .find(|(k, _)| k == chave)
+                    .map(|(_, v)| v.clone())
+                    .or_else(|| std::env::var(chave).ok())
+            };
+            let provedor = parametro("PRETORIAN_INICIO_PROVEDOR");
+            let modelo = parametro("PRETORIAN_INICIO_MODELO");
+            extra_env.retain(|(k, _)| {
+                k != "PRETORIAN_INICIO_PROVEDOR" && k != "PRETORIAN_INICIO_MODELO"
+            });
+            match provedor.as_deref() {
+                Some("deepseek") => {
+                    let modelo = modelo
+                        .filter(|m| !m.trim().is_empty() && !m.chars().any(char::is_control))
+                        .ok_or("Modelo da conversa DeepSeek não identificado.")?;
+                    ambiente_deepseek(&modelo, extra_env)?;
+                }
+                Some("codex" | "claude") | None => {}
+                Some(_) => return Err("Provedor inicial inválido.".into()),
+            }
             return Ok(None);
         }
         let mut comando =
@@ -199,22 +241,7 @@ impl App {
         } else {
             extra_env.push(("CLAUDE_CODE_EFFORT_LEVEL".into(), esforco));
             if provedor == "deepseek" {
-                let chave = std::env::var("DEEPSEEK_API_KEY")
-                    .ok()
-                    .filter(|valor| !valor.trim().is_empty())
-                    .ok_or("A chave do DeepSeek ainda não está disponível nesta instalação.")?;
-                extra_env.extend([
-                    (
-                        "ANTHROPIC_BASE_URL".into(),
-                        "https://api.deepseek.com/anthropic".into(),
-                    ),
-                    ("ANTHROPIC_AUTH_TOKEN".into(), chave),
-                    ("ANTHROPIC_API_KEY".into(), String::new()),
-                    ("ANTHROPIC_DEFAULT_HAIKU_MODEL".into(), modelo.clone()),
-                    ("ANTHROPIC_DEFAULT_SONNET_MODEL".into(), modelo.clone()),
-                    ("ANTHROPIC_DEFAULT_OPUS_MODEL".into(), modelo.clone()),
-                    ("CLAUDE_CODE_SUBAGENT_MODEL".into(), modelo),
-                ]);
+                ambiente_deepseek(&modelo, extra_env)?;
             }
         }
         Ok(if self.state.pretorian_inicio_gerenciado {

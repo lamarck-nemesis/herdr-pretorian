@@ -10441,6 +10441,14 @@
             "live_handoff": {
               "type": "boolean"
             },
+            "pretorian_workspace_provider": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "ssh_agent_registration": {
               "default": false,
               "description": "Supports connection-scoped `server.ssh_agent.register` on the local JSON API.",

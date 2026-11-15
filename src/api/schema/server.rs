@@ -55,4 +55,6 @@ pub struct ServerCapabilities {
     /// Supports connection-scoped `server.ssh_agent.register` on the local JSON API.
     #[serde(default)]
     pub ssh_agent_registration: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pretorian_workspace_provider: Option<u32>,
 }
