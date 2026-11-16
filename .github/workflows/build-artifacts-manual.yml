@@ -175,10 +175,10 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            os: macos-15
+            os: macos-26
             name: herdr-macos-x86_64
           - target: aarch64-apple-darwin
-            os: macos-15
+            os: macos-26
             name: herdr-macos-aarch64
     env:
       LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
@@ -188,6 +188,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+          ref: 08a471abd88a249e541bcb7325b553201ad1a593
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
@@ -227,7 +228,7 @@ jobs:
           cp target/${{ matrix.target }}/release/herdr ${{ matrix.name }}
           file ${{ matrix.name }} > BUILD_INFO.txt
           {
-            echo "commit=$GITHUB_SHA"
+            echo "commit=$(git rev-parse HEAD)"
             echo "target=${{ matrix.target }}"
             echo "libghostty_vt_optimize=$LIBGHOSTTY_VT_OPTIMIZE"
             echo "libghostty_vt_simd=$LIBGHOSTTY_VT_SIMD"
