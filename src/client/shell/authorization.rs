@@ -220,8 +220,10 @@ impl Autorizacao {
             return;
         }
         let codigo = texto.trim();
-        if codigo.is_empty() || codigo.len() > 2048 || !codigo.bytes().all(|b| b.is_ascii_graphic())
-        {
+        let formato_valido = codigo.split_once('#').is_some_and(|(valor, estado)| {
+            !valor.is_empty() && !estado.is_empty() && !estado.contains('#')
+        });
+        if !formato_valido || codigo.len() > 2048 || !codigo.bytes().all(|b| b.is_ascii_graphic()) {
             self.mensagem =
                 "Copie somente o código exibido pelo navegador e tente novamente.".into();
             return;
@@ -301,6 +303,10 @@ mod tests {
             "",
             "codigo\noutro",
             "codigo com espaco",
+            "codigo-sem-estado",
+            "#estado",
+            "codigo#",
+            "codigo#estado#extra",
             "\u{1b}codigo",
             &"x".repeat(2049),
         ] {
