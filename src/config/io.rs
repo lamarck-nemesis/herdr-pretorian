@@ -147,6 +147,14 @@ pub(super) fn read_optional_config(path: &Path) -> std::io::Result<Option<String
 
 impl Config {
     pub fn load() -> LoadedConfig {
+        let mut loaded = Self::load_base();
+        if let Err(error) = super::reasoning_preferences::overlay(&mut loaded.config) {
+            loaded.diagnostics.push(error);
+        }
+        loaded
+    }
+
+    fn load_base() -> LoadedConfig {
         let path = config_path();
         let content = match read_optional_config(&path) {
             Ok(Some(content)) => content,
@@ -265,6 +273,12 @@ pub fn config_diagnostic_summary(diagnostics: &[String]) -> Option<String> {
 }
 
 pub fn load_live_config() -> Result<LoadedConfig, Vec<String>> {
+    let mut loaded = load_live_base()?;
+    super::reasoning_preferences::overlay(&mut loaded.config).map_err(|error| vec![error])?;
+    Ok(loaded)
+}
+
+fn load_live_base() -> Result<LoadedConfig, Vec<String>> {
     let path = config_path();
     let content = match read_optional_config(&path) {
         Ok(Some(content)) => content,

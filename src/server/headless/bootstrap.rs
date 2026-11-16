@@ -117,6 +117,10 @@ fn seed_startup_workspace_if_empty(app: &mut app::App) {
         return;
     }
 
+    if app.state.pretorian_aguarda_workspace {
+        return;
+    }
+
     match app.create_workspace_with_options(cwd.clone(), true) {
         Ok(_) => {
             info!(cwd = %cwd.display(), "created startup workspace");

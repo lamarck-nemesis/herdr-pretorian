@@ -4,6 +4,8 @@ pub(crate) enum ConfigEdit<'a> {
     Sound(bool),
     ToastDelivery(super::ToastDelivery),
     Nome(&'a str),
+    Agente(&'a str),
+    Nivel(super::NivelRaciocinio),
 }
 
 impl ConfigEdit<'_> {
@@ -13,6 +15,8 @@ impl ConfigEdit<'_> {
             Self::Sound(_) => "configuração de som",
             Self::ToastDelivery(_) => "configuração de avisos",
             Self::Nome(_) => "nome do usuário",
+            Self::Agente(_) => "provedor de raciocínio",
+            Self::Nivel(_) => "perfil de raciocínio",
         }
     }
 
@@ -37,6 +41,18 @@ impl ConfigEdit<'_> {
                 let content = super::upsert_section_value(content, "ui.toast", "delivery", value);
                 super::remove_section_key(&content, "ui.toast", "enabled")
             }
+            Self::Agente(agente) => super::upsert_section_value(
+                content,
+                "pretorian",
+                "agente",
+                &toml::Value::String(agente.into()).to_string(),
+            ),
+            Self::Nivel(nivel) => super::upsert_section_value(
+                content,
+                "pretorian",
+                "nivel",
+                &toml::Value::String(nivel.chave().into()).to_string(),
+            ),
             Self::Nome(nome) => super::upsert_section_value(
                 content,
                 "pretorian",
@@ -72,6 +88,12 @@ pub(crate) fn update_file_at(
 }
 
 pub(crate) fn write_edit(edit: ConfigEdit<'_>) -> Result<(), String> {
+    if matches!(edit, ConfigEdit::Agente(_) | ConfigEdit::Nivel(_)) {
+        if let Some(path) = super::reasoning_preferences::path() {
+            let loaded = super::Config::load();
+            return super::reasoning_preferences::save(&path, &loaded.config, edit);
+        }
+    }
     update_file_at(&super::config_path(), edit.description(), |content| {
         Ok(edit.apply(content))
     })
@@ -80,6 +102,18 @@ pub(crate) fn write_edit(edit: ConfigEdit<'_>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raciocinio_persiste_sem_alterar_as_demais_configuracoes() {
+        let original = "[pretorian]\nnome = \"Ana\"\n[terminal]\nnew_cwd = \"home\"\n";
+        let escrito = ConfigEdit::Agente("deepseek").apply(original);
+        let escrito = ConfigEdit::Nivel(super::super::NivelRaciocinio::Doutor).apply(&escrito);
+        let lido: super::super::Config = toml::from_str(&escrito).unwrap();
+        assert_eq!(lido.pretorian.agente.as_deref(), Some("deepseek"));
+        assert_eq!(lido.pretorian.nivel, super::super::NivelRaciocinio::Doutor);
+        assert_eq!(lido.pretorian.nome.as_deref(), Some("Ana"));
+        assert!(escrito.contains("new_cwd = \"home\""));
+    }
 
     #[test]
     fn nome_edit_escapa_string_toml() {
