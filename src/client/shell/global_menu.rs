@@ -8,6 +8,8 @@ pub(super) enum PaginaRaciocinio {
     Trocar,
     Configurar,
     Autorizar,
+    /// Diálogo de nível técnico mostrado antes de abrir uma aba na janela gerenciada.
+    NovaAba,
 }
 
 impl ClientGlobalMenuOverlay {
@@ -38,6 +40,16 @@ impl ClientGlobalMenuOverlay {
                 items.push(("Fechar / cancelar autorização", A::Pagina(P::Raciocinio)));
                 items
             }
+            P::NovaAba => std::iter::once((
+                "Nível técnico da nova aba · tecle 1 a 5 · Esc cancela",
+                A::Nada,
+            ))
+            .chain(
+                crate::config::NivelRaciocinio::TODOS
+                    .into_iter()
+                    .map(|n| (n.rotulo_numerado(), A::NovaAba(n))),
+            )
+            .collect(),
             P::Principal => global_menu_items(snapshot),
             P::Raciocinio => vec![
                 ("Trocar", A::Pagina(P::Trocar)),
@@ -86,6 +98,8 @@ pub(super) enum ClientGlobalMenuAction {
     Pagina(PaginaRaciocinio),
     Provedor(&'static str),
     Nivel(crate::config::NivelRaciocinio),
+    /// Abre a aba com o nível escolhido para o agente dela.
+    NovaAba(crate::config::NivelRaciocinio),
     PretorianUpdate,
 }
 
@@ -162,6 +176,52 @@ impl ClientShellState {
                 ),
             }));
         }
+    }
+
+    /// Na janela gerenciada toda aba nova abre um agente; o nível técnico dele é escolhido antes.
+    pub(super) fn open_new_tab_level_menu(&mut self) {
+        let padrao = crate::config::NivelRaciocinio::TODOS
+            .iter()
+            .position(|n| *n == self.config.nivel_raciocinio)
+            .unwrap_or(2);
+        self.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
+            // A primeira linha é o título do diálogo.
+            highlighted: padrao + 1,
+            pagina: PaginaRaciocinio::NovaAba,
+            mestre_doutor_iguais: false,
+            autorizacao: None,
+            provedores: crate::config::provedores_disponiveis(
+                std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
+            ),
+        }));
+    }
+
+    fn criar_aba_com_nivel(
+        &mut self,
+        nivel: crate::config::NivelRaciocinio,
+        outcome: &mut ClientShellInput,
+    ) {
+        let Some(workspace_id) = self
+            .snapshot
+            .as_deref()
+            .and_then(|snapshot| snapshot.focused_workspace_id.clone())
+        else {
+            return;
+        };
+        // O lançador lê esta variável ao abrir o agente do painel e grava o nível na conversa da aba.
+        let env = [("PRETORIAN_NIVEL_ABA".to_owned(), nivel.chave().to_owned())]
+            .into_iter()
+            .collect();
+        self.push_endpoint_method(
+            crate::api::schema::Method::TabCreate(crate::api::schema::TabCreateParams {
+                workspace_id: Some(workspace_id),
+                cwd: None,
+                focus: true,
+                label: None,
+                env,
+            }),
+            outcome,
+        );
     }
 
     pub(super) fn move_global_menu_selection(&mut self, delta: isize) {
@@ -309,6 +369,7 @@ impl ClientShellState {
             ClientGlobalMenuAction::Nivel(nivel) => {
                 self.save_settings_edit(crate::config::ConfigEdit::Nivel(nivel), outcome);
             }
+            ClientGlobalMenuAction::NovaAba(nivel) => self.criar_aba_com_nivel(nivel, outcome),
             ClientGlobalMenuAction::Binding(binding) => {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)
             }

@@ -11,6 +11,11 @@ pub(crate) fn launcher_updates() -> bool {
     std::env::var_os("PRETORIAN_ATUALIZAVEL").is_some()
 }
 
+/// Na janela do Pretorian o lançador abre um agente em cada painel; a pessoa não chega a um shell.
+pub(crate) fn painel_gerenciado() -> bool {
+    std::env::var("PRETORIAN_PAINEL_GERENCIADO").is_ok_and(|valor| valor == "1")
+}
+
 pub(crate) fn request_update() {
     UPDATE_REQUESTED.store(true, std::sync::atomic::Ordering::Release);
 }

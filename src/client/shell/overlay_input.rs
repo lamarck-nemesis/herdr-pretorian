@@ -609,6 +609,16 @@ impl ClientShellState {
                     };
                     self.activate_global_menu_item(highlighted, outcome);
                 }
+                // No diálogo de nível da aba nova, o número escolhe direto; a linha 0 é o título.
+                KeyCode::Char(tecla @ '1'..='5')
+                    if matches!(
+                        &self.overlay,
+                        Some(ClientShellOverlay::GlobalMenu(menu))
+                            if menu.pagina == super::global_menu::PaginaRaciocinio::NovaAba
+                    ) =>
+                {
+                    self.activate_global_menu_item(tecla as usize - '0' as usize, outcome);
+                }
                 _ => {}
             }
             return;
