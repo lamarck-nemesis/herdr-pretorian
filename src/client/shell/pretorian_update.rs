@@ -72,6 +72,15 @@ pub(super) fn estado() -> Option<PretorianUpdate> {
 }
 
 fn gravar_pedido(caminho: &Path) -> std::io::Result<()> {
+    let progresso = caminho.with_file_name(format!(
+        "{}.progresso",
+        caminho.file_name().unwrap_or_default().to_string_lossy()
+    ));
+    match std::fs::remove_file(progresso) {
+        Ok(()) => {}
+        Err(erro) if erro.kind() == std::io::ErrorKind::NotFound => {}
+        Err(erro) => return Err(erro),
+    }
     // O estado muda aqui para o menu responder de imediato; o lançador conclui com `instalada` ou `falhou`.
     std::fs::write(caminho, "instalando\n")?;
     let mut pedido = caminho.as_os_str().to_owned();
@@ -139,5 +148,56 @@ mod tests {
         );
         assert_eq!(ler(&pasta.join("ausente")), None);
         std::fs::remove_dir_all(pasta).unwrap();
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct Cartao {
+    pub(super) percentual: u8,
+    pub(super) mensagem: String,
+    proxima: Instant,
+}
+
+impl Cartao {
+    pub(super) fn novo() -> Self {
+        Self {
+            percentual: 0,
+            mensagem: "Preparando atualização…".into(),
+            proxima: Instant::now(),
+        }
+    }
+
+    pub(super) fn atualizar(&mut self, agora: Instant) -> bool {
+        if agora < self.proxima {
+            return false;
+        }
+        self.proxima = agora + Duration::from_secs(1);
+        if let Some(caminho) = arquivo() {
+            let progresso = caminho.with_file_name(format!(
+                "{}.progresso",
+                caminho.file_name().unwrap_or_default().to_string_lossy()
+            ));
+            if let Ok(texto) = std::fs::read_to_string(progresso) {
+                if let Ok(dados) = serde_json::from_str::<serde_json::Value>(&texto) {
+                    self.percentual = dados["percentual"].as_u64().unwrap_or(0).min(100) as u8;
+                    self.mensagem = dados["mensagem"]
+                        .as_str()
+                        .unwrap_or("Aguardando informações da atualização…")
+                        .to_owned();
+                }
+            }
+            match ler(&caminho) {
+                Some(PretorianUpdate::Instalada) => {
+                    self.percentual = 100;
+                    self.mensagem = "Atualização concluída. Reabra o Pretorian.".into();
+                }
+                Some(PretorianUpdate::Falhou) => {
+                    self.percentual = self.percentual.min(99);
+                    self.mensagem = "Atualização não concluída. Tente novamente pelo menu.".into();
+                }
+                _ => {}
+            }
+        }
+        true
     }
 }

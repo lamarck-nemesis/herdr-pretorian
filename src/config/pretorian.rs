@@ -8,7 +8,12 @@ pub const MAX_NOME_CHARS: usize = 100;
 pub const MARCA: &str = "LSA • prεtοrιαn";
 pub const SEPARADOR: &str = " │ ";
 /// Assinatura do Lamarck Hub, mostrada à direita da barra de abas.
-pub const ASSINATURA: &str = "⌘ nεαd.tεch │ 2026";
+pub fn assinatura() -> String {
+    format!(
+        "⌘ nεαd.tεch │ v. {}",
+        crate::build_info::pretorian_version()
+    )
+}
 
 /// Seção `[pretorian]` própria deste fork; fica fora de `[ui]` para não colidir com chaves do
 /// Herdr original em atualizações futuras.
@@ -45,9 +50,7 @@ impl Config {
         if !self.ui.tab_bar_right.is_empty() {
             return self.ui.tab_bar_right.clone();
         }
-        vec![TabBarRightEntryConfig::Text {
-            text: ASSINATURA.to_string(),
-        }]
+        vec![TabBarRightEntryConfig::Text { text: assinatura() }]
     }
 }
 
@@ -102,9 +105,7 @@ nome = "Y"
 
     #[test]
     fn tab_bar_right_vazio_usa_assinatura_sem_nome() {
-        let assinatura = vec![TabBarRightEntryConfig::Text {
-            text: "⌘ nεαd.tεch │ 2026".into(),
-        }];
+        let assinatura = vec![TabBarRightEntryConfig::Text { text: assinatura() }];
         let config: Config = toml::from_str("[pretorian]\nnome = \" Ana \"\n").unwrap();
         assert_eq!(config.tab_bar_right_efetivo(), assinatura);
         assert_eq!(Config::default().tab_bar_right_efetivo(), assinatura);
