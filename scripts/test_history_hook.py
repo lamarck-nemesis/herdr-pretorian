@@ -32,7 +32,7 @@ class HistoryHook(unittest.TestCase):
                     self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'', b''))
                     self.assertEqual(json.loads(capture.read_bytes()), event)
                     capture.unlink()
-                    env.pop('PRETORIAN_HISTORICOS_CONTEXTO')
+                    env.pop('PRETORIAN_HISTORICOS_HELPER')
                     result = subprocess.run(['sh', str(script), 'session'], input=json.dumps(event).encode(),
                                             env=env, capture_output=True, timeout=3)
                     self.assertEqual(result.returncode, 0)

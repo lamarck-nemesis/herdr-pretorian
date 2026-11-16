@@ -54,7 +54,7 @@ if hook_event_name and hook_event_name != "SessionStart":
 
 historico_python = os.environ.get("PRETORIAN_HISTORICOS_PYTHON")
 historico_helper = os.environ.get("PRETORIAN_HISTORICOS_HELPER")
-if historico_python and historico_helper and os.environ.get("PRETORIAN_HISTORICOS_CONTEXTO"):
+if historico_python and historico_helper:
     import subprocess
     try:
         subprocess.run([historico_python, historico_helper], input=json.dumps(hook_input).encode(),
