@@ -37,6 +37,7 @@ pub(crate) struct ClientShellConfig {
     pub(super) nome_usuario: Option<String>,
     pub(super) provedor_raciocinio: Option<String>,
     pub(super) nivel_raciocinio: crate::config::NivelRaciocinio,
+    pub(super) pje_sem_janela: bool,
     pub(super) theme_name: String,
     pub(super) theme_runtime: crate::app::state::ThemeRuntimeConfig,
     pub(super) palette: Palette,

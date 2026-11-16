@@ -139,6 +139,7 @@ impl ClientShellConfig {
                 .clone()
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
             nivel_raciocinio: config.pretorian.nivel,
+            pje_sem_janela: config.pretorian.pje_sem_janela,
             nome_usuario: config
                 .pretorian
                 .nome
@@ -399,6 +400,7 @@ impl ClientShellConfig {
                 .clone()
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
             self.nivel_raciocinio = config.pretorian.nivel;
+            self.pje_sem_janela = config.pretorian.pje_sem_janela;
             self.nome_usuario = config
                 .pretorian
                 .nome

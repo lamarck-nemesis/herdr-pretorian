@@ -8,6 +8,8 @@ pub(super) enum PaginaRaciocinio {
     Trocar,
     Configurar,
     Autorizar,
+    /// Preferências do login automático do PJe feito pelo Pretorian CLI.
+    LoginPje,
     /// Diálogo de nível técnico mostrado antes de abrir uma aba na janela gerenciada.
     NovaAba,
 }
@@ -57,6 +59,17 @@ impl ClientGlobalMenuOverlay {
                 ("Configurar", A::Pagina(P::Configurar)),
                 ("Voltar", A::Pagina(P::Principal)),
             ],
+            P::LoginPje => vec![
+                (
+                    "Modo headless: ligado (login sem janela)",
+                    A::PjeSemJanela(true),
+                ),
+                (
+                    "Modo headless: desligado (acompanhar na janela)",
+                    A::PjeSemJanela(false),
+                ),
+                ("Voltar", A::Pagina(P::Principal)),
+            ],
             P::Trocar => self
                 .provedores
                 .iter()
@@ -98,6 +111,7 @@ pub(super) enum ClientGlobalMenuAction {
     Pagina(PaginaRaciocinio),
     Provedor(&'static str),
     Nivel(crate::config::NivelRaciocinio),
+    PjeSemJanela(bool),
     /// Abre a aba com o nível escolhido para o agente dela.
     NovaAba(crate::config::NivelRaciocinio),
     PretorianUpdate,
@@ -150,6 +164,10 @@ pub(super) fn global_menu_items_for(
     items.push((
         "raciocínio",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Raciocinio),
+    ));
+    items.push((
+        "login pje",
+        ClientGlobalMenuAction::Pagina(PaginaRaciocinio::LoginPje),
     ));
     if launcher_updates && super::pretorian_update::rotulo_menu().is_none() {
         items.push(("atualizar o Pretorian", ClientGlobalMenuAction::Atualizar));
@@ -334,6 +352,8 @@ impl ClientShellState {
                         .iter()
                         .position(|n| *n == self.config.nivel_raciocinio)
                         .unwrap_or(0)
+                } else if pagina == PaginaRaciocinio::LoginPje {
+                    usize::from(!self.config.pje_sem_janela)
                 } else if pagina == PaginaRaciocinio::Trocar {
                     provedores
                         .iter()
@@ -368,6 +388,9 @@ impl ClientShellState {
             }
             ClientGlobalMenuAction::Nivel(nivel) => {
                 self.save_settings_edit(crate::config::ConfigEdit::Nivel(nivel), outcome);
+            }
+            ClientGlobalMenuAction::PjeSemJanela(ligado) => {
+                self.save_settings_edit(crate::config::ConfigEdit::PjeSemJanela(ligado), outcome);
             }
             ClientGlobalMenuAction::NovaAba(nivel) => self.criar_aba_com_nivel(nivel, outcome),
             ClientGlobalMenuAction::Binding(binding) => {

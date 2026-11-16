@@ -26,6 +26,8 @@ pub struct PretorianConfig {
     pub nome: Option<String>,
     pub agente: Option<String>,
     pub nivel: super::NivelRaciocinio,
+    /// Login do PJe sem janela (headless). O Pretorian CLI lê esta chave; `PRETORIAN_PJE_SEM_JANELA` a sobrepõe.
+    pub pje_sem_janela: bool,
 }
 
 pub fn comando_agente(agente: Option<&str>, perfil: &Path) -> Result<Option<Vec<String>>, String> {
