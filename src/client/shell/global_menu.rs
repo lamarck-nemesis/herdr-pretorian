@@ -4,17 +4,22 @@ use super::*;
 pub(super) enum ClientGlobalMenuAction {
     Binding(crate::input::KeybindAction),
     WhatsNew,
+    PretorianUpdate,
 }
 
 pub(super) fn global_menu_attention(snapshot: &ClientShellSnapshot) -> bool {
-    snapshot.update_available.is_some() || snapshot.integration_updates_available
+    snapshot.update_available.is_some()
+        || snapshot.integration_updates_available
+        || super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao())
 }
 
 pub(super) fn global_menu_item_has_badge(
     snapshot: &ClientShellSnapshot,
     action: ClientGlobalMenuAction,
 ) -> bool {
-    (action == ClientGlobalMenuAction::WhatsNew && snapshot.update_available.is_some())
+    (action == ClientGlobalMenuAction::PretorianUpdate
+        && super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()))
+        || (action == ClientGlobalMenuAction::WhatsNew && snapshot.update_available.is_some())
         || (action == ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings)
             && snapshot.integration_updates_available)
 }
@@ -35,6 +40,9 @@ pub(super) fn global_menu_items(
             },
             ClientGlobalMenuAction::WhatsNew,
         ));
+    }
+    if let Some(estado) = super::pretorian_update::estado() {
+        items.push((estado.rotulo(), ClientGlobalMenuAction::PretorianUpdate));
     }
     items.push((
         "desconectar",
@@ -94,6 +102,12 @@ impl ClientShellState {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)
             }
             ClientGlobalMenuAction::WhatsNew => self.open_release_notes(),
+            ClientGlobalMenuAction::PretorianUpdate => {
+                // Durante a instalação e depois dela o item só informa o estado.
+                if super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()) {
+                    super::pretorian_update::pedir();
+                }
+            }
         }
         outcome.repaint = true;
     }
