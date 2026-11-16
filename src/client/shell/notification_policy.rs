@@ -149,6 +149,9 @@ impl ClientShellState {
         now: std::time::Instant,
     ) -> (Vec<ClientShellNotificationEffect>, bool) {
         let mut repaint = false;
+        if let Some(ClientShellOverlay::PretorianUpdate(cartao)) = self.overlay.as_mut() {
+            repaint |= cartao.atualizar(now);
+        }
         if self
             .visible_notification
             .as_ref()

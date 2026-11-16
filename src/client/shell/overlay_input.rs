@@ -489,6 +489,13 @@ impl ClientShellState {
     ) {
         use crossterm::event::KeyModifiers;
 
+        if matches!(self.overlay, Some(ClientShellOverlay::PretorianUpdate(_))) {
+            if matches!(key.code, KeyCode::Esc | KeyCode::Enter) {
+                self.overlay = None;
+                outcome.repaint = true;
+            }
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
             if matches!(
                 key.code,
