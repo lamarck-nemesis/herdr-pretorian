@@ -174,13 +174,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-apple-darwin
-            os: macos-15
-            name: herdr-macos-x86_64
           - target: aarch64-apple-darwin
-            os: macos-15
+            os: macos-26
             name: herdr-macos-aarch64
     env:
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
       LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
       LIBGHOSTTY_VT_SIMD: ${{ inputs.libghostty_simd }}
 
@@ -188,6 +186,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+          ref: pretorian-v0.5.1
+
+      - name: Verify release source
+        run: test "$(git rev-parse HEAD)" = "027ed9943e935d05bbc84f378589007555cfdbaa"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
@@ -215,6 +217,7 @@ jobs:
           test "$(uname -m)" = arm64
           target/${{ matrix.target }}/release/herdr --version
           target/${{ matrix.target }}/release/herdr --help >/dev/null
+          xcrun vtool -show-build target/${{ matrix.target }}/release/herdr
 
       - name: Package original Rust and toolchain license notices
         run: |
@@ -227,7 +230,7 @@ jobs:
           cp target/${{ matrix.target }}/release/herdr ${{ matrix.name }}
           file ${{ matrix.name }} > BUILD_INFO.txt
           {
-            echo "commit=$GITHUB_SHA"
+            echo "commit=$(git rev-parse HEAD)"
             echo "target=${{ matrix.target }}"
             echo "libghostty_vt_optimize=$LIBGHOSTTY_VT_OPTIMIZE"
             echo "libghostty_vt_simd=$LIBGHOSTTY_VT_SIMD"
