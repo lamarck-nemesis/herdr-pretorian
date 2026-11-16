@@ -12,6 +12,10 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 ### Adicionado
 - Janela do Pretorian: abrir uma aba mostra antes o diálogo "Nível técnico da nova aba" com os cinco níveis (teclas 1 a 5, setas e Enter, Esc cancela). A aba nasce com `PRETORIAN_NIVEL_ABA` no ambiente, que o lançador usa para ligar o agente no nível escolhido. Vale só quando o lançador informa `PRETORIAN_PAINEL_GERENCIADO=1`; fora da janela a aba nova abre como antes.
 
+### Corrigido
+- Menu: o item "raciocínio" passa a ser escrito em minúsculas, como os demais itens.
+- Menu: o item de atualização do Pretorian fica sempre visível quando o lançador informa o arquivo de estado. Sem versão nova sinalizada ele aparece como "verificar atualização" e pede ao lançador que confira o catálogo; antes o item só existia depois que a conferência periódica encontrava versão nova.
+
 ## [0.4.0] - 2026-11-16
 
 ### Adicionado

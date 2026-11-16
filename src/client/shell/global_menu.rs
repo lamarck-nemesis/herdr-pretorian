@@ -144,14 +144,14 @@ pub(super) fn global_menu_items_for(
             ClientGlobalMenuAction::WhatsNew,
         ));
     }
-    if let Some(estado) = super::pretorian_update::estado() {
-        items.push((estado.rotulo(), ClientGlobalMenuAction::PretorianUpdate));
+    if let Some(rotulo) = super::pretorian_update::rotulo_menu() {
+        items.push((rotulo, ClientGlobalMenuAction::PretorianUpdate));
     }
     items.push((
-        "Raciocínio",
+        "raciocínio",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Raciocinio),
     ));
-    if launcher_updates && super::pretorian_update::estado().is_none() {
+    if launcher_updates && super::pretorian_update::rotulo_menu().is_none() {
         items.push(("atualizar o Pretorian", ClientGlobalMenuAction::Atualizar));
     }
     items.push((
@@ -383,7 +383,7 @@ impl ClientShellState {
                     super::pretorian_update::Cartao::novo(),
                 ));
                 // O pedido existente continua sendo atendido pelo lançador.
-                if super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()) {
+                if super::pretorian_update::aceita_pedido() {
                     super::pretorian_update::pedir();
                 }
             }
