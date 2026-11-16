@@ -132,6 +132,13 @@ impl ClientShellState {
                     }
                     return;
                 }
+                if action == crate::input::KeybindAction::NewTab
+                    && crate::terminal_effects::painel_gerenciado()
+                {
+                    self.open_new_tab_level_menu();
+                    outcome.repaint = true;
+                    return;
+                }
                 if action == crate::input::KeybindAction::NewTab && self.config.prompt_new_tab_name
                 {
                     self.open_new_tab_overlay();
