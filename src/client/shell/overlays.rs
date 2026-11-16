@@ -56,6 +56,7 @@ pub(crate) fn render_client_overlay(
         }
     }
     match o {
+        ClientShellOverlay::PretorianUpdate(v) => render_pretorian_update(b, v, p),
         ClientShellOverlay::Onboarding => render_onboarding_overlay(b, k, p),
         ClientShellOverlay::ProductAnnouncement(v) => render_product_announcement_overlay(b, v, p),
         ClientShellOverlay::ReleaseNotes(v) => {
@@ -1314,4 +1315,74 @@ fn render_confirm_close_overlay(
         cursor: None,
         ..OverlayRender::default()
     })
+}
+
+fn render_pretorian_update(
+    b: &mut Buffer,
+    v: &super::pretorian_update::Cartao,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let q = popup(b.area, 72, 10)?;
+    let i = panel(b, q, p.accent, p.panel_bg)?;
+    let cheios = usize::from(v.percentual) / 5;
+    let linhas = [
+        "Atualização do Pretorian".to_owned(),
+        format!(
+            "Versão em uso: v. {}",
+            crate::build_info::pretorian_version()
+        ),
+        String::new(),
+        format!(
+            "[{}{}] {:3}% do processo",
+            "#".repeat(cheios),
+            "-".repeat(20 - cheios),
+            v.percentual
+        ),
+        v.mensagem.clone(),
+    ];
+    for (n, linha) in linhas.iter().enumerate() {
+        put_text(
+            b,
+            i.x,
+            i.y + n as u16,
+            i.width,
+            linha,
+            Style::default().fg(p.text).bg(p.panel_bg),
+        );
+    }
+    let fechar = Rect::new(i.x, i.y + 6, 24.min(i.width), 1);
+    button(
+        b,
+        fechar,
+        " esc fechar / continuar ",
+        Style::default().fg(p.text).bg(p.surface0),
+    );
+    Some(OverlayRender {
+        area: q,
+        cancel: fechar,
+        ..OverlayRender::default()
+    })
+}
+
+#[cfg(test)]
+mod pretorian_update_tests {
+    use super::*;
+
+    #[test]
+    fn cartao_mostra_versao_progresso_e_fechamento() {
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 90, 24));
+        let mut cartao = super::super::pretorian_update::Cartao::novo();
+        cartao.percentual = 75;
+        cartao.mensagem = "Instalando a nova versão…".into();
+        let palette = Palette::catppuccin();
+        let desenho = render_pretorian_update(&mut buffer, &cartao, &palette).unwrap();
+        let texto: String = buffer
+            .content
+            .iter()
+            .map(|celula| celula.symbol())
+            .collect();
+        assert!(texto.contains("[###############-----]  75%"));
+        assert!(texto.contains(crate::build_info::pretorian_version()));
+        assert!(desenho.cancel.width > 0);
+    }
 }

@@ -283,6 +283,7 @@ pub(super) enum ClientShellMode {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientShellOverlayKind {
+    PretorianUpdate,
     Onboarding,
     ProductAnnouncement,
     ReleaseNotes,
@@ -599,6 +600,7 @@ pub(super) struct ClientConfirmCloseOverlay {
 
 #[derive(Debug)]
 pub(super) enum ClientShellOverlay {
+    PretorianUpdate(super::pretorian_update::Cartao),
     Onboarding,
     ProductAnnouncement(crate::app::state::ProductAnnouncementState),
     ReleaseNotes(crate::app::state::ReleaseNotesState),
@@ -617,6 +619,7 @@ pub(super) enum ClientShellOverlay {
 impl ClientShellOverlay {
     pub(super) fn kind(&self) -> ClientShellOverlayKind {
         match self {
+            Self::PretorianUpdate(_) => ClientShellOverlayKind::PretorianUpdate,
             Self::Onboarding => ClientShellOverlayKind::Onboarding,
             Self::ProductAnnouncement(_) => ClientShellOverlayKind::ProductAnnouncement,
             Self::ReleaseNotes(_) => ClientShellOverlayKind::ReleaseNotes,

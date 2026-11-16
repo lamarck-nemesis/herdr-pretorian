@@ -318,7 +318,10 @@ impl ClientShellState {
                 outcome.detach = true;
             }
             ClientGlobalMenuAction::PretorianUpdate => {
-                // Durante a instalação e depois dela o item só informa o estado.
+                self.overlay = Some(ClientShellOverlay::PretorianUpdate(
+                    super::pretorian_update::Cartao::novo(),
+                ));
+                // O pedido existente continua sendo atendido pelo lançador.
                 if super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()) {
                     super::pretorian_update::pedir();
                 }

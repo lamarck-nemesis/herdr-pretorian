@@ -278,7 +278,7 @@ fn render_tab_bar_status(
             x = x.saturating_add(separator_width);
         }
         let width = display_width(&segment.text);
-        if segment.text == crate::config::ASSINATURA {
+        if segment.text == crate::config::assinatura() {
             render_assinatura(buffer, x, area.y, &segment.text, palette);
             x = x.saturating_add(width);
             continue;
