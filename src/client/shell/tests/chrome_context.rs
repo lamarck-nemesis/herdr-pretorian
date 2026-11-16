@@ -408,6 +408,7 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
     assert!(text.contains("configurações"));
     assert!(!text.contains("atalhos"));
     assert!(!text.contains("recarregar configuração"));
+    assert!(text.contains("login pje"));
     assert!(text.contains("desconectar"));
 
     let settings_row = state.hits.global_menu_rows[0].0;
@@ -424,8 +425,9 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
         Some(ClientShellOverlay::Settings(_))
     ));
 
+    // configurações, raciocínio, login pje, desconectar
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 2,
+        highlighted: 3,
         ..Default::default()
     }));
     let detach = state.handle_input_bytes(b"\r");
@@ -532,6 +534,44 @@ fn close_confirmation_error_becomes_client_owned_overlay_and_stable_workspace_cl
         crate::api::schema::Method::WorkspaceClose(params)
             if params.workspace_id == "ws_1" && !params.close_group
     ));
+}
+
+#[test]
+fn menu_tem_login_pje_com_modo_headless_ligado_e_desligado() {
+    use crate::client::shell::global_menu::{
+        global_menu_items_for, ClientGlobalMenuAction, PaginaRaciocinio,
+    };
+
+    let itens = global_menu_items_for(&snapshot(), false);
+    let posicao = itens
+        .iter()
+        .position(|(label, _)| *label == "login pje")
+        .expect("item login pje");
+    assert_eq!(
+        itens[posicao].1,
+        ClientGlobalMenuAction::Pagina(PaginaRaciocinio::LoginPje)
+    );
+
+    let pagina = ClientGlobalMenuOverlay {
+        highlighted: 0,
+        pagina: PaginaRaciocinio::LoginPje,
+        mestre_doutor_iguais: false,
+        provedores: vec![],
+        autorizacao: None,
+    };
+    let acoes: Vec<_> = pagina
+        .items(&snapshot())
+        .into_iter()
+        .map(|(_, acao)| acao)
+        .collect();
+    assert_eq!(
+        acoes,
+        vec![
+            ClientGlobalMenuAction::PjeSemJanela(true),
+            ClientGlobalMenuAction::PjeSemJanela(false),
+            ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Principal),
+        ]
+    );
 }
 
 #[test]

@@ -6,6 +6,7 @@ pub(crate) enum ConfigEdit<'a> {
     Nome(&'a str),
     Agente(&'a str),
     Nivel(super::NivelRaciocinio),
+    PjeSemJanela(bool),
 }
 
 impl ConfigEdit<'_> {
@@ -17,6 +18,7 @@ impl ConfigEdit<'_> {
             Self::Nome(_) => "nome do usuário",
             Self::Agente(_) => "provedor de raciocínio",
             Self::Nivel(_) => "perfil de raciocínio",
+            Self::PjeSemJanela(_) => "modo do login do PJe",
         }
     }
 
@@ -53,6 +55,9 @@ impl ConfigEdit<'_> {
                 "nivel",
                 &toml::Value::String(nivel.chave().into()).to_string(),
             ),
+            Self::PjeSemJanela(ligado) => {
+                super::upsert_section_bool(content, "pretorian", "pje_sem_janela", ligado)
+            }
             Self::Nome(nome) => super::upsert_section_value(
                 content,
                 "pretorian",
@@ -113,6 +118,21 @@ mod tests {
         assert_eq!(lido.pretorian.nivel, super::super::NivelRaciocinio::Doutor);
         assert_eq!(lido.pretorian.nome.as_deref(), Some("Ana"));
         assert!(escrito.contains("new_cwd = \"home\""));
+    }
+
+    #[test]
+    fn modo_do_login_do_pje_liga_e_desliga_sem_alterar_o_resto() {
+        let original = "onboarding = false\n[pretorian]\nnome = \"Ana\"\n";
+        let ligado = ConfigEdit::PjeSemJanela(true).apply(original);
+        let lido: super::super::Config = toml::from_str(&ligado).unwrap();
+        assert!(lido.pretorian.pje_sem_janela);
+        assert_eq!(lido.pretorian.nome.as_deref(), Some("Ana"));
+        let desligado = ConfigEdit::PjeSemJanela(false).apply(&ligado);
+        let lido: super::super::Config = toml::from_str(&desligado).unwrap();
+        assert!(!lido.pretorian.pje_sem_janela);
+        assert_eq!(desligado.matches("pje_sem_janela").count(), 1);
+        let padrao: super::super::Config = toml::from_str(original).unwrap();
+        assert!(!padrao.pretorian.pje_sem_janela);
     }
 
     #[test]
