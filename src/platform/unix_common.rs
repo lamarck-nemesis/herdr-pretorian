@@ -592,6 +592,14 @@ impl StatusCommandGuard {
         let process_id = child
             .id()
             .ok_or_else(|| std::io::Error::other("status command has no process id"))?;
+        Self::from_process_id(process_id)
+    }
+
+    pub(crate) fn from_std(child: &std::process::Child) -> std::io::Result<Self> {
+        Self::from_process_id(child.id())
+    }
+
+    fn from_process_id(process_id: u32) -> std::io::Result<Self> {
         let process_group_id = i32::try_from(process_id)
             .map_err(|_| std::io::Error::other("status command process id exceeds i32"))?;
         Ok(Self {
@@ -643,6 +651,34 @@ pub(crate) fn set_default_plugin_pane_pwd(env: &mut Vec<(String, String)>, cwd: 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn std_process_guard_encerra_tambem_o_processo_filho() {
+        use std::io::{BufRead, Read};
+        use std::process::{Command, Stdio};
+        let mut command = Command::new("/bin/sh");
+        command
+            .args(["-c", "sleep 60 & echo pronto; wait"])
+            .stdout(Stdio::piped());
+        super::configure_status_command(&mut command);
+        let mut child = command.spawn().unwrap();
+        let mut guard = super::StatusCommandGuard::from_std(&child).unwrap();
+        let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
+        let mut ready = String::new();
+        output.read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "pronto");
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut remaining = String::new();
+            let _ = send.send(output.read_to_string(&mut remaining));
+        });
+        guard.terminate();
+        child.wait().unwrap();
+        receive
+            .recv_timeout(std::time::Duration::from_secs(3))
+            .expect("o filho deve fechar a saída ao cancelar")
+            .unwrap();
+    }
+
     use super::*;
 
     #[test]

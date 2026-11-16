@@ -20,6 +20,7 @@ mod custom_commands;
 mod git_refresh;
 mod ids;
 mod popup;
+mod pretorian;
 mod runtime;
 mod session;
 pub mod state;
@@ -528,6 +529,20 @@ impl App {
             cjk_ime_cursor_shape: config.experimental.cjk_ime_cursor_shape.to_decscusr(),
             kitty_graphics_enabled: config.kitty_graphics_enabled(),
             default_shell: config.terminal.default_shell.clone(),
+            pretorian_primeiro_agente_identificado: false,
+            pretorian_aguarda_workspace: std::env::var("PRETORIAN_INICIO_GERENCIADO")
+                .is_ok_and(|v| v == "1")
+                && std::env::var("PRETORIAN_WORKSPACE_GERENCIADO").is_ok_and(|v| v == "1"),
+            pretorian_painel_gerenciado: std::env::var("PRETORIAN_PAINEL_GERENCIADO")
+                .is_ok_and(|value| value == "1"),
+            pretorian_inicio_gerenciado: std::env::var("PRETORIAN_INICIO_GERENCIADO")
+                .is_ok_and(|v| v == "1"),
+            pretorian_nivel: config.pretorian.nivel,
+            pretorian_agente: config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
             shell_mode: config.terminal.shell_mode,
             new_terminal_cwd: config.terminal.new_cwd.clone(),
             pane_scrollback_limit_bytes: config.advanced.scrollback_limit_bytes,
@@ -751,6 +766,10 @@ impl App {
 
     pub(crate) fn ensure_default_workspace(&mut self) -> bool {
         if !self.state.workspaces.is_empty() {
+            self.state.pretorian_aguarda_workspace = false;
+            return false;
+        }
+        if self.state.pretorian_aguarda_workspace {
             return false;
         }
 
@@ -992,6 +1011,15 @@ impl App {
             {
                 self.next_agent_manifest_update_check = Some(now);
             }
+        }
+
+        if !invalid_section("pretorian") {
+            self.state.pretorian_nivel = config.pretorian.nivel;
+            self.state.pretorian_agente = config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
         }
 
         if !invalid_section("terminal") {
@@ -3269,6 +3297,23 @@ mod tests {
         releaser.join().unwrap();
         done_rx.try_recv().unwrap();
         assert!(app.session_save_thread.is_none());
+    }
+
+    #[test]
+    fn inicio_gerenciado_aguarda_workspace_sem_remover_area_existente() {
+        let mut app = test_app();
+        app.state.workspaces.clear();
+        app.state.pretorian_aguarda_workspace = true;
+        assert!(!app.ensure_default_workspace());
+        assert!(app.state.workspaces.is_empty());
+        assert!(app.state.pretorian_aguarda_workspace);
+        let workspace = Workspace::test_new("area-existente");
+        let id = workspace.id.clone();
+        app.state.workspaces.push(workspace);
+        assert!(!app.ensure_default_workspace());
+        assert_eq!(app.state.workspaces.len(), 1);
+        assert_eq!(app.state.workspaces[0].id, id);
+        assert!(!app.state.pretorian_aguarda_workspace);
     }
 
     #[tokio::test]

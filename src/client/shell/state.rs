@@ -35,6 +35,8 @@ pub(crate) struct ClientShellConfig {
     pub(super) clipboard_toast_enabled: bool,
     pub(super) clipboard_toast_position: crate::config::ToastClipboardPosition,
     pub(super) nome_usuario: Option<String>,
+    pub(super) provedor_raciocinio: Option<String>,
+    pub(super) nivel_raciocinio: crate::config::NivelRaciocinio,
     pub(super) theme_name: String,
     pub(super) theme_runtime: crate::app::state::ThemeRuntimeConfig,
     pub(super) palette: Palette,
@@ -380,9 +382,13 @@ pub(super) struct ClientHelpOverlay {
     pub(super) scroll: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct ClientGlobalMenuOverlay {
     pub(super) highlighted: usize,
+    pub(super) pagina: super::global_menu::PaginaRaciocinio,
+    pub(super) mestre_doutor_iguais: bool,
+    pub(super) provedores: Vec<&'static str>,
+    pub(super) autorizacao: Option<super::authorization::Autorizacao>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

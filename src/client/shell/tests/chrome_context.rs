@@ -425,7 +425,8 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
     ));
 
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 1,
+        highlighted: 2,
+        ..Default::default()
     }));
     let detach = state.handle_input_bytes(b"\r");
     assert!(detach.detach);
@@ -531,4 +532,108 @@ fn close_confirmation_error_becomes_client_owned_overlay_and_stable_workspace_cl
         crate::api::schema::Method::WorkspaceClose(params)
             if params.workspace_id == "ws_1" && !params.close_group
     ));
+}
+
+#[test]
+fn menu_oferece_atualizar_so_com_lancador_e_pede_a_saida_de_atualizacao() {
+    use crate::client::shell::global_menu::{global_menu_items_for, ClientGlobalMenuAction};
+
+    let projected = snapshot();
+    let sem_lancador = global_menu_items_for(&projected, false);
+    assert!(sem_lancador
+        .iter()
+        .all(|(_, action)| *action != ClientGlobalMenuAction::Atualizar));
+
+    let com_lancador = global_menu_items_for(&projected, true);
+    let posicao = com_lancador
+        .iter()
+        .position(|(label, _)| *label == "atualizar o Pretorian")
+        .expect("item de atualização");
+    assert_eq!(com_lancador[posicao].1, ClientGlobalMenuAction::Atualizar);
+    assert_eq!(
+        com_lancador.last().map(|(label, _)| *label),
+        Some("desconectar")
+    );
+}
+
+#[test]
+fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
+    use crate::client::shell::global_menu::{ClientGlobalMenuAction as A, PaginaRaciocinio as P};
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.toggle_global_menu();
+    let raiz = super::super::global_menu::global_menu_items(state.snapshot.as_deref().unwrap());
+    let item = raiz
+        .iter()
+        .position(|(_, a)| *a == A::Pagina(P::Raciocinio))
+        .unwrap();
+    let mut outcome = ClientShellInput::default();
+    state.activate_global_menu_item(item, &mut outcome);
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("menu de raciocínio");
+    };
+    assert_eq!(
+        menu.items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .map(|(texto, _)| *texto)
+            .collect::<Vec<_>>(),
+        vec!["Trocar", "Autorizar", "Configurar", "Voltar"]
+    );
+    state.activate_global_menu_item(2, &mut outcome);
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("perfis de uso");
+    };
+    assert_eq!(menu.highlighted, 2);
+    let itens = menu.items(state.snapshot.as_deref().unwrap());
+    assert!(itens[2].0.contains("Especialista (padrão)"));
+    assert!(itens[4].0.contains("investigar hipóteses"));
+    let frame = state.compose(120, 30).unwrap();
+    let texto = frame
+        .cells
+        .iter()
+        .map(|celula| celula.symbol.as_str())
+        .collect::<String>();
+    assert!(texto.contains("Especialista (padrão)"));
+}
+
+#[test]
+fn troca_de_raciocinio_destaca_o_provedor_atual() {
+    use crate::client::shell::global_menu::PaginaRaciocinio as P;
+    let mut config = Config::default();
+    config.pretorian.agente = Some("claude".into());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
+        pagina: P::Raciocinio,
+        provedores: vec!["codex", "claude"],
+        ..Default::default()
+    }));
+    state.activate_global_menu_item(0, &mut ClientShellInput::default());
+    let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
+        panic!("seleção de provedor");
+    };
+    assert_eq!(menu.pagina, P::Trocar);
+    assert_eq!(menu.highlighted, 1);
+    assert_eq!(
+        menu.items(state.snapshot.as_deref().unwrap())[menu.highlighted].0,
+        "Claude"
+    );
+}
+
+#[test]
+fn raciocinio_mostra_configuracao_repetida_sem_ocultar_os_niveis() {
+    use crate::client::shell::global_menu::{ClientGlobalMenuAction as A, PaginaRaciocinio as P};
+    let menu = ClientGlobalMenuOverlay {
+        pagina: P::Configurar,
+        mestre_doutor_iguais: true,
+        ..Default::default()
+    };
+    let snap = snapshot();
+    let itens = menu.items(&snap);
+    assert_eq!(itens.len(), 7);
+    assert_eq!(itens[4].1, A::Nivel(crate::config::NivelRaciocinio::Doutor));
+    assert!(itens[5].0.contains("mesma configuração"));
+    assert_eq!(itens[5].1, A::Nada);
+    assert_eq!(itens[6].1, A::Pagina(P::Raciocinio));
 }

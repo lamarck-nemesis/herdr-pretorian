@@ -94,6 +94,7 @@ instalar destino=(env_var('HOME') / '.local/bin'):
     cargo build --release --locked
     mkdir -p "{{destino}}"
     install -m 755 "${CARGO_TARGET_DIR:-target}/release/herdr" "{{destino}}/pretorian"
+    printf '%s\n%s\n' "{{justfile_directory()}}" "$(git -C "{{justfile_directory()}}" rev-parse HEAD)" > "{{destino}}/pretorian.origem"
     {{python}} scripts/configurar_terminal.py
     @printf '\n  \033[32m✓\033[0m pretorian instalado em %s/pretorian\n' "{{destino}}"
     @case ":$PATH:" in *":{{destino}}:"*) printf '  → execute: pretorian\n\n' ;; *) printf '  \033[33m!\033[0m %s não está no PATH; acrescente: export PATH="%s:$PATH"\n\n' "{{destino}}" "{{destino}}" ;; esac
@@ -112,6 +113,7 @@ instalar destino=(env_var('LOCALAPPDATA') / 'Programs' / 'pretorian'):
     if (Test-Path "{{destino}}\conpty") { Remove-Item -Recurse -Force "{{destino}}\conpty" }
     Copy-Item -Recurse -Force "$alvo\release\conpty" "{{destino}}\conpty"
     Write-Output "instalado em {{destino}}\pretorian.exe"
+    Set-Content -Encoding utf8 "{{destino}}\pretorian.origem" @("{{justfile_directory()}}", (git -C "{{justfile_directory()}}" rev-parse HEAD))
     python scripts/configurar_terminal.py --destino "{{destino}}"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
