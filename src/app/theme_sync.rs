@@ -64,7 +64,34 @@ impl App {
         theme_changed || released || repainted
     }
 
+    /// Cores fixas dos painéis no tema Pretorian (`(texto, fundo)`), quando valem.
+    pub(crate) fn cores_paineis_fixas(
+        &self,
+    ) -> Option<(
+        crate::terminal_theme::RgbColor,
+        crate::terminal_theme::RgbColor,
+    )> {
+        self.state
+            .palette
+            .cores_paineis_fixas(&self.state.theme_name)
+    }
+
+    /// Tema entregue aos painéis: o do hospedeiro, com fundo e texto do tema Pretorian quando
+    /// ele fixa as cores dos painéis. Assim os programas internos consultam (OSC 10/11) as
+    /// mesmas cores que o cliente pinta, mesmo em hospedeiros escuros.
+    pub(crate) fn pane_terminal_theme(&self) -> crate::terminal_theme::TerminalTheme {
+        let mut theme = self.state.host_terminal_theme;
+        if let Some((texto, fundo)) = self.cores_paineis_fixas() {
+            theme.foreground = Some(texto);
+            theme.background = Some(fundo);
+        }
+        theme
+    }
+
     pub(crate) fn pane_host_terminal_appearance(&self) -> Option<HostAppearance> {
+        if let Some((_, fundo)) = self.cores_paineis_fixas() {
+            return Some(fundo.inferred_appearance());
+        }
         if self.pending_host_appearance_deadline.is_some() {
             // New panes must describe the background available during the hold.
             self.state
@@ -97,6 +124,7 @@ impl App {
     }
 
     pub(super) fn refresh_effective_app_theme(&mut self) -> bool {
+        let fixas_antes = self.cores_paineis_fixas();
         let (palette, theme_name) = super::resolve_effective_theme(
             &self.state.theme_runtime,
             self.state.host_terminal_appearance,
@@ -106,6 +134,10 @@ impl App {
         }
         self.state.theme_name = theme_name;
         self.state.palette = palette;
+        if self.cores_paineis_fixas() != fixas_antes {
+            self.apply_host_terminal_theme_to_panes();
+            self.apply_host_terminal_appearance_to_panes();
+        }
         self.render_dirty.request_generic();
         self.render_notify.notify_one();
         true
@@ -113,14 +145,16 @@ impl App {
 
     fn apply_host_terminal_appearance_to_panes(&mut self) {
         self.pane_host_appearance = self.state.host_terminal_appearance;
+        let appearance = self.pane_host_terminal_appearance();
         for runtime in self.terminal_runtimes.values() {
-            runtime.apply_host_terminal_appearance(self.state.host_terminal_appearance);
+            runtime.apply_host_terminal_appearance(appearance);
         }
     }
 
     fn apply_host_terminal_theme_to_panes(&self) {
+        let theme = self.pane_terminal_theme();
         for runtime in self.terminal_runtimes.values() {
-            runtime.apply_host_terminal_theme(self.state.host_terminal_theme);
+            runtime.apply_host_terminal_theme(theme);
         }
 
         self.render_dirty.request_generic();

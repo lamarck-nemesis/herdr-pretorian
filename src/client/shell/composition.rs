@@ -343,7 +343,9 @@ impl ClientShellState {
             let start = usize::from(bar.y) * usize::from(frame.width) + usize::from(bar.x);
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
-        blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        let cores_fixas =
+            super::cores_paineis_codificadas(&self.config.palette, &self.config.theme_name);
+        blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface, cores_fixas);
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self
@@ -394,7 +396,12 @@ impl ClientShellState {
                         hit.scroll,
                         &self.config.palette,
                         crate::terminal_theme::TerminalTheme {
-                            background: self.host_background,
+                            background: self
+                                .config
+                                .palette
+                                .cores_paineis_fixas(&self.config.theme_name)
+                                .map(|(_, fundo)| fundo)
+                                .or(self.host_background),
                             ..Default::default()
                         },
                     );
@@ -579,7 +586,7 @@ impl ClientShellState {
                 );
                 ratatui::widgets::Widget::render(block, geometry.outer, &mut composed);
                 frame.replace_from_ratatui_buffer_preserving_effects(&composed, None);
-                blit_pane_surface(&mut frame, &popup.frame, geometry.inner);
+                blit_pane_surface(&mut frame, &popup.frame, geometry.inner, cores_fixas);
                 self.hits.popup = Some(PaneHit {
                     rect: geometry.outer,
                     inner_rect: geometry.inner,

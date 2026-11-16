@@ -94,9 +94,10 @@ instalar destino=(env_var('HOME') / '.local/bin'):
     cargo build --release --locked
     mkdir -p "{{destino}}"
     install -m 755 "${CARGO_TARGET_DIR:-target}/release/herdr" "{{destino}}/pretorian"
-    @echo "instalado em {{destino}}/pretorian"
     printf '%s\n%s\n' "{{justfile_directory()}}" "$(git -C "{{justfile_directory()}}" rev-parse HEAD)" > "{{destino}}/pretorian.origem"
     {{python}} scripts/configurar_terminal.py
+    @printf '\n  \033[32m✓\033[0m pretorian instalado em %s/pretorian\n' "{{destino}}"
+    @case ":$PATH:" in *":{{destino}}:"*) printf '  → execute: pretorian\n\n' ;; *) printf '  \033[33m!\033[0m %s não está no PATH; acrescente: export PATH="%s:$PATH"\n\n' "{{destino}}" "{{destino}}" ;; esac
 
 # Compila com o ConPTY, instala como %LOCALAPPDATA%\Programs\pretorian\pretorian.exe (a pasta conpty precisa ficar ao lado do executável) e cria o perfil Pretorian do Windows Terminal
 [script("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File")]

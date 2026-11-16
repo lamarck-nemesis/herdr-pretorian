@@ -2,6 +2,16 @@
 
 pub const BASE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Versão semântica do Pretorian (arquivo `VERSION`), independente da versão do Herdr upstream.
+pub fn pretorian_version() -> &'static str {
+    include_str!("../VERSION").trim()
+}
+
+/// Linha exibida por `--version`: versão do Pretorian e do Herdr de base.
+pub fn version_line() -> String {
+    format!("pretorian {} (herdr {})", pretorian_version(), version())
+}
+
 pub fn channel() -> &'static str {
     non_empty(option_env!("HERDR_BUILD_CHANNEL")).unwrap_or("stable")
 }
@@ -40,5 +50,17 @@ mod tests {
     #[test]
     fn stable_version_defaults_to_cargo_version() {
         assert!(!super::version().is_empty());
+    }
+
+    #[test]
+    fn pretorian_version_is_semver_and_shown_with_herdr_version() {
+        let version = super::pretorian_version();
+        let parts: Vec<&str> = version.split('-').next().unwrap().split('.').collect();
+        assert_eq!(parts.len(), 3, "VERSION deve ser X.Y.Z: {version}");
+        assert!(parts.iter().all(|part| part.parse::<u64>().is_ok()));
+        assert_eq!(
+            super::version_line(),
+            format!("pretorian {version} (herdr {})", super::version())
+        );
     }
 }
