@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.6.0] - 2026-11-16
+
+### Adicionado
+- Integração com Claude e Codex: os hooks de estado do agente repassam o evento ao registrador de históricos do Pretorian CLI quando `PRETORIAN_HISTORICOS_PYTHON` e `PRETORIAN_HISTORICOS_HELPER` estão definidos, ligando o histórico nativo à conversa do Pretorian. A chamada tem limite de 0,5 s e falhas não afetam o agente. A versão das integrações sobe para Claude 12 e Codex 11.
+
 ## [0.5.1] - 2026-11-16
 
 ### Alterado
