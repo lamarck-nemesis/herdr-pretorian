@@ -9,6 +9,8 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.2.0] - 2026-11-16
+
 ### Adicionado
 - Menu: item de atualização do Pretorian com estados ("atualizar o Pretorian", "atualizando o Pretorian…", "atualizado: vale ao reabrir", "atualização falhou: tentar de novo") e sinal de atenção no menu quando há versão nova. O estado vem do arquivo indicado por `PRETORIAN_ATUALIZACAO_ESTADO`, mantido pelo lançador do CLI; sem a variável o menu não muda.
 
