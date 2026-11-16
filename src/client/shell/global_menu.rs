@@ -148,7 +148,7 @@ pub(super) fn global_menu_items_for(
         items.push((rotulo, ClientGlobalMenuAction::PretorianUpdate));
     }
     items.push((
-        "Raciocínio",
+        "raciocínio",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Raciocinio),
     ));
     if launcher_updates && super::pretorian_update::rotulo_menu().is_none() {
