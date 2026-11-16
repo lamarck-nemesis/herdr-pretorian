@@ -9,6 +9,9 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+### Corrigido
+- Menu: o item de atualização do Pretorian fica sempre visível quando o lançador informa o arquivo de estado. Sem versão nova sinalizada ele aparece como "verificar atualização" e pede ao lançador que confira o catálogo; antes o item só existia depois que a conferência periódica encontrava versão nova.
+
 ## [0.4.0] - 2026-11-16
 
 ### Adicionado
