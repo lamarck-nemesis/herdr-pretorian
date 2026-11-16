@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.3.0] - 2026-11-16
+
+### Adicionado
+- Diálogo de atualização com versão em uso, barra ASCII, andamento e resultado; cabeçalho acompanha a versão do Pretorian.
+
 ## [0.2.0] - 2026-11-16
 
 ### Adicionado

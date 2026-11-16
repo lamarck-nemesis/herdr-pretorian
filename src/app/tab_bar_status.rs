@@ -536,7 +536,7 @@ mod tests {
         let app = test_app();
         assert_eq!(
             app.state.tab_bar_right,
-            vec![TabBarStatusSegment::Text(Some("⌘ nεαd.tεch │ 2026".into()))]
+            vec![TabBarStatusSegment::Text(Some(crate::config::assinatura()))]
         );
     }
 
