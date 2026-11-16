@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.6.1] - 2026-11-16
+
+### Corrigido
+- Perfil Pretorian do Windows Terminal e do Terminal do macOS (`just instalar`): a seleção com o mouse feita pelo próprio terminal ficava quase invisível (`#e0e4eb` sobre fundo branco). A cor passa a `#a9b1c9`, que se distingue do fundo e mantém o texto legível. Vale ao reinstalar o perfil.
+
 ## [0.6.0] - 2026-11-16
 
 ### Adicionado
