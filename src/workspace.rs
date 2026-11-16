@@ -313,8 +313,9 @@ impl Workspace {
         render_notify: Arc<Notify>,
         render_dirty: Arc<RenderSignal>,
         extra_env: Vec<(String, String)>,
+        argv: Option<&[String]>,
     ) -> std::io::Result<(Self, TerminalState, TerminalRuntime)> {
-        if extra_env.is_empty() {
+        if extra_env.is_empty() && argv.is_none() {
             return Self::new(
                 initial_cwd,
                 rows,
@@ -339,7 +340,7 @@ impl Workspace {
             events,
             render_notify,
             render_dirty,
-            None,
+            argv,
             extra_env,
         )
     }

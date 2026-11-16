@@ -75,6 +75,9 @@ fn default_capabilities() -> Option<ServerCapabilities> {
         surface_interest: true,
         health_check: true,
         ssh_agent_registration: false,
+        pretorian_workspace_provider: std::env::var("PRETORIAN_INICIO_GERENCIADO")
+            .is_ok_and(|valor| valor == "1")
+            .then_some(1),
     })
 }
 
@@ -1397,6 +1400,7 @@ mod tests {
                 surface_interest: true,
                 health_check: true,
                 ssh_agent_registration: false,
+                pretorian_workspace_provider: None,
             }),
             None,
             None,

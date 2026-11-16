@@ -2,6 +2,23 @@ use std::io::{self, Write};
 
 const BELL_CHUNK: [u8; 64] = [b'\x07'; 64];
 
+/// Código de saída que o lançador `lamarck-pretorian` entende como "atualize e reabra".
+pub(crate) const UPDATE_EXIT_CODE: i32 = 75;
+static UPDATE_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// O lançador avisa por esta variável que sabe atualizar; sem ele o item de menu não aparece.
+pub(crate) fn launcher_updates() -> bool {
+    std::env::var_os("PRETORIAN_ATUALIZAVEL").is_some()
+}
+
+pub(crate) fn request_update() {
+    UPDATE_REQUESTED.store(true, std::sync::atomic::Ordering::Release);
+}
+
+pub(crate) fn update_requested() -> bool {
+    UPDATE_REQUESTED.load(std::sync::atomic::Ordering::Acquire)
+}
+
 pub(crate) fn write_terminal_bells<W: Write>(writer: &mut W, count: u16) -> io::Result<()> {
     let full_chunks = usize::from(count) / BELL_CHUNK.len();
     let remainder = usize::from(count) % BELL_CHUNK.len();

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde::Deserialize;
 
 use super::{Config, TabBarRightEntryConfig};
@@ -22,6 +24,24 @@ pub fn assinatura() -> String {
 pub struct PretorianConfig {
     /// Nome mostrado no cabeçalho como `Pretorian · Nome`. Vazio ou ausente mostra só `Pretorian`.
     pub nome: Option<String>,
+    pub agente: Option<String>,
+    pub nivel: super::NivelRaciocinio,
+}
+
+pub fn comando_agente(agente: Option<&str>, perfil: &Path) -> Result<Option<Vec<String>>, String> {
+    match agente {
+        None | Some("") => Ok(None),
+        Some("codex") => Ok(Some(vec!["codex".into()])),
+        Some("claude" | "deepseek") => Ok(Some(vec![
+            "claude".into(),
+            "--strict-mcp-config".into(),
+            "--mcp-config".into(),
+            perfil.join(".mcp.json").to_string_lossy().into_owned(),
+        ])),
+        Some(_) => {
+            Err("Agente do Pretorian não suportado; escolha Codex, Claude ou DeepSeek.".into())
+        }
+    }
 }
 
 pub fn sanitizar_nome(valor: &str) -> Option<String> {
@@ -57,6 +77,23 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nova_aba_preserva_agente_e_conexoes_do_perfil() {
+        let perfil = Path::new("perfil com espaços");
+        assert_eq!(comando_agente(None, perfil).unwrap(), None);
+        assert_eq!(
+            comando_agente(Some("codex"), perfil).unwrap(),
+            Some(vec!["codex".into()])
+        );
+        let claude = comando_agente(Some("claude"), perfil).unwrap().unwrap();
+        assert_eq!(
+            &claude[..3],
+            &["claude", "--strict-mcp-config", "--mcp-config"]
+        );
+        assert_eq!(Path::new(&claude[3]), perfil.join(".mcp.json"));
+        assert!(comando_agente(Some("codex; outro-comando"), perfil).is_err());
+    }
 
     #[test]
     fn titulo_da_janela_e_so_a_marca_quando_nao_configurado() {

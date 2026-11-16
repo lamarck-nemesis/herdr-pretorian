@@ -9,6 +9,12 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.4.0] - 2026-11-16
+
+### Adicionado
+- Menu Raciocínio com provedores, níveis de uso, preferência persistida e autorização oficial, incluindo envio manual do código Claude.
+- Novas abas encaminhadas ao perfil gerenciado, com escolha compartilhada e preservação das conversas existentes.
+
 ## [0.3.0] - 2026-11-16
 
 ### Adicionado
