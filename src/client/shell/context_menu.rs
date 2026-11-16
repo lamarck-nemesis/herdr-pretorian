@@ -303,7 +303,9 @@ impl ClientShellState {
         );
         match action {
             ClientContextMenuAction::NewTab => {
-                if self.config.prompt_new_tab_name {
+                if crate::terminal_effects::painel_gerenciado() {
+                    self.open_new_tab_level_menu();
+                } else if self.config.prompt_new_tab_name {
                     let default_name = (self
                         .snapshot
                         .as_deref()
