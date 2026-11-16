@@ -103,7 +103,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # [pretorian]
 # nome = ""
 # agente = "codex"
-# nivel = "especialista"
+# nivel = "graduado"
 #
 # [theme.custom.dark]
 # panel_bg = "#1e1e2e"

@@ -425,9 +425,15 @@
           "description": "Provedor das novas conversas: codex, claude ou deepseek. Na ausência, usa PRETORIAN_AGENTE. No perfil gerenciado, a preferência comum em .pretorian-herdr/raciocinio.toml prevalece sobre este valor legado; conversas existentes mantêm sua configuração capturada."
         },
         {
+          "key": "pretorian.pje_sem_janela",
+          "type": "boolean",
+          "default": "false",
+          "description": "Executa o login do PJe sem janela. O Pretorian CLI lê esta preferência; PRETORIAN_PJE_SEM_JANELA a sobrepõe."
+        },
+        {
           "key": "pretorian.nivel",
           "type": "enum",
-          "default": "\"especialista\"",
+          "default": "\"graduado\"",
           "description": "Faixa de uso que seleciona modelo e esforço pelo catálogo do provedor. A preferência comum do perfil gerenciado prevalece sobre este valor legado. Os níveis não representam equivalência comprovada de capacidade entre fornecedores.",
           "values": [
             "estagiario",

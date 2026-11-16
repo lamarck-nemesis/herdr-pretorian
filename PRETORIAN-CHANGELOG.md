@@ -9,6 +9,14 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.5.1] - 2026-11-16
+
+### Alterado
+- Raciocínio: Graduado passa a ser o nível padrão quando não há preferência configurada; o menu e o exemplo de configuração acompanham esse padrão. Preferências explícitas continuam preservadas.
+
+### Corrigido
+- Referência de configuração: documenta `pretorian.pje_sem_janela` e mantém o padrão de raciocínio alinhado ao código.
+
 ## [0.5.0] - 2026-11-16
 
 ### Adicionado
