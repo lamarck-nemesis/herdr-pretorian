@@ -75,6 +75,10 @@ impl App {
             Ok(env) => env,
             Err((code, message)) => return encode_error(id, &code, message),
         };
+        if self.state.pretorian_painel_gerenciado {
+            // Aba criada agora não é painel restaurado: o lançador não deve reencontrar conversa pelo número do painel.
+            extra_env.push(("PRETORIAN_ABA_NOVA".into(), "1".into()));
+        }
         let perfil = std::env::var_os("PRETORIAN_PASTA_PERFIL")
             .map(PathBuf::from)
             .unwrap_or_else(|| {
