@@ -30,6 +30,17 @@ impl NivelRaciocinio {
         }
     }
 
+    /// Rótulo do diálogo de nível ao abrir uma aba; o número é a tecla que escolhe o nível.
+    pub fn rotulo_numerado(self) -> &'static str {
+        match self {
+            Self::Estagiario => "1 · Estagiário · extrair, classificar e resumir textos curtos",
+            Self::Graduado => "2 · Graduado · rotinas bem definidas e primeiras versões",
+            Self::Especialista => "3 · Especialista · analisar e revisar com profundidade",
+            Self::Mestre => "4 · Mestre · problemas complexos e comparação de alternativas",
+            Self::Doutor => "5 · Doutor · investigar hipóteses e revisar problemas difíceis",
+        }
+    }
+
     pub fn descricao(self) -> &'static str {
         match self {
             Self::Estagiario => "Estagiário · extrair, classificar e resumir textos curtos",
@@ -176,6 +187,18 @@ mod tests {
             })
             .unwrap();
             assert_eq!(efetivo, "high");
+        }
+    }
+
+    #[test]
+    fn rotulos_numerados_seguem_a_ordem_das_teclas_do_dialogo() {
+        for (indice, nivel) in NivelRaciocinio::TODOS.iter().enumerate() {
+            assert!(
+                nivel
+                    .rotulo_numerado()
+                    .starts_with(&format!("{} · ", indice + 1)),
+                "{nivel:?}"
+            );
         }
     }
 

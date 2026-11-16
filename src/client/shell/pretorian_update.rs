@@ -71,6 +71,18 @@ pub(super) fn estado() -> Option<PretorianUpdate> {
     valor
 }
 
+/// Rótulo do item fixo do menu. Sem estado gravado nenhuma versão nova foi sinalizada, e o item
+/// pede ao lançador que confira o catálogo; fora do lançador do Pretorian o item não existe.
+pub(super) fn rotulo_menu() -> Option<&'static str> {
+    arquivo()?;
+    Some(estado().map_or("verificar atualização", PretorianUpdate::rotulo))
+}
+
+/// O item pede algo ao lançador quando há o que conferir ou instalar.
+pub(super) fn aceita_pedido() -> bool {
+    arquivo().is_some() && estado().is_none_or(PretorianUpdate::pede_atencao)
+}
+
 fn gravar_pedido(caminho: &Path) -> std::io::Result<()> {
     let progresso = caminho.with_file_name(format!(
         "{}.progresso",
@@ -162,7 +174,7 @@ impl Cartao {
     pub(super) fn novo() -> Self {
         Self {
             percentual: 0,
-            mensagem: "Preparando atualização…".into(),
+            mensagem: "Conferindo se há versão nova…".into(),
             proxima: Instant::now(),
         }
     }
