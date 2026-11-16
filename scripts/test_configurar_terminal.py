@@ -24,6 +24,22 @@ class ConfigurarTerminalTests(unittest.TestCase):
         self.assertEqual(esquema["foreground"], "#2f3344")
         self.assertEqual(len([chave for chave in esquema if chave.startswith("bright")]), 8)
 
+    def test_selecao_se_distingue_do_fundo_e_mantem_o_texto_legivel(self) -> None:
+        def luminancia(cor: str) -> float:
+            canais = [int(cor[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+            r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in canais]
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        def contraste(a: str, b: str) -> float:
+            claro, escuro = sorted((luminancia(a), luminancia(b)), reverse=True)
+            return (claro + 0.05) / (escuro + 0.05)
+
+        esquema = configurar_terminal.fragmento_windows(Path("."))["schemes"][0]
+        self.assertEqual(esquema["selectionBackground"], configurar_terminal.SELECAO)
+        self.assertEqual(configurar_terminal.cores_macos()["SelectionColor"], configurar_terminal.SELECAO)
+        self.assertGreaterEqual(contraste(configurar_terminal.SELECAO, configurar_terminal.FUNDO), 2.0)
+        self.assertGreaterEqual(contraste(configurar_terminal.SELECAO, configurar_terminal.TEXTO), 4.5)
+
     def test_perfil_abre_o_lancador_quando_ele_existe_ao_lado(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:
             destino = Path(pasta)
