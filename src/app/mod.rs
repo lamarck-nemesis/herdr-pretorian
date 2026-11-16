@@ -533,6 +533,8 @@ impl App {
             pretorian_aguarda_workspace: std::env::var("PRETORIAN_INICIO_GERENCIADO")
                 .is_ok_and(|v| v == "1")
                 && std::env::var("PRETORIAN_WORKSPACE_GERENCIADO").is_ok_and(|v| v == "1"),
+            pretorian_painel_gerenciado: std::env::var("PRETORIAN_PAINEL_GERENCIADO")
+                .is_ok_and(|value| value == "1"),
             pretorian_inicio_gerenciado: std::env::var("PRETORIAN_INICIO_GERENCIADO")
                 .is_ok_and(|v| v == "1"),
             pretorian_nivel: config.pretorian.nivel,

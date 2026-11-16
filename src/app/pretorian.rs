@@ -65,7 +65,7 @@ impl App {
         &mut self,
         perfil: &Path,
     ) -> Result<Option<IniciadorAba>, String> {
-        if !self.state.pretorian_inicio_gerenciado {
+        if self.state.pretorian_painel_gerenciado || !self.state.pretorian_inicio_gerenciado {
             return Ok(None);
         }
         let agente_inicial =
@@ -190,6 +190,9 @@ impl App {
         extra_env: &mut Vec<(String, String)>,
         inicial: bool,
     ) -> Result<Option<Vec<String>>, String> {
+        if self.state.pretorian_painel_gerenciado {
+            return Ok(None);
+        }
         if self.state.pretorian_inicio_gerenciado && inicial {
             let parametro = |chave: &str| {
                 extra_env
@@ -255,6 +258,32 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn painel_gerenciado_abre_shell_do_perfil_sem_comando_cru_ou_segundo_iniciador() {
+        let (_tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &crate::config::Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.pretorian_painel_gerenciado = true;
+        app.state.pretorian_agente = Some("claude".into());
+        let mut ambiente = vec![("PRESERVADO".into(), "valor".into())];
+        for inicial in [true, false] {
+            assert!(app
+                .comando_pretorian(Path::new("perfil"), &mut ambiente, inicial)
+                .unwrap()
+                .is_none());
+        }
+        assert!(app
+            .preparar_iniciador_aba(Path::new("perfil"))
+            .unwrap()
+            .is_none());
+        assert_eq!(ambiente, vec![("PRESERVADO".into(), "valor".into())]);
+    }
 
     #[tokio::test]
     async fn inicio_gerenciado_deixa_o_lancador_validar_e_iniciar_o_agente() {

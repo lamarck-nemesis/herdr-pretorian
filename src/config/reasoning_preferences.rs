@@ -18,6 +18,11 @@ struct Selection {
 }
 
 pub(super) fn path() -> Option<PathBuf> {
+    if let Some(path) =
+        std::env::var_os("PRETORIAN_RACIOCINIO_ARQUIVO").filter(|value| !value.is_empty())
+    {
+        return Some(PathBuf::from(path));
+    }
     std::env::var_os("PRETORIAN_PASTA_PERFIL")
         .filter(|value| !value.is_empty())
         .map(|profile| PathBuf::from(profile).join(".pretorian-herdr/raciocinio.toml"))
@@ -36,6 +41,9 @@ fn parse(content: &str) -> Result<Selection, String> {
 }
 
 fn check_file(path: &Path) -> Result<(), String> {
+    if !path.is_absolute() {
+        return Err("O caminho da preferência de raciocínio deve ser absoluto.".into());
+    }
     match std::fs::symlink_metadata(path) {
         Ok(metadata) if !metadata.file_type().is_file() => {
             Err("A preferência de raciocínio deve ser um arquivo regular.".into())
