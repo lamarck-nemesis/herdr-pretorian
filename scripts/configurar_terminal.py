@@ -26,7 +26,8 @@ GUID_PERFIL = "{6f1c2a5e-3b7d-5c41-9e2a-70726574726e}"
 MAUVE = "#464c65"
 FUNDO = "#ffffff"
 TEXTO = "#2f3344"
-SELECAO = "#e0e4eb"
+# Seleção nativa do terminal: precisa se distinguir do fundo branco (#e0e4eb ficava invisível).
+SELECAO = "#a9b1c9"
 TAMANHO_FONTE_PX = 14
 
 # Cores ANSI legíveis sobre fundo claro (Catppuccin Latte, base do tema Pretorian).
