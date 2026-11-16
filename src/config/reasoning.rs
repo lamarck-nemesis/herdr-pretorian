@@ -4,8 +4,8 @@ use serde::Deserialize;
 #[serde(rename_all = "snake_case")]
 pub enum NivelRaciocinio {
     Estagiario,
-    Graduado,
     #[default]
+    Graduado,
     Especialista,
     Mestre,
     Doutor,
@@ -44,8 +44,8 @@ impl NivelRaciocinio {
     pub fn descricao(self) -> &'static str {
         match self {
             Self::Estagiario => "Estagiário · extrair, classificar e resumir textos curtos",
-            Self::Graduado => "Graduado · rotinas bem definidas e primeiras versões",
-            Self::Especialista => "Especialista (padrão) · analisar e revisar com profundidade",
+            Self::Graduado => "Graduado (padrão) · rotinas bem definidas e primeiras versões",
+            Self::Especialista => "Especialista · analisar e revisar com profundidade",
             Self::Mestre => "Mestre · problemas complexos e comparação de alternativas",
             Self::Doutor => "Doutor · investigar hipóteses e revisar problemas difíceis",
         }
@@ -203,8 +203,8 @@ mod tests {
     }
 
     #[test]
-    fn especialista_e_padrao_e_modelos_podem_mudar_sem_trocar_o_perfil() {
-        assert_eq!(NivelRaciocinio::default(), NivelRaciocinio::Especialista);
+    fn graduado_e_padrao_e_modelos_podem_mudar_sem_trocar_o_perfil() {
+        assert_eq!(NivelRaciocinio::default(), NivelRaciocinio::Graduado);
         let (modelo, esforco) =
             configuracao_modelo("codex", NivelRaciocinio::Especialista, |chave| {
                 (chave == "PRETORIAN_CODEX_ESPECIALISTA_MODELO").then(|| "modelo-novo".into())
