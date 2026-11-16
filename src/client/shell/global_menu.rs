@@ -25,6 +25,12 @@ impl ClientGlobalMenuOverlay {
                     if let Some(codigo) = &auth.codigo {
                         items.push((codigo.as_str(), A::Nada));
                     }
+                    if auth.aceita_codigo() {
+                        items.push((
+                            "Colar código do navegador e enviar ao Claude",
+                            A::EnviarCodigoAutorizacao,
+                        ));
+                    }
                     if let Some(url) = &auth.url {
                         items.push((url.as_str(), A::AbrirAutorizacao));
                     }
@@ -75,6 +81,7 @@ pub(super) enum ClientGlobalMenuAction {
     Atualizar,
     Autorizar,
     AbrirAutorizacao,
+    EnviarCodigoAutorizacao,
     Nada,
     Pagina(PaginaRaciocinio),
     Provedor(&'static str),
@@ -192,6 +199,19 @@ impl ClientShellState {
         if action == ClientGlobalMenuAction::Nada {
             return;
         }
+        if action == ClientGlobalMenuAction::EnviarCodigoAutorizacao {
+            if let Some(ClientShellOverlay::GlobalMenu(menu)) = &mut self.overlay {
+                if let Some(auth) = &mut menu.autorizacao {
+                    if let Some(codigo) = crate::platform::read_clipboard_text() {
+                        auth.enviar_codigo(&codigo);
+                    } else {
+                        auth.mensagem = "Copie o código do navegador antes de enviá-lo.".into();
+                    }
+                }
+            }
+            outcome.repaint = true;
+            return;
+        }
         if action == ClientGlobalMenuAction::AbrirAutorizacao {
             if let Some(ClientShellOverlay::GlobalMenu(menu)) = &self.overlay {
                 if let Some(url) = menu.autorizacao.as_ref().and_then(|auth| auth.url.clone()) {
@@ -221,7 +241,9 @@ impl ClientShellState {
         };
         self.overlay = None;
         match action {
-            ClientGlobalMenuAction::Nada | ClientGlobalMenuAction::AbrirAutorizacao => {}
+            ClientGlobalMenuAction::Nada
+            | ClientGlobalMenuAction::AbrirAutorizacao
+            | ClientGlobalMenuAction::EnviarCodigoAutorizacao => {}
             ClientGlobalMenuAction::Autorizar => {
                 let provedor = self.config.provedor_raciocinio.as_deref().unwrap_or("");
                 match super::authorization::Autorizacao::iniciar(provedor) {

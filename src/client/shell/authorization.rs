@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::process::Stdio;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -13,6 +13,7 @@ pub(super) struct Autorizacao {
     eventos: mpsc::Receiver<Evento>,
     cancelar: Arc<AtomicBool>,
     concluida: bool,
+    entrada: Option<mpsc::SyncSender<String>>,
 }
 
 impl std::fmt::Debug for Autorizacao {
@@ -118,12 +119,19 @@ impl Autorizacao {
                     eventos,
                     cancelar: Arc::new(AtomicBool::new(false)),
                     concluida: true,
+                    entrada: None,
                 });
             }
             _ => return Err("Escolha um provedor antes de autorizar.".into()),
         };
+        let (entrada, codigos) = mpsc::sync_channel::<String>(1);
+        let aceita_codigo = provedor == "claude";
         comando
-            .stdin(Stdio::null())
+            .stdin(if aceita_codigo {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         crate::platform::configure_status_command(&mut comando);
@@ -163,6 +171,19 @@ impl Autorizacao {
                     let _ = envio.send(Evento::Falhou);
                     return;
                 }
+                if let Ok(codigo) = codigos.try_recv() {
+                    let enviado = processo.stdin.take().is_some_and(|mut stdin| {
+                        writeln!(stdin, "{codigo}")
+                            .and_then(|()| stdin.flush())
+                            .is_ok()
+                    });
+                    if !enviado {
+                        guard.terminate();
+                        let _ = processo.wait();
+                        let _ = envio.send(Evento::Falhou);
+                        return;
+                    }
+                }
                 match processo.try_wait() {
                     Ok(Some(status)) => {
                         let _ = envio.send(Evento::Terminou(status.success()));
@@ -186,7 +207,37 @@ impl Autorizacao {
             eventos,
             cancelar,
             concluida: false,
+            entrada: aceita_codigo.then_some(entrada),
         })
+    }
+
+    pub fn aceita_codigo(&self) -> bool {
+        !self.concluida && self.url.is_some() && self.entrada.is_some()
+    }
+
+    pub fn enviar_codigo(&mut self, texto: &str) {
+        if !self.aceita_codigo() {
+            return;
+        }
+        let codigo = texto.trim();
+        if codigo.is_empty() || codigo.len() > 2048 || !codigo.bytes().all(|b| b.is_ascii_graphic())
+        {
+            self.mensagem =
+                "Copie somente o código exibido pelo navegador e tente novamente.".into();
+            return;
+        }
+        let Some(entrada) = self.entrada.take() else {
+            return;
+        };
+        if entrada.try_send(codigo.to_owned()).is_ok() {
+            self.mensagem = "Código enviado. Aguardando confirmação do Claude…".into();
+        } else {
+            self.concluida = true;
+            self.cancelar.store(true, Ordering::Relaxed);
+            self.url = None;
+            self.codigo = None;
+            self.mensagem = "Não foi possível enviar o código. Feche e tente novamente.".into();
+        }
     }
 
     pub fn atualizar(&mut self) -> bool {
@@ -207,12 +258,14 @@ impl Autorizacao {
                 }
                 Evento::Terminou(true) => {
                     self.concluida = true;
+                    self.entrada = None;
                     self.mensagem = "Conta autorizada. As próximas abas usarão essa conta.".into();
                     self.url = None;
                     self.codigo = None;
                 }
                 Evento::Terminou(false) | Evento::Falhou => {
                     self.concluida = true;
+                    self.entrada = None;
                     self.mensagem =
                         "Autorização não concluída ou expirada. Feche e tente novamente.".into();
                     self.url = None;
@@ -229,6 +282,62 @@ mod tests {
     use super::*;
 
     #[test]
+    fn codigo_manual_exige_link_valida_entrada_e_envia_uma_unica_vez() {
+        let (_eventos, receptor) = mpsc::channel();
+        let (entrada, codigos) = mpsc::sync_channel(1);
+        let mut auth = Autorizacao {
+            mensagem: String::new(),
+            url: None,
+            codigo: None,
+            eventos: receptor,
+            cancelar: Arc::new(AtomicBool::new(false)),
+            concluida: false,
+            entrada: Some(entrada),
+        };
+        auth.enviar_codigo("codigo#estado");
+        assert!(codigos.try_recv().is_err());
+        auth.url = Some("https://claude.com/oauth/authorize".into());
+        for invalido in [
+            "",
+            "codigo\noutro",
+            "codigo com espaco",
+            "\u{1b}codigo",
+            &"x".repeat(2049),
+        ] {
+            auth.enviar_codigo(invalido);
+            assert!(codigos.try_recv().is_err());
+            assert!(auth.aceita_codigo());
+        }
+        auth.enviar_codigo("  codigo#estado\n");
+        assert_eq!(codigos.try_recv().unwrap(), "codigo#estado");
+        assert!(!auth.aceita_codigo());
+        assert!(!format!("{auth:?}").contains("codigo#estado"));
+        assert!(!auth.mensagem.contains("codigo#estado"));
+        auth.enviar_codigo("segundo");
+        assert!(codigos.try_recv().is_err());
+    }
+
+    #[test]
+    fn codigo_manual_nao_e_enviado_apos_conclusao() {
+        let (eventos, receptor) = mpsc::channel();
+        let (entrada, codigos) = mpsc::sync_channel(1);
+        let mut auth = Autorizacao {
+            mensagem: String::new(),
+            url: Some("https://claude.com/oauth/authorize".into()),
+            codigo: None,
+            eventos: receptor,
+            cancelar: Arc::new(AtomicBool::new(false)),
+            concluida: false,
+            entrada: Some(entrada),
+        };
+        eventos.send(Evento::Terminou(true)).unwrap();
+        auth.atualizar();
+        assert!(!auth.aceita_codigo());
+        auth.enviar_codigo("codigo#estado");
+        assert!(codigos.try_recv().is_err());
+    }
+
+    #[test]
     fn falha_remove_link_e_codigo_e_nao_aceita_sucesso_atrasado() {
         for falha in [Evento::Terminou(false), Evento::Falhou] {
             let (envio, eventos) = mpsc::channel();
@@ -239,6 +348,7 @@ mod tests {
                 eventos,
                 cancelar: Arc::new(AtomicBool::new(false)),
                 concluida: false,
+                entrada: None,
             };
             envio
                 .send(Evento::Link("https://auth.openai.com/codex/device".into()))
@@ -268,6 +378,7 @@ mod tests {
             eventos,
             cancelar: cancelar.clone(),
             concluida: false,
+            entrada: None,
         };
         envio.send(Evento::Terminou(true)).unwrap();
         envio
