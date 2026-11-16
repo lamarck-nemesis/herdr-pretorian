@@ -624,9 +624,9 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
     let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
         panic!("perfis de uso");
     };
-    assert_eq!(menu.highlighted, 2);
+    assert_eq!(menu.highlighted, 3);
     let itens = menu.items(state.snapshot.as_deref().unwrap());
-    assert!(itens[2].0.contains("Especialista (padrão)"));
+    assert!(itens[3].0.contains("Mestre (padrão)"));
     assert!(itens[4].0.contains("investigar hipóteses"));
     let frame = state.compose(120, 30).unwrap();
     let texto = frame
@@ -634,7 +634,7 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
         .iter()
         .map(|celula| celula.symbol.as_str())
         .collect::<String>();
-    assert!(texto.contains("Especialista (padrão)"));
+    assert!(texto.contains("Mestre (padrão)"));
 }
 
 #[test]
