@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.6.2] - 2026-11-16
+
+### Corrigido
+- Abas: no painel gerenciado, a aba criada por atalho, sinal de mais ou menu de contexto passa `PRETORIAN_ABA_NOVA=1` ao lançador do CLI, que abre conversa nova em vez de retomar a de um painel fechado com o mesmo número.
+
 ## [0.6.1] - 2026-11-16
 
 ### Corrigido
