@@ -1097,9 +1097,11 @@ impl ClientShellState {
     }
 
     pub(super) fn focused_pane_id(&self) -> Option<String> {
-        self.snapshot
-            .as_deref()
-            .and_then(|snapshot| snapshot.focused_pane_id.clone())
+        self.painel_do_teclado().or_else(|| {
+            self.snapshot
+                .as_deref()
+                .and_then(|snapshot| snapshot.focused_pane_id.clone())
+        })
     }
 
     pub(crate) fn clipboard_image_target(

@@ -234,6 +234,78 @@ pub(crate) fn tab_bar_status_width(snapshot: &ClientShellSnapshot) -> u16 {
     )
 }
 
+/// Barra de abas da pasta secundária (arranjos 3 e 4): as abas dela, "+" para nova aba e
+/// " × " para fechar a secundária. Desenha com a mesma barra da principal, como se a pasta
+/// secundária estivesse em foco. Devolve `(abas, nova_aba, fechar)`.
+pub(crate) fn render_barra_secundaria(
+    buffer: &mut Buffer,
+    area: Rect,
+    snapshot: &ClientShellSnapshot,
+    pasta: Option<&str>,
+    config: &ClientShellConfig,
+) -> (Vec<(Rect, String)>, Rect, Rect) {
+    let palette = &config.palette;
+    let fundo = Style::default().fg(palette.text).bg(palette.panel_bg);
+    buffer.set_style(area, fundo);
+    for x in area.x..area.right() {
+        buffer[(x, area.y)].set_symbol(" ");
+    }
+    let fechar = Rect::new(area.right().saturating_sub(3), area.y, 3.min(area.width), 1);
+    put_text(
+        buffer,
+        fechar.x,
+        fechar.y,
+        fechar.width,
+        " × ",
+        Style::default().fg(palette.overlay1).bg(palette.surface0),
+    );
+    let Some(pasta) = pasta else {
+        let aviso = Style::default()
+            .fg(palette.subtext0)
+            .bg(palette.panel_bg)
+            .add_modifier(Modifier::ITALIC);
+        put_text(
+            buffer,
+            area.x + 1,
+            area.y,
+            area.width.saturating_sub(4),
+            "janela secundária",
+            aviso,
+        );
+        return (Vec::new(), Rect::default(), fechar);
+    };
+    let Some(ativa) = snapshot
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.workspace_id == pasta)
+        .map(|workspace| workspace.active_tab_id.clone())
+    else {
+        return (Vec::new(), Rect::default(), fechar);
+    };
+    let mut secundaria = snapshot.clone();
+    secundaria.focused_workspace_id = Some(pasta.to_owned());
+    secundaria.tab_bar_right.clear();
+    for tab in &mut secundaria.tabs {
+        tab.focused = tab.tab_id == ativa;
+    }
+    let mut hits = ShellHitMap::default();
+    let (mut rolagem, mut revelar) = (0, true);
+    render_tab_bar(
+        buffer,
+        Rect {
+            width: area.width.saturating_sub(fechar.width + 1),
+            ..area
+        },
+        &secundaria,
+        config,
+        &mut rolagem,
+        &mut revelar,
+        None,
+        &mut hits,
+    );
+    (hits.tabs, hits.new_tab, fechar)
+}
+
 fn tab_bar_status_area(snapshot: &ClientShellSnapshot, area: Rect) -> Option<Rect> {
     let width = tab_bar_status_width(snapshot);
     if width == 0 {

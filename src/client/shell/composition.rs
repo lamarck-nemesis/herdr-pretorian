@@ -195,6 +195,13 @@ impl ClientShellState {
             Some(ClientChromeDrag::Tab { insert_index, .. }) => *insert_index,
             _ => None,
         };
+        let rotulo_secundaria = self.arranjo.secundaria().and_then(|pasta| {
+            snapshot
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.workspace_id == pasta)
+                .map(|workspace| workspace.label.clone())
+        });
         let (dragged_workspace_id, workspace_drop_indicator_row) = match &self.chrome_drag {
             Some(ClientChromeDrag::Workspace {
                 source_workspace_id,
@@ -234,7 +241,10 @@ impl ClientShellState {
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
-                janela_secundaria: self.arranjo.janela_secundaria(),
+                janela_secundaria: self
+                    .arranjo
+                    .lado_a_lado()
+                    .map(|_| rotulo_secundaria.as_deref()),
             },
         );
         self.hits.panes = surface
@@ -463,20 +473,84 @@ impl ClientShellState {
         // Barra de apoio antes dos avisos e notificações, que ficam por cima.
         // Sem área visível, não converta a tela inteira a cada frame. Os hits já foram
         // reiniciados por render_shell, inclusive ao esconder a barra ou estreitar a janela.
-        if layout.mobile_header.is_empty() && !layout.apoio.is_empty() {
+        // A metade secundária pede a conversão mesmo com o apoio oculto pela largura.
+        if layout.mobile_header.is_empty()
+            && (!layout.apoio.is_empty() || self.arranjo.lado_a_lado().is_some())
+        {
             let mut composed = frame.to_ratatui_buffer()?;
             let palette = &self.config.palette;
-            let apoio = render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette)
-                .unwrap_or_default();
-            occlusion.cover(layout.apoio);
-            self.hits.apoio_area = apoio.area;
-            self.hits.apoio_rows = apoio.lembretes_rows;
-            self.hits.apoio_anterior = apoio.lembretes_anterior;
-            self.hits.apoio_proxima = apoio.lembretes_proxima;
-            self.hits.apoio_adicionar = apoio.lembretes_adicionar;
-            self.hits.apoio_por_pagina = apoio.lembretes_por_pagina;
-            self.hits.apoio_abas = apoio.apoio_abas;
-            self.hits.apoio_rolar = apoio.apoio_rolar;
+            if !layout.apoio.is_empty() {
+                let apoio =
+                    render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette)
+                        .unwrap_or_default();
+                occlusion.cover(layout.apoio);
+                self.hits.apoio_area = apoio.area;
+                self.hits.apoio_rows = apoio.lembretes_rows;
+                self.hits.apoio_anterior = apoio.lembretes_anterior;
+                self.hits.apoio_proxima = apoio.lembretes_proxima;
+                self.hits.apoio_adicionar = apoio.lembretes_adicionar;
+                self.hits.apoio_por_pagina = apoio.lembretes_por_pagina;
+                self.hits.apoio_abas = apoio.apoio_abas;
+                self.hits.apoio_rolar = apoio.apoio_rolar;
+            }
+            // Arranjos divididos: separador, barra de abas da secundária e, sem pasta, o convite.
+            self.hits.abas_secundaria.clear();
+            self.hits.nova_aba_secundaria = Rect::default();
+            self.hits.fechar_secundaria = Rect::default();
+            if let Some(lado) = self.arranjo.lado_a_lado() {
+                let (principal, outra, barra) =
+                    crate::ui::dividir_superficie(layout.pane_surface, lado);
+                if !outra.is_empty() {
+                    let divisor = Style::default()
+                        .fg(palette.surface_dim)
+                        .bg(palette.panel_bg);
+                    if lado {
+                        for y in layout.tab_bar.y..layout.pane_surface.bottom() {
+                            composed[(principal.right(), y)]
+                                .set_symbol("│")
+                                .set_style(divisor);
+                        }
+                    }
+                    let barra =
+                        barra.unwrap_or(Rect::new(outra.x, layout.tab_bar.y, outra.width, 1));
+                    let (abas, nova, fechar) = render::render_barra_secundaria(
+                        &mut composed,
+                        barra,
+                        snapshot,
+                        self.arranjo.secundaria(),
+                        &self.config,
+                    );
+                    occlusion.cover(barra);
+                    self.hits.abas_secundaria = abas;
+                    self.hits.nova_aba_secundaria = nova;
+                    self.hits.fechar_secundaria = fechar;
+                    if self.arranjo.secundaria().is_none() {
+                        let convite = Style::default()
+                            .fg(palette.subtext0)
+                            .bg(palette.panel_bg)
+                            .add_modifier(Modifier::ITALIC);
+                        let meio = outra.y + outra.height / 2;
+                        for (n, linha) in [
+                            "Arraste uma pasta para cá",
+                            "ou use \"Abrir na janela secundária\" no menu dela.",
+                        ]
+                        .iter()
+                        .enumerate()
+                        {
+                            let largura = render::display_width(linha).min(outra.width);
+                            let x = outra.x + (outra.width - largura) / 2;
+                            render::put_text(
+                                &mut composed,
+                                x,
+                                meio + n as u16,
+                                largura,
+                                linha,
+                                convite,
+                            );
+                        }
+                    }
+                }
+            }
             let cursor = frame.cursor.clone();
             frame.replace_from_ratatui_buffer_preserving_effects(&composed, cursor);
         }
