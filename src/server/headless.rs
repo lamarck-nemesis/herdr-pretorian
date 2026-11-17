@@ -2945,7 +2945,6 @@ impl HeadlessServer {
                 && session.agent == item.agent
                 && session.value == item.session_id
                 && matches!(agent.agent_status, AgentStatus::Idle | AgentStatus::Done)
-                && agent.interactive_ready
                 && !agent.launch_pending
         })
     }

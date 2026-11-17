@@ -308,6 +308,18 @@ fn stop_if_matches_checks_inventory_identity_and_readiness() {
     assert!(!HeadlessServer::stop_inventory_matches(&busy, &expected));
     let mut not_ready = snapshot.clone();
     not_ready.agents[0].interactive_ready = false;
+    assert!(HeadlessServer::stop_inventory_matches(
+        &not_ready, &expected
+    ));
+    not_ready.agents[0].name = Some("renomeado".into());
+    assert!(HeadlessServer::stop_inventory_matches(
+        &not_ready, &expected
+    ));
+    not_ready.agents[0].launch_pending = true;
+    assert!(!HeadlessServer::stop_inventory_matches(
+        &not_ready, &expected
+    ));
+    not_ready.agents[0].name = None;
     assert!(!HeadlessServer::stop_inventory_matches(
         &not_ready, &expected
     ));
