@@ -74,6 +74,21 @@ pub struct ClientShellSurfaceSetParams {
     pub active: bool,
 }
 
+/// Pretorian: divide a conversa desta interface entre a pasta principal e uma secundária.
+/// `direction` ausente desfaz a divisão; `workspace_id` ausente reserva a metade vazia.
+/// `tab_id` escolhe a aba ativa da secundária sem mexer na principal.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ClientShellSecondarySetParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub direction: Option<SplitDirection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_id: Option<String>,
+    #[serde(default)]
+    pub focus: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SplitDirection {

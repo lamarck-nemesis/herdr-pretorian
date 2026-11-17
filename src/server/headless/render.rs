@@ -590,16 +590,49 @@ impl HeadlessServer {
                 } else {
                     crate::kitty_graphics::HostCellSize::default()
                 };
+                let (area_principal, secundaria) = self.areas_shell(client_id);
+                let foco_secundaria = self
+                    .clients
+                    .get(&client_id)
+                    .and_then(|client| client.shell_location.as_ref())
+                    .and_then(|location| location.secundaria.as_ref())
+                    .is_some_and(|secundaria| secundaria.foco);
                 let result = render_client_shell_pane_surface(
                     &mut self.app,
                     shell_target,
-                    area,
+                    area_principal,
                     false,
                     shell_shows_popup,
                     render_cell_size,
                     &shell_graphics_delivery,
                     client_id,
-                );
+                )
+                .and_then(|principal| {
+                    let Some((alvo, area_secundaria)) = secundaria else {
+                        return Ok(principal);
+                    };
+                    let outra = alvo
+                        .map(|alvo| {
+                            render_client_shell_pane_surface(
+                                &mut self.app,
+                                Some(alvo),
+                                secundaria::na_origem(area_secundaria),
+                                false,
+                                false,
+                                render_cell_size,
+                                &Default::default(),
+                                client_id,
+                            )
+                        })
+                        .transpose()?;
+                    Ok(secundaria::compor_secundaria(
+                        principal,
+                        outra,
+                        (area.width, area.height),
+                        (area_secundaria.x, area_secundaria.y),
+                        foco_secundaria,
+                    ))
+                });
                 crate::render_prof::duration_since(
                     "full_render.render_tab_surface_virtual",
                     render_started,

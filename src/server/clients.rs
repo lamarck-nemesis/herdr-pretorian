@@ -64,6 +64,17 @@ pub(crate) enum DeferredRender {
 pub(crate) struct ClientShellLocation {
     pub(crate) focused_workspace_id: Option<String>,
     pub(crate) active_tab_ids: HashMap<String, String>,
+    /// Pretorian: pasta mostrada na segunda metade da conversa desta interface.
+    pub(crate) secundaria: Option<ClientShellSecundaria>,
+}
+
+/// Divisão pedida pela interface. Sem pasta, a segunda metade fica reservada para o convite.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ClientShellSecundaria {
+    pub(crate) lado_a_lado: bool,
+    pub(crate) workspace_id: Option<String>,
+    /// O teclado está na secundária: o cursor do quadro vem dela.
+    pub(crate) foco: bool,
 }
 
 pub(crate) struct ClientShellTopology {
@@ -87,7 +98,17 @@ impl ClientShellLocation {
                     )
                 })
                 .collect(),
+            secundaria: None,
         }
+    }
+
+    /// Aba ativa da pasta secundária, quando há uma.
+    pub(crate) fn secundaria_tab_id(&self) -> Option<&str> {
+        self.secundaria
+            .as_ref()
+            .and_then(|secundaria| secundaria.workspace_id.as_deref())
+            .and_then(|workspace_id| self.active_tab_ids.get(workspace_id))
+            .map(String::as_str)
     }
 
     pub(crate) fn focused_tab_id(&self) -> Option<&str> {
@@ -125,6 +146,20 @@ impl ClientShellLocation {
                 .focused_workspace_id
                 .clone()
                 .or_else(|| topology.fallback_workspace_id.clone());
+        }
+        // A pasta secundária que sumiu, ou que virou a principal, deixa a metade vazia.
+        if let Some(secundaria) = self.secundaria.as_mut() {
+            if secundaria
+                .workspace_id
+                .as_ref()
+                .is_some_and(|workspace_id| {
+                    !topology.active_tab_ids.contains_key(workspace_id)
+                        || self.focused_workspace_id.as_ref() == Some(workspace_id)
+                })
+            {
+                secundaria.workspace_id = None;
+                secundaria.foco = false;
+            }
         }
     }
 }

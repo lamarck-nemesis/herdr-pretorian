@@ -259,6 +259,11 @@ mod tests {
             actual.remove("pane.move").as_deref(),
             Some("eaed63cf205db2dc043ecce9e1a79cdca7f6e2521b364226bbf3121affadce7c")
         );
+        // Pretorian: pasta secundária na segunda metade da conversa.
+        assert_eq!(
+            actual.remove("client_shell.secondary.set").as_deref(),
+            Some("92fc0343474f1b72c6694b902dd356dc75c3639173976f020f55fbaa7fb402a1")
+        );
 
         assert_eq!(
             actual, expected,
