@@ -682,6 +682,11 @@ impl ClientShellState {
                 self.hits.overlay_primary = rendered.primary;
                 self.hits.overlay_clear = rendered.clear;
                 self.hits.overlay_cancel = rendered.cancel;
+                self.hits.lembretes_area = rendered.area;
+                self.hits.lembretes_rows = rendered.lembretes_rows;
+                self.hits.lembretes_anterior = rendered.lembretes_anterior;
+                self.hits.lembretes_proxima = rendered.lembretes_proxima;
+                self.hits.lembretes_por_pagina = rendered.lembretes_por_pagina;
                 self.hits.navigator_popup = rendered.navigator_popup;
                 self.hits.navigator_search = rendered.navigator_search;
                 self.hits.navigator_rows = rendered.navigator_rows;

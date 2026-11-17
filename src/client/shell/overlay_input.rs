@@ -489,6 +489,42 @@ impl ClientShellState {
     ) {
         use crossterm::event::KeyModifiers;
 
+        if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
+            use super::lembretes;
+            let lembretes = match lembretes::lista() {
+                Some(Ok(lista)) => lista.lembretes,
+                _ => Vec::new(),
+            };
+            let pagina = self.hits.lembretes_por_pagina.max(1) as isize;
+            let mut fechar = false;
+            if painel.aberto.is_some() {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Enter => painel.aberto = None,
+                    KeyCode::Delete | KeyCode::Char('x') => painel.excluir_aberto(),
+                    _ => return,
+                }
+            } else {
+                match key.code {
+                    KeyCode::Esc => fechar = true,
+                    KeyCode::Up | KeyCode::Char('k') => painel.mover(-1, lembretes.len()),
+                    KeyCode::Down | KeyCode::Char('j') => painel.mover(1, lembretes.len()),
+                    KeyCode::PageUp | KeyCode::Left => painel.mover(-pagina, lembretes.len()),
+                    KeyCode::PageDown | KeyCode::Right => painel.mover(pagina, lembretes.len()),
+                    KeyCode::Enter => {
+                        if let Some(lembrete) = lembretes.get(painel.selecionado).cloned() {
+                            painel.abrir(lembrete);
+                        }
+                    }
+                    KeyCode::Char('r') => lembretes::recarregar(),
+                    _ => return,
+                }
+            }
+            if fechar {
+                self.overlay = None;
+            }
+            outcome.repaint = true;
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::PretorianUpdate(_))) {
             if matches!(key.code, KeyCode::Esc | KeyCode::Enter) {
                 self.overlay = None;

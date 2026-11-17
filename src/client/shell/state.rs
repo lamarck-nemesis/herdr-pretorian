@@ -144,6 +144,11 @@ pub(super) struct ShellHitMap {
     pub(super) release_notes_scrollbar: Rect,
     pub(super) release_notes_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) release_notes_max_scroll: usize,
+    pub(super) lembretes_area: Rect,
+    pub(super) lembretes_rows: Vec<(Rect, usize)>,
+    pub(super) lembretes_anterior: Rect,
+    pub(super) lembretes_proxima: Rect,
+    pub(super) lembretes_por_pagina: usize,
 }
 
 #[derive(Clone)]
@@ -285,6 +290,7 @@ pub(super) enum ClientShellMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientShellOverlayKind {
     PretorianUpdate,
+    Lembretes,
     Onboarding,
     ProductAnnouncement,
     ReleaseNotes,
@@ -602,6 +608,7 @@ pub(super) struct ClientConfirmCloseOverlay {
 #[derive(Debug)]
 pub(super) enum ClientShellOverlay {
     PretorianUpdate(super::pretorian_update::Cartao),
+    Lembretes(super::lembretes::Painel),
     Onboarding,
     ProductAnnouncement(crate::app::state::ProductAnnouncementState),
     ReleaseNotes(crate::app::state::ReleaseNotesState),
@@ -621,6 +628,7 @@ impl ClientShellOverlay {
     pub(super) fn kind(&self) -> ClientShellOverlayKind {
         match self {
             Self::PretorianUpdate(_) => ClientShellOverlayKind::PretorianUpdate,
+            Self::Lembretes(_) => ClientShellOverlayKind::Lembretes,
             Self::Onboarding => ClientShellOverlayKind::Onboarding,
             Self::ProductAnnouncement(_) => ClientShellOverlayKind::ProductAnnouncement,
             Self::ReleaseNotes(_) => ClientShellOverlayKind::ReleaseNotes,

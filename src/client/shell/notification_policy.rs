@@ -152,6 +152,11 @@ impl ClientShellState {
         if let Some(ClientShellOverlay::PretorianUpdate(cartao)) = self.overlay.as_mut() {
             repaint |= cartao.atualizar(now);
         }
+        repaint |= super::lembretes::atualizar(now);
+        if self.overlay.is_none() && super::lembretes::abrir_automaticamente() {
+            self.overlay = Some(ClientShellOverlay::Lembretes(Default::default()));
+            repaint = true;
+        }
         if self
             .visible_notification
             .as_ref()

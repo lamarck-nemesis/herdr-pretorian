@@ -102,6 +102,7 @@ impl ClientGlobalMenuOverlay {
 pub(super) enum ClientGlobalMenuAction {
     Binding(crate::input::KeybindAction),
     WhatsNew,
+    Lembretes,
     /// Fecha o cliente pedindo ao lançador que atualize o Pretorian e reabra a sessão.
     Atualizar,
     Autorizar,
@@ -121,6 +122,7 @@ pub(super) fn global_menu_attention(snapshot: &ClientShellSnapshot) -> bool {
     snapshot.update_available.is_some()
         || snapshot.integration_updates_available
         || super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao())
+        || super::lembretes::pedem_atencao()
 }
 
 pub(super) fn global_menu_item_has_badge(
@@ -130,6 +132,7 @@ pub(super) fn global_menu_item_has_badge(
     (action == ClientGlobalMenuAction::PretorianUpdate
         && super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()))
         || (action == ClientGlobalMenuAction::WhatsNew && snapshot.update_available.is_some())
+        || (action == ClientGlobalMenuAction::Lembretes && super::lembretes::pedem_atencao())
         || (action == ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings)
             && snapshot.integration_updates_available)
 }
@@ -148,6 +151,9 @@ pub(super) fn global_menu_items_for(
         "configurações",
         ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
     )];
+    if super::lembretes::disponivel() {
+        items.push(("ver lembretes", ClientGlobalMenuAction::Lembretes));
+    }
     if snapshot.update_available.is_some() || snapshot.latest_release_notes_available {
         items.push((
             if snapshot.update_available.is_some() {
@@ -397,6 +403,10 @@ impl ClientShellState {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)
             }
             ClientGlobalMenuAction::WhatsNew => self.open_release_notes(),
+            ClientGlobalMenuAction::Lembretes => {
+                super::lembretes::recarregar();
+                self.overlay = Some(ClientShellOverlay::Lembretes(Default::default()));
+            }
             ClientGlobalMenuAction::Atualizar => {
                 crate::terminal_effects::request_update();
                 outcome.detach = true;

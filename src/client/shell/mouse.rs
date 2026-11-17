@@ -1716,6 +1716,56 @@ impl ClientShellState {
             }
             return;
         }
+        if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
+            let lembretes = match super::lembretes::lista() {
+                Some(Ok(lista)) => lista.lembretes,
+                _ => Vec::new(),
+            };
+            let pagina = self.hits.lembretes_por_pagina.max(1) as isize;
+            let dentro = super::contains(self.hits.lembretes_area, point);
+            let mut fechar = false;
+            match mouse.kind {
+                MouseEventKind::ScrollUp if painel.aberto.is_none() => {
+                    painel.mover(-1, lembretes.len())
+                }
+                MouseEventKind::ScrollDown if painel.aberto.is_none() => {
+                    painel.mover(1, lembretes.len())
+                }
+                MouseEventKind::Down(MouseButton::Left) if painel.aberto.is_some() => {
+                    if super::contains(self.hits.overlay_primary, point) {
+                        painel.excluir_aberto();
+                    } else if super::contains(self.hits.overlay_cancel, point) || !dentro {
+                        painel.aberto = None;
+                    }
+                }
+                MouseEventKind::Down(MouseButton::Left) => {
+                    let linha = self
+                        .hits
+                        .lembretes_rows
+                        .iter()
+                        .find(|(area, _)| super::contains(*area, point))
+                        .map(|(_, n)| *n);
+                    if let Some(n) = linha {
+                        painel.selecionado = n;
+                        if let Some(lembrete) = lembretes.get(n).cloned() {
+                            painel.abrir(lembrete);
+                        }
+                    } else if super::contains(self.hits.lembretes_anterior, point) {
+                        painel.mover(-pagina, lembretes.len());
+                    } else if super::contains(self.hits.lembretes_proxima, point) {
+                        painel.mover(pagina, lembretes.len());
+                    } else if !dentro {
+                        fechar = true;
+                    }
+                }
+                _ => return,
+            }
+            if fechar {
+                self.overlay = None;
+            }
+            outcome.repaint = true;
+            return;
+        }
         if self.overlay.is_some() {
             if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
                 return;
