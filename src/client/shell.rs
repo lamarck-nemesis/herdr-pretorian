@@ -18,6 +18,7 @@ mod endpoint_notices;
 mod endpoint_sidebar;
 mod endpoints;
 pub(super) use endpoints::*;
+mod arranjo;
 mod global_menu;
 mod graphics;
 mod input;

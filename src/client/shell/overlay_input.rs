@@ -459,6 +459,12 @@ impl ClientShellState {
                 rename.input.insert(text);
                 true
             }
+            Some(ClientShellOverlay::Lembretes(painel)) if painel.novo.is_some() => {
+                if let Some(formulario) = painel.novo.as_mut() {
+                    formulario.inserir(text);
+                }
+                true
+            }
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
@@ -490,36 +496,39 @@ impl ClientShellState {
         use crossterm::event::KeyModifiers;
 
         if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
-            use super::lembretes;
-            let lembretes = match lembretes::lista() {
-                Some(Ok(lista)) => lista.lembretes,
-                _ => Vec::new(),
-            };
-            let pagina = self.hits.lembretes_por_pagina.max(1) as isize;
-            let mut fechar = false;
-            if painel.aberto.is_some() {
+            if let Some(formulario) = painel.novo.as_mut() {
+                let texto = key
+                    .generated_text
+                    .as_deref()
+                    .filter(|texto| !texto.is_empty());
+                match (key.code, texto) {
+                    (KeyCode::Esc, _) => painel.novo = None,
+                    (KeyCode::Enter, _)
+                        if formulario.foco + 1 == super::lembretes::CAMPOS.len() =>
+                    {
+                        painel.salvar_formulario()
+                    }
+                    (KeyCode::Enter | KeyCode::Tab | KeyCode::Down, _) => formulario.focar(1),
+                    (KeyCode::BackTab | KeyCode::Up, _) => formulario.focar(-1),
+                    (_, Some(texto)) => {
+                        formulario.erro = None;
+                        formulario.inserir(texto);
+                    }
+                    _ => {
+                        formulario.erro = None;
+                        if formulario.campos[formulario.foco].handle_key(key).is_none() {
+                            return;
+                        }
+                    }
+                }
+            } else {
                 match key.code {
                     KeyCode::Esc | KeyCode::Enter => painel.aberto = None,
                     KeyCode::Delete | KeyCode::Char('x') => painel.excluir_aberto(),
                     _ => return,
                 }
-            } else {
-                match key.code {
-                    KeyCode::Esc => fechar = true,
-                    KeyCode::Up | KeyCode::Char('k') => painel.mover(-1, lembretes.len()),
-                    KeyCode::Down | KeyCode::Char('j') => painel.mover(1, lembretes.len()),
-                    KeyCode::PageUp | KeyCode::Left => painel.mover(-pagina, lembretes.len()),
-                    KeyCode::PageDown | KeyCode::Right => painel.mover(pagina, lembretes.len()),
-                    KeyCode::Enter => {
-                        if let Some(lembrete) = lembretes.get(painel.selecionado).cloned() {
-                            painel.abrir(lembrete);
-                        }
-                    }
-                    KeyCode::Char('r') => lembretes::recarregar(),
-                    _ => return,
-                }
             }
-            if fechar {
+            if painel.aberto.is_none() && painel.novo.is_none() {
                 self.overlay = None;
             }
             outcome.repaint = true;

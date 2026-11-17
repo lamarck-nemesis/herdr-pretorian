@@ -2,14 +2,17 @@
 //!
 //! O banco pertence ao CLI. O terminal só chama o auxiliar indicado por
 //! `PRETORIAN_LEMBRETES_PYTHON` e `PRETORIAN_LEMBRETES_HELPER` (`listar`, `lido <id>`,
-//! `excluir <id>`), sempre fora da linha de desenho, e guarda a última lista recebida.
+//! `excluir <id>`, `adicionar --quando … --texto … [--cliente …]`), sempre fora da linha
+//! de desenho, e guarda a última lista recebida.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+use super::TextEditor;
 
 const PYTHON_ENV: &str = "PRETORIAN_LEMBRETES_PYTHON";
 const HELPER_ENV: &str = "PRETORIAN_LEMBRETES_HELPER";
@@ -43,8 +46,11 @@ impl Lembrete {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
 pub(super) struct Lista {
-    /// Hora local da estação no momento da leitura; o terminal não calcula fuso.
+    /// Hora local da estação no momento da leitura. O terminal não calcula fuso: no Unix,
+    /// o fuso local não pode ser lido com segurança num processo com várias threads.
     pub(super) agora: String,
+    #[serde(skip)]
+    pub(super) recebida_em: Option<Instant>,
     pub(super) lembretes: Vec<Lembrete>,
     pub(super) total: usize,
     pub(super) nao_lidos: usize,
@@ -59,11 +65,89 @@ impl Lista {
             .filter(|l| !l.lido && l.vence_ate(hoje))
             .count()
     }
+
+    /// Hora da leitura somada ao tempo decorrido desde ela, para o relógio não parar entre leituras.
+    pub(super) fn agora_atual(&self, agora: Instant) -> String {
+        let decorrido = self.recebida_em.map_or(0, |quando| {
+            agora.saturating_duration_since(quando).as_secs()
+        });
+        somar_segundos(&self.agora, decorrido).unwrap_or_else(|| self.agora.clone())
+    }
 }
 
 pub(super) fn interpretar(texto: &str) -> Result<Lista, String> {
-    serde_json::from_str(texto)
-        .map_err(|_| "Lembretes indisponíveis: resposta inválida do Pretorian.".into())
+    let mut lista: Lista = serde_json::from_str(texto)
+        .map_err(|_| "Lembretes indisponíveis: resposta inválida do Pretorian.".to_owned())?;
+    lista.recebida_em = Some(Instant::now());
+    Ok(lista)
+}
+
+fn montar(ano: i32, mes: u8, dia: u8, hora: u8, minuto: u8) -> Option<time::PrimitiveDateTime> {
+    let data = time::Date::from_calendar_date(ano, time::Month::try_from(mes).ok()?, dia).ok()?;
+    let hora = time::Time::from_hms(hora, minuto, 0).ok()?;
+    Some(time::PrimitiveDateTime::new(data, hora))
+}
+
+fn iso(valor: time::PrimitiveDateTime) -> String {
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}",
+        valor.year(),
+        u8::from(valor.month()),
+        valor.day(),
+        valor.hour(),
+        valor.minute()
+    )
+}
+
+/// Lê `AAAA-MM-DDTHH:MM`.
+fn ler_iso(valor: &str) -> Option<time::PrimitiveDateTime> {
+    let (data, hora) = valor.split_once('T')?;
+    let mut data = data.splitn(3, '-');
+    let (h, m) = hora.split_once(':')?;
+    montar(
+        data.next()?.parse().ok()?,
+        data.next()?.parse().ok()?,
+        data.next()?.parse().ok()?,
+        h.parse().ok()?,
+        m.parse().ok()?,
+    )
+}
+
+fn somar_segundos(valor: &str, segundos: u64) -> Option<String> {
+    let segundos = i64::try_from(segundos).ok()?;
+    Some(iso(ler_iso(valor)? + time::Duration::seconds(segundos)))
+}
+
+/// `DD/MM/AAAA HH:MM`, como a pessoa digita, para `AAAA-MM-DDTHH:MM`; `None` se a data não existe.
+pub(super) fn ler_data_digitada(texto: &str) -> Option<String> {
+    let (data, hora) = texto.trim().split_once(' ')?;
+    let mut data = data.split('/');
+    let (dia, mes, ano) = (data.next()?, data.next()?, data.next()?);
+    let (h, m) = hora.trim().split_once(':')?;
+    if data.next().is_some() || ano.len() != 4 {
+        return None;
+    }
+    let valor = montar(
+        ano.parse().ok()?,
+        mes.parse().ok()?,
+        dia.parse().ok()?,
+        h.parse().ok()?,
+        m.parse().ok()?,
+    )?;
+    Some(iso(valor))
+}
+
+/// `AAAA-MM-DDTHH:MM` para `DD/MM/AAAA HH:MM`, que é como o formulário mostra a data.
+pub(super) fn data_para_digitar(valor: &str) -> String {
+    match (
+        valor.get(0..4),
+        valor.get(5..7),
+        valor.get(8..10),
+        valor.get(11..16),
+    ) {
+        (Some(ano), Some(mes), Some(dia), Some(hora)) => format!("{dia}/{mes}/{ano} {hora}"),
+        _ => String::new(),
+    }
 }
 
 /// `16 de nov. 16:05`; texto fora do formato volta como veio.
@@ -91,7 +175,7 @@ pub(super) fn disponivel() -> bool {
     comando().is_some()
 }
 
-fn executar(argumentos: &[&str]) -> Result<String, String> {
+fn executar<S: AsRef<OsStr>>(argumentos: &[S]) -> Result<String, String> {
     let (python, helper) = comando().ok_or("Lembretes indisponíveis nesta sessão.")?;
     let saida = Command::new(python)
         .arg(helper)
@@ -145,16 +229,24 @@ fn com_cache<T>(f: impl FnOnce(&mut Cache) -> T) -> T {
 }
 
 /// Executa a ação (se houver) e relê a lista numa thread; o resultado chega por `atualizar`.
-fn disparar(cache: &mut Cache, acao: Option<(&'static str, String)>) {
-    let envio = cache.envio.clone();
-    cache.pendentes += 1;
-    cache.lida_em = Some(Instant::now());
-    std::thread::spawn(move || {
-        let resultado = acao
-            .map_or(Ok(String::new()), |(verbo, id)| executar(&[verbo, &id]))
+fn disparar(acao: Vec<String>) {
+    if !disponivel() {
+        return;
+    }
+    com_cache(|cache| {
+        let envio = cache.envio.clone();
+        cache.pendentes += 1;
+        cache.lida_em = Some(Instant::now());
+        std::thread::spawn(move || {
+            let resultado = if acao.is_empty() {
+                Ok(String::new())
+            } else {
+                executar(&acao)
+            }
             .and_then(|_| executar(&["listar"]))
             .and_then(|texto| interpretar(&texto));
-        let _ = envio.send(resultado);
+            let _ = envio.send(resultado);
+        });
     });
 }
 
@@ -163,39 +255,48 @@ pub(super) fn atualizar(agora: Instant) -> bool {
     if !disponivel() {
         return false;
     }
-    com_cache(|cache| {
+    let (mudou, vencida) = com_cache(|cache| {
         let mut mudou = false;
         while let Ok(resultado) = cache.recebimento.try_recv() {
             cache.pendentes = cache.pendentes.saturating_sub(1);
-            mudou |= cache.lista.as_ref() != Some(&resultado);
+            mudou = true;
             cache.lista = Some(resultado);
         }
         let vencida = cache
             .lida_em
             .is_none_or(|quando| agora.duration_since(quando) >= INTERVALO);
-        if cache.pendentes == 0 && vencida {
-            disparar(cache, None);
-        }
-        mudou
-    })
+        (mudou, cache.pendentes == 0 && vencida)
+    });
+    if vencida {
+        disparar(Vec::new());
+    }
+    mudou
 }
 
 pub(super) fn recarregar() {
-    if disponivel() {
-        com_cache(|cache| disparar(cache, None));
-    }
+    disparar(Vec::new());
 }
 
-pub(super) fn marcar_lido(id: &str) {
-    if disponivel() {
-        com_cache(|cache| disparar(cache, Some(("lido", id.to_owned()))));
-    }
+fn marcar_lido(id: &str) {
+    disparar(vec!["lido".into(), id.into()]);
 }
 
-pub(super) fn excluir(id: &str) {
-    if disponivel() {
-        com_cache(|cache| disparar(cache, Some(("excluir", id.to_owned()))));
+fn excluir(id: &str) {
+    disparar(vec!["excluir".into(), id.into()]);
+}
+
+fn adicionar(quando: &str, texto: &str, cliente: &str) {
+    let mut acao: Vec<String> = vec![
+        "adicionar".into(),
+        "--quando".into(),
+        quando.into(),
+        "--texto".into(),
+        texto.into(),
+    ];
+    if !cliente.is_empty() {
+        acao.extend(["--cliente".into(), cliente.into()]);
     }
+    disparar(acao);
 }
 
 /// `None` enquanto a primeira leitura não terminou.
@@ -224,12 +325,63 @@ pub(super) fn abrir_automaticamente() -> bool {
     }
 }
 
-/// Estado do painel aberto. A lista vem do cache; aqui só fica a navegação.
+pub(super) const CAMPOS: [&str; 3] = [
+    "Cliente (opcional)",
+    "Lembrete",
+    "Data e hora (DD/MM/AAAA HH:MM)",
+];
+const LIMITES: [usize; 3] = [120, 300, 16];
+
+/// Formulário de lembrete novo. Quem grava é o CLI, como nos demais lembretes.
+#[derive(Debug, Default)]
+pub(super) struct Formulario {
+    pub(super) campos: [TextEditor; 3],
+    pub(super) foco: usize,
+    pub(super) erro: Option<&'static str>,
+}
+
+impl Formulario {
+    pub(super) fn novo(agora: &str) -> Self {
+        let mut formulario = Self::default();
+        formulario.campos[2] = TextEditor::new(&data_para_digitar(agora), false);
+        formulario
+    }
+
+    pub(super) fn focar(&mut self, delta: isize) {
+        self.foco = (self.foco as isize + delta).rem_euclid(CAMPOS.len() as isize) as usize;
+    }
+
+    pub(super) fn inserir(&mut self, texto: &str) {
+        let campo = &mut self.campos[self.foco];
+        if campo.chars().count() + texto.chars().count() <= LIMITES[self.foco] {
+            campo.insert(texto);
+        }
+    }
+
+    /// Confere e devolve `(quando, texto, cliente)`; em erro, guarda a mensagem e foca o campo.
+    pub(super) fn conferir(&mut self) -> Option<(String, String, String)> {
+        let texto = self.campos[1].trim().to_owned();
+        let cliente = self.campos[0].trim().to_owned();
+        let (foco, erro) = match ler_data_digitada(&self.campos[2]) {
+            _ if texto.is_empty() => (1, "Escreva o lembrete."),
+            None => (2, "Data inválida: use DD/MM/AAAA HH:MM."),
+            Some(quando) => return Some((quando, texto, cliente)),
+        };
+        self.foco = foco;
+        self.erro = Some(erro);
+        None
+    }
+}
+
+/// Estado do painel aberto. A lista vem do cache; aqui ficam a navegação e as janelas.
 #[derive(Debug, Default)]
 pub(super) struct Painel {
     pub(super) selecionado: usize,
     /// Lembrete aberto na janela de detalhe.
     pub(super) aberto: Option<Lembrete>,
+    pub(super) novo: Option<Formulario>,
+    /// Minuto mostrado no relógio do cabeçalho; quando muda, o painel é redesenhado.
+    pub(super) relogio: String,
 }
 
 impl Painel {
@@ -249,6 +401,35 @@ impl Painel {
         if let Some(lembrete) = self.aberto.take() {
             excluir(&lembrete.id);
         }
+    }
+
+    pub(super) fn abrir_formulario(&mut self) {
+        let agora = match lista() {
+            Some(Ok(lista)) => lista.agora_atual(Instant::now()),
+            _ => String::new(),
+        };
+        self.aberto = None;
+        self.novo = Some(Formulario::novo(&agora));
+    }
+
+    pub(super) fn salvar_formulario(&mut self) {
+        if let Some((quando, texto, cliente)) = self.novo.as_mut().and_then(Formulario::conferir) {
+            adicionar(&quando, &texto, &cliente);
+            self.novo = None;
+        }
+    }
+
+    /// Verdadeiro quando o minuto do relógio mudou desde o último desenho.
+    pub(super) fn relogio_mudou(&mut self, agora: Instant) -> bool {
+        let Some(Ok(lista)) = lista() else {
+            return false;
+        };
+        let minuto = lista.agora_atual(agora);
+        if minuto == self.relogio {
+            return false;
+        }
+        self.relogio = minuto;
+        true
     }
 }
 
@@ -274,6 +455,7 @@ mod tests {
         let lista = interpretar(texto).unwrap();
         assert_eq!(lista.lembretes[0].cliente(), "Sem cliente identificado");
         assert_eq!(lista.pendentes_hoje(), 1);
+        assert!(lista.recebida_em.is_some());
         assert!(interpretar("{}").is_err());
         assert!(interpretar("não é json").is_err());
     }
@@ -290,6 +472,7 @@ mod tests {
             ],
             total: 4,
             nao_lidos: 3,
+            ..Lista::default()
         };
         assert_eq!(lista.pendentes_hoje(), 2);
     }
@@ -299,6 +482,73 @@ mod tests {
         assert_eq!(data_curta("2026-11-16T16:05"), "16 de nov. 16:05");
         assert_eq!(data_curta("2026-05-01T08:30"), "1 de mai. 08:30");
         assert_eq!(data_curta("amanhã"), "amanhã");
+    }
+
+    #[test]
+    fn relogio_avanca_com_o_tempo_decorrido_e_vira_o_dia() {
+        let recebida = Instant::now();
+        let lista = Lista {
+            agora: "2026-11-30T23:59".into(),
+            recebida_em: Some(recebida),
+            ..Lista::default()
+        };
+        assert_eq!(lista.agora_atual(recebida), "2026-11-30T23:59");
+        assert_eq!(
+            lista.agora_atual(recebida + Duration::from_secs(90)),
+            "2026-12-01T00:00"
+        );
+        assert_eq!(somar_segundos("amanhã", 60), None);
+    }
+
+    #[test]
+    fn data_digitada_vira_iso_e_data_inexistente_e_recusada() {
+        assert_eq!(
+            ler_data_digitada("20/11/2026 09:00").as_deref(),
+            Some("2026-11-20T09:00")
+        );
+        assert_eq!(
+            ler_data_digitada(" 5/1/2027 8:05 ").as_deref(),
+            Some("2027-01-05T08:05")
+        );
+        for ruim in [
+            "31/02/2026 09:00",
+            "20/11/26 09:00",
+            "20/11/2026",
+            "20/11/2026 25:00",
+            "amanhã",
+        ] {
+            assert_eq!(ler_data_digitada(ruim), None, "{ruim}");
+        }
+        assert_eq!(data_para_digitar("2026-11-17T05:10"), "17/11/2026 05:10");
+    }
+
+    #[test]
+    fn formulario_exige_texto_e_data_valida() {
+        let mut formulario = Formulario::novo("2026-11-17T05:10");
+        assert_eq!(formulario.conferir(), None);
+        assert_eq!(
+            (formulario.foco, formulario.erro),
+            (1, Some("Escreva o lembrete."))
+        );
+        formulario.inserir("Ligar para o cliente");
+        assert_eq!(
+            formulario.conferir(),
+            Some((
+                "2026-11-17T05:10".into(),
+                "Ligar para o cliente".into(),
+                String::new()
+            ))
+        );
+        formulario.campos[2].clear();
+        formulario.foco = 2;
+        formulario.inserir("31/02/2026 09:00");
+        assert_eq!(formulario.conferir(), None);
+        assert_eq!(formulario.foco, 2);
+        formulario.foco = 1;
+        formulario.inserir(&"x".repeat(400));
+        assert_eq!(formulario.campos[1].chars().count(), 20);
+        formulario.focar(-2);
+        assert_eq!(formulario.foco, 2);
     }
 
     #[test]

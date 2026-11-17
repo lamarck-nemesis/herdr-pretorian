@@ -65,6 +65,7 @@ pub(super) struct ClientShellLayout {
     pub tab_bar: Rect,
     pub mobile_header: Rect,
     pub pane_surface: Rect,
+    pub apoio: Rect,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,9 +147,15 @@ pub(super) struct ShellHitMap {
     pub(super) release_notes_max_scroll: usize,
     pub(super) lembretes_area: Rect,
     pub(super) lembretes_rows: Vec<(Rect, usize)>,
-    pub(super) lembretes_anterior: Rect,
-    pub(super) lembretes_proxima: Rect,
-    pub(super) lembretes_por_pagina: usize,
+    pub(super) apoio_area: Rect,
+    pub(super) janela_secundaria: Rect,
+    pub(super) apoio_abas: Vec<(Rect, usize)>,
+    pub(super) apoio_rolar: (Rect, Rect),
+    pub(super) apoio_rows: Vec<(Rect, usize)>,
+    pub(super) apoio_anterior: Rect,
+    pub(super) apoio_proxima: Rect,
+    pub(super) apoio_adicionar: Rect,
+    pub(super) apoio_por_pagina: usize,
 }
 
 #[derive(Clone)]
@@ -551,6 +558,7 @@ pub(super) enum ClientContextMenuAction {
     Zoom,
     ToggleRightClickPassthrough,
     ClosePane,
+    JanelaSecundaria,
 }
 
 #[derive(Debug)]
@@ -901,6 +909,7 @@ pub(crate) struct ClientShellState {
     pub(super) popup_terminal_id: Option<String>,
     pub(super) sidebar_collapsed: bool,
     pub(super) sidebar_collapsed_manual: bool,
+    pub(super) arranjo: super::arranjo::EstadoArranjo,
     pub(super) sidebar_width: u16,
     pub(super) sidebar_width_manual: bool,
     pub(super) sidebar_section_split: f32,
@@ -1075,6 +1084,7 @@ impl ClientShellState {
             popup_terminal_id: None,
             sidebar_collapsed,
             sidebar_collapsed_manual: preferences.sidebar_collapsed.is_some(),
+            arranjo: Default::default(),
             sidebar_width,
             sidebar_width_manual: preferences.sidebar_width.is_some(),
             sidebar_section_split,
@@ -1255,6 +1265,7 @@ impl ClientShellState {
             self.sidebar_collapsed,
             self.focused_tab_count(),
             self.sidebar_width,
+            self.arranjo.largura_apoio(),
         )
     }
 

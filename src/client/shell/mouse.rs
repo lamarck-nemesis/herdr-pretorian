@@ -695,6 +695,9 @@ impl ClientShellState {
             self.navigate_workspace_id = None;
             outcome.repaint = true;
         }
+        if self.overlay.is_none() && self.tratar_mouse_arranjo(mouse, outcome) {
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
             if mouse.kind == MouseEventKind::Down(MouseButton::Left)
                 && super::contains(self.hits.overlay_primary, point)
@@ -1299,7 +1302,9 @@ impl ClientShellState {
                         source_workspace_id,
                         target,
                     } => {
-                        if let Some((before_workspace_id, _)) = target {
+                        if super::contains(self.hits.janela_secundaria, point) {
+                            self.puxar_pasta(&source_workspace_id, outcome);
+                        } else if let Some((before_workspace_id, _)) = target {
                             if let Some(method) = self.workspace_move_method(
                                 &source_workspace_id,
                                 before_workspace_id.as_deref(),
@@ -1717,50 +1722,32 @@ impl ClientShellState {
             return;
         }
         if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
-            let lembretes = match super::lembretes::lista() {
-                Some(Ok(lista)) => lista.lembretes,
-                _ => Vec::new(),
-            };
-            let pagina = self.hits.lembretes_por_pagina.max(1) as isize;
-            let dentro = super::contains(self.hits.lembretes_area, point);
-            let mut fechar = false;
-            match mouse.kind {
-                MouseEventKind::ScrollUp if painel.aberto.is_none() => {
-                    painel.mover(-1, lembretes.len())
-                }
-                MouseEventKind::ScrollDown if painel.aberto.is_none() => {
-                    painel.mover(1, lembretes.len())
-                }
-                MouseEventKind::Down(MouseButton::Left) if painel.aberto.is_some() => {
-                    if super::contains(self.hits.overlay_primary, point) {
-                        painel.excluir_aberto();
-                    } else if super::contains(self.hits.overlay_cancel, point) || !dentro {
-                        painel.aberto = None;
-                    }
-                }
-                MouseEventKind::Down(MouseButton::Left) => {
-                    let linha = self
-                        .hits
-                        .lembretes_rows
-                        .iter()
-                        .find(|(area, _)| super::contains(*area, point))
-                        .map(|(_, n)| *n);
-                    if let Some(n) = linha {
-                        painel.selecionado = n;
-                        if let Some(lembrete) = lembretes.get(n).cloned() {
-                            painel.abrir(lembrete);
-                        }
-                    } else if super::contains(self.hits.lembretes_anterior, point) {
-                        painel.mover(-pagina, lembretes.len());
-                    } else if super::contains(self.hits.lembretes_proxima, point) {
-                        painel.mover(pagina, lembretes.len());
-                    } else if !dentro {
-                        fechar = true;
-                    }
-                }
-                _ => return,
+            if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+                return;
             }
-            if fechar {
+            let fora = !super::contains(self.hits.lembretes_area, point);
+            let salvar_ou_excluir = super::contains(self.hits.overlay_primary, point);
+            let cancelar = super::contains(self.hits.overlay_cancel, point) || fora;
+            if let Some(formulario) = painel.novo.as_mut() {
+                let campo = self
+                    .hits
+                    .lembretes_rows
+                    .iter()
+                    .find(|(area, _)| super::contains(*area, point))
+                    .map(|(_, n)| *n);
+                if salvar_ou_excluir {
+                    painel.salvar_formulario();
+                } else if cancelar {
+                    painel.novo = None;
+                } else if let Some(n) = campo {
+                    formulario.foco = n;
+                }
+            } else if salvar_ou_excluir {
+                painel.excluir_aberto();
+            } else if cancelar {
+                painel.aberto = None;
+            }
+            if painel.aberto.is_none() && painel.novo.is_none() {
                 self.overlay = None;
             }
             outcome.repaint = true;

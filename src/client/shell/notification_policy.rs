@@ -153,8 +153,11 @@ impl ClientShellState {
             repaint |= cartao.atualizar(now);
         }
         repaint |= super::lembretes::atualizar(now);
-        if self.overlay.is_none() && super::lembretes::abrir_automaticamente() {
-            self.overlay = Some(ClientShellOverlay::Lembretes(Default::default()));
+        if self.arranjo.largura_apoio() > 0 {
+            repaint |= self.arranjo.apoio.relogio_mudou(now);
+        }
+        if super::lembretes::abrir_automaticamente() {
+            self.mostrar_lembretes();
             repaint = true;
         }
         if self

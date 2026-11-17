@@ -227,7 +227,8 @@ fn endpoint_notice_and_multiline_diagnostic_cover_the_actual_rows() {
     assert_graphics_cover(&mut state, rect, 106, 20);
     state.visible_endpoint_notice = None;
     state.config_diagnostic = Some("first\nsecond warning".into());
-    assert_graphics_cover(&mut state, Rect::new(90, 1, 16, 1), 106, 20);
+    let topo = state.layout(106, 20).pane_surface.y;
+    assert_graphics_cover(&mut state, Rect::new(90, topo, 16, 1), 106, 20);
 }
 
 #[test]
@@ -503,7 +504,8 @@ fn popup_terminal_keeps_own_graphics_and_hides_only_background_overlap() {
     state.compose(106, 20).unwrap();
     let popup = state.hits.popup.clone().unwrap();
     let layout = state.layout(106, 20);
-    let outside = (layout.pane_surface.x, layout.pane_surface.y);
+    // Última linha da conversa: fora do popup e da janela de boas-vindas, que ocupa o centro.
+    let outside = (layout.pane_surface.x, layout.pane_surface.bottom() - 1);
     let border = (popup.rect.x, popup.rect.y);
     let inside = (popup.inner_rect.x, popup.inner_rect.y);
     let mut surface = surface_with_popup();
