@@ -316,6 +316,18 @@ impl HeadlessServer {
                 } else {
                     pane_ids.extend(tab.layout.pane_ids());
                 }
+                // A aba da pasta secundária também está na tela desta interface.
+                if let (_, Some((Some(alvo), _))) = self.areas_shell(client_id) {
+                    if let Some(tab) = self
+                        .app
+                        .state
+                        .workspaces
+                        .get(alvo.workspace_index)
+                        .and_then(|workspace| workspace.tabs.get(alvo.tab_index))
+                    {
+                        pane_ids.extend(tab.layout.pane_ids());
+                    }
+                }
                 if self.popup_owner_tab_id == self.shell_tab_id_for_client(client_id) {
                     if let Some(popup) = &self.app.state.popup_pane {
                         pane_ids.insert(popup.pane_id);
@@ -426,19 +438,25 @@ impl HeadlessServer {
             {
                 return self.popup_owner_tab_id == self.shell_tab_id_for_client(client_id);
             }
-            let Some(target) = self.shell_target_for_client(client_id) else {
-                return false;
+            // A aba da pasta secundária também está na tela desta interface.
+            let secundaria = match self.areas_shell(client_id) {
+                (_, Some((Some(alvo), _))) => Some(alvo),
+                _ => None,
             };
-            let Some(tab) = self
-                .app
-                .state
-                .workspaces
-                .get(target.workspace_index)
-                .and_then(|workspace| workspace.tabs.get(target.tab_index))
-            else {
-                return false;
-            };
-            tab.panes.contains_key(&pane_id) && (!tab.zoomed || tab.layout.focused() == pane_id)
+            [self.shell_target_for_client(client_id), secundaria]
+                .into_iter()
+                .flatten()
+                .any(|target| {
+                    self.app
+                        .state
+                        .workspaces
+                        .get(target.workspace_index)
+                        .and_then(|workspace| workspace.tabs.get(target.tab_index))
+                        .is_some_and(|tab| {
+                            tab.panes.contains_key(&pane_id)
+                                && (!tab.zoomed || tab.layout.focused() == pane_id)
+                        })
+                })
         })
     }
 

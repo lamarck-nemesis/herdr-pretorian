@@ -93,7 +93,7 @@ operations::define_operations! {
     AgentWait(AgentWaitParams) => "agent.wait", false, false;
     PaneSplit(PaneSplitParams) => "pane.split", true, true;
     PaneSwap(PaneSwapParams) => "pane.swap", true, true;
-    PaneMove(PaneMoveParams) => "pane.move", true, true;
+    PaneMove(PaneMoveParams) => "pane.move", true, false;
     PaneZoom(PaneZoomParams) => "pane.zoom", true, true;
     PaneLayout(PaneLayoutParams) => "pane.layout", false, false;
     PaneProcessInfo(PaneProcessInfoParams) => "pane.process_info", false, false;

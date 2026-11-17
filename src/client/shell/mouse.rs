@@ -2309,12 +2309,15 @@ impl ClientShellState {
                             ));
                         }
                     }
-                    self.push_endpoint_method(
-                        crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
-                            pane_id: hit.pane_id,
-                        }),
-                        outcome,
-                    );
+                    // Painel da pasta secundária: o teclado vai para ele sem trocar a principal.
+                    if !self.foco_por_clique(&hit.pane_id, outcome) {
+                        self.push_endpoint_method(
+                            crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
+                                pane_id: hit.pane_id,
+                            }),
+                            outcome,
+                        );
+                    }
                 }
             }
             MouseEventKind::Down(MouseButton::Middle) => {
