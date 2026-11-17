@@ -462,7 +462,9 @@ impl ClientShellState {
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
-                settings.nome.insert(text);
+                if settings.selected == 0 {
+                    settings.nome.insert(text);
+                }
                 true
             }
             Some(ClientShellOverlay::Help(help)) if help.search_focused => {

@@ -1017,6 +1017,70 @@ fn secao_usuario_recebe_texto_e_mostra_previa() {
 }
 
 #[test]
+fn secao_usuario_lista_dependencias_e_pede_a_acao() {
+    let dir = std::env::temp_dir().join(format!(
+        "pretorian-dependencias-menu-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let estado = dir.join("dependencias");
+    std::fs::write(
+        &estado,
+        r#"{"versao": 1, "itens": [
+            {"id": "google", "titulo": "Conta Google no navegador", "estado": "pendente",
+             "detalhe": "Entre uma vez numa conta Google.", "acao": "entrar no Google"},
+            {"id": "bb-resgate", "titulo": "Consulta de resgate judicial do BB",
+             "estado": "bloqueado", "detalhe": "Conclua antes: Conta Google no navegador.",
+             "acao": "conferir"}]}"#,
+    )
+    .unwrap();
+    std::env::set_var("PRETORIAN_DEPENDENCIAS_ESTADO", &estado);
+    let pedido = dir.join("dependencias.pedido");
+
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    let inicial = texto_do_quadro(&mut state);
+
+    state.handle_input_bytes(b"\x1b[B");
+    state.handle_input_bytes(b"x");
+    let selecionado = texto_do_quadro(&mut state);
+    state.handle_input_bytes(b"\r");
+    let pedido_google = std::fs::read_to_string(&pedido).ok();
+    let _ = std::fs::remove_file(&pedido);
+    state.handle_input_bytes(b"\x1b[B");
+    state.handle_input_bytes(b"\r");
+    let pedido_bloqueado = pedido.exists();
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("configurações abertas");
+    };
+    let (nome, selecionada) = (settings.nome.as_str().to_owned(), settings.selected);
+
+    std::env::remove_var("PRETORIAN_DEPENDENCIAS_ESTADO");
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert!(inicial.contains("● usuário"), "{inicial}");
+    assert!(inicial.contains("dependências"), "{inicial}");
+    assert!(inicial.contains("Conta Google no navegador"), "{inicial}");
+    assert!(inicial.contains("entrar no Google"), "{inicial}");
+    assert!(!inicial.contains("Entre uma vez"), "{inicial}");
+    assert!(
+        selecionado.contains("Entre uma vez numa conta Google."),
+        "{selecionado}"
+    );
+    assert!(selecionado.contains("↵ executar"), "{selecionado}");
+    assert_eq!(nome, "", "fora do campo do nome as teclas não digitam");
+    assert_eq!(pedido_google.as_deref(), Some("google\n"));
+    assert_eq!(selecionada, 2);
+    assert!(!pedido_bloqueado, "item bloqueado não gera pedido");
+}
+
+#[test]
 fn secao_usuario_grava_nome_e_pede_recarga() {
     let dir = std::env::temp_dir().join(format!(
         "pretorian-nome-usuario-{}-{}",
