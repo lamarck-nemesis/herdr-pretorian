@@ -292,3 +292,53 @@ fn tema_pretorian_pinta_celulas_padrao_dos_paineis_com_as_cores_do_tema() {
     let cell = &frame.cells[usize::from(pane.inner_rect.y) * 106 + usize::from(pane.inner_rect.x)];
     assert_eq!(cell.bg, crate::protocol::color_to_u32(Color::Reset));
 }
+
+#[test]
+fn pink_cobre_paineis_menu_e_popup_sem_fundos_do_tema_padrao() {
+    use ratatui::style::Color;
+    let palette = Palette::pink();
+    let fundo = crate::protocol::color_to_u32(palette.panel_bg);
+    let texto = crate::protocol::color_to_u32(palette.text);
+    let (fg, bg) = palette.cores_paineis_fixas("pink").unwrap();
+    assert_eq!((fg.r, fg.g, fg.b), (101, 18, 73));
+    assert_eq!((bg.r, bg.g, bg.b), (255, 252, 254));
+    for mode in 0..3 {
+        let mut config = Config::default();
+        config.theme.name = Some("pink".into());
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(if mode == 1 {
+            surface_with_popup()
+        } else {
+            surface()
+        });
+        if mode == 2 {
+            state.open_settings_overlay();
+        }
+        let frame = state.compose(106, 30).expect("quadro sintético");
+        assert!(frame
+            .cells
+            .iter()
+            .any(|cell| cell.bg == fundo && cell.fg == texto));
+        for old in [
+            Color::Rgb(255, 255, 255),
+            Color::Rgb(246, 247, 249),
+            Color::Rgb(241, 243, 245),
+            Color::Rgb(224, 228, 235),
+        ] {
+            assert!(
+                !frame
+                    .cells
+                    .iter()
+                    .any(|cell| cell.bg == crate::protocol::color_to_u32(old)),
+                "fundo antigo no modo {mode}: {old:?}"
+            );
+        }
+        if mode == 0 {
+            let pane = &state.hits.panes[0];
+            let cell =
+                &frame.cells[usize::from(pane.inner_rect.y) * 106 + usize::from(pane.inner_rect.x)];
+            assert_eq!((cell.fg, cell.bg), (texto, fundo));
+        }
+    }
+}

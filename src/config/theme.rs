@@ -1,11 +1,12 @@
 use serde::Deserialize;
 use tracing::warn;
 
-pub const THEME_NAMES: &[&str] = &["pretorian"];
+pub const THEME_NAMES: &[&str] = &["pretorian", "pink"];
 
 pub(crate) fn canonical_theme_name(name: &str) -> Option<&'static str> {
     match name.to_lowercase().replace([' ', '_'], "-").as_str() {
         "pretorian" => Some("pretorian"),
+        "pink" => Some("pink"),
         _ => None,
     }
 }
@@ -223,7 +224,7 @@ light_name = "lattee"
 
     #[test]
     fn temas_removidos_nao_sao_validos() {
-        assert_eq!(THEME_NAMES, ["pretorian"]);
+        assert_eq!(THEME_NAMES, ["pretorian", "pink"]);
         for name in [
             "catppuccin",
             "catppuccin-mocha",

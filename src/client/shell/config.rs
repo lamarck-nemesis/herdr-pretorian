@@ -140,11 +140,7 @@ impl ClientShellConfig {
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
             nivel_raciocinio: config.pretorian.nivel,
             pje_sem_janela: config.pretorian.pje_sem_janela,
-            nome_usuario: config
-                .pretorian
-                .nome
-                .as_deref()
-                .and_then(crate::config::sanitizar_nome),
+            nome_usuario: config.pretorian.nome_efetivo(),
             theme_name: theme_runtime.manual_name.clone(),
             theme_runtime,
             palette: crate::app::client_palette_from_config(config),
@@ -401,11 +397,7 @@ impl ClientShellConfig {
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
             self.nivel_raciocinio = config.pretorian.nivel;
             self.pje_sem_janela = config.pretorian.pje_sem_janela;
-            self.nome_usuario = config
-                .pretorian
-                .nome
-                .as_deref()
-                .and_then(crate::config::sanitizar_nome);
+            self.nome_usuario = config.pretorian.nome_efetivo();
         }
 
         diagnostics

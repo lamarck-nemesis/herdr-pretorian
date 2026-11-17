@@ -25,6 +25,7 @@ impl ClientShellState {
             section: ClientSettingsSection::Usuario,
             selected: 0,
             nome: TextEditor::new(self.config.nome_usuario.as_deref().unwrap_or(""), false),
+            nome_somente_leitura: std::env::var_os("PRETORIAN_NOME_CENTAURO").is_some(),
             integrations: Vec::new(),
             integration_messages: Vec::new(),
             loading_integrations: false,
@@ -158,6 +159,9 @@ impl ClientShellState {
                 outcome.repaint = true;
             }
             ClientSettingsSection::Usuario => {
+                if settings.nome_somente_leitura {
+                    return;
+                }
                 let nome =
                     crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
                 self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome);
@@ -402,7 +406,7 @@ impl ClientShellState {
         let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() else {
             return false;
         };
-        if settings.selected > 0 {
+        if settings.selected > 0 || settings.nome_somente_leitura {
             return true;
         }
         if code == KeyCode::Char('c') && modifiers == KeyModifiers::CONTROL {

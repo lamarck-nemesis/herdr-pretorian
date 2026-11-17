@@ -1125,3 +1125,33 @@ fn secao_usuario_grava_nome_e_pede_recarga() {
         }))
     ));
 }
+
+#[test]
+fn nome_centauro_somente_leitura_nao_edita_cola_nem_oferece_salvar() {
+    let mut config = ClientShellConfig::from_config(&Config::default());
+    config.nome_usuario = Some("Pessoa sintética".into());
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_mut() else {
+        panic!("configurações");
+    };
+    settings.nome_somente_leitura = true;
+    state.handle_input_bytes(b"Outro nome\x03");
+    assert!(state.insert_overlay_text("Texto colado"));
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
+    let texto = texto_do_quadro(&mut state);
+    assert!(texto.contains("Pessoa sintética"));
+    assert!(texto.contains("identificado pela sua conta"));
+    assert!(
+        !texto.contains("prévia:")
+            && !texto.contains("aplicar")
+            && !texto.contains("digite o nome")
+    );
+    assert_eq!(state.hits.overlay_primary, Rect::default());
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("configurações");
+    };
+    assert_eq!(settings.nome.as_str(), "Pessoa sintética");
+}

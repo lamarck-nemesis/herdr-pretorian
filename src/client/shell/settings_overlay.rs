@@ -182,7 +182,10 @@ pub(super) fn render_settings_overlay(
         .integrations
         .iter()
         .any(super::super::settings::integration_needs_install);
-    let show_primary = settings.section != ClientSettingsSection::Integrations || installable;
+    let show_primary = (settings.section != ClientSettingsSection::Integrations || installable)
+        && !(settings.section == ClientSettingsSection::Usuario
+            && settings.selected == 0
+            && settings.nome_somente_leitura);
     let labels = if show_primary { vec![12, 12] } else { vec![12] };
     let buttons = row(inner, &labels, 2, inner.height.saturating_sub(1));
     let (primary, close) = if show_primary {
@@ -222,6 +225,10 @@ pub(super) fn render_settings_overlay(
         inner.width,
         if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
             " ↑↓ selecionar  ↵ executar  tab seção"
+        } else if settings.section == ClientSettingsSection::Usuario
+            && settings.nome_somente_leitura
+        {
+            " ↓ dependências  tab seção"
         } else if settings.section == ClientSettingsSection::Usuario {
             " digite o nome  ↓ dependências  ^c limpar  tab seção"
         } else {
@@ -254,7 +261,11 @@ fn render_usuario_section(
         area.x,
         area.y,
         area.width,
-        "seu nome",
+        if settings.nome_somente_leitura {
+            "nome da conta"
+        } else {
+            "seu nome"
+        },
         Style::default()
             .fg(palette.text)
             .bg(palette.panel_bg)
@@ -265,30 +276,47 @@ fn render_usuario_section(
         area.x,
         area.y + 1,
         area.width,
-        "aparece na barra lateral, abaixo de Área de Trabalho",
+        if settings.nome_somente_leitura {
+            "identificado pela sua conta"
+        } else {
+            "aparece na barra lateral, abaixo de Área de Trabalho"
+        },
         Style::default().fg(palette.overlay1).bg(palette.panel_bg),
     );
     if area.height < 6 {
         return None;
     }
-    let input = Rect::new(area.x, area.y + 3, area.width, 1);
-    let input_style = Style::default().fg(palette.text).bg(palette.surface0);
-    buffer.set_style(input, input_style);
-    let cursor = text_editor::render(
-        buffer,
-        Rect::new(input.x + 1, input.y, input.width.saturating_sub(1), 1),
-        &settings.nome,
-        input_style,
-    );
-    let previa = crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
-    put_text(
-        buffer,
-        area.x,
-        area.y + 5,
-        area.width,
-        &format!("prévia: {previa}"),
-        Style::default().fg(palette.subtext0).bg(palette.panel_bg),
-    );
+    let cursor = if settings.nome_somente_leitura {
+        put_text(
+            buffer,
+            area.x,
+            area.y + 3,
+            area.width,
+            settings.nome.as_str(),
+            Style::default().fg(palette.text).bg(palette.panel_bg),
+        );
+        None
+    } else {
+        let input = Rect::new(area.x, area.y + 3, area.width, 1);
+        let input_style = Style::default().fg(palette.text).bg(palette.surface0);
+        buffer.set_style(input, input_style);
+        let cursor = text_editor::render(
+            buffer,
+            Rect::new(input.x + 1, input.y, input.width.saturating_sub(1), 1),
+            &settings.nome,
+            input_style,
+        );
+        let previa = crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
+        put_text(
+            buffer,
+            area.x,
+            area.y + 5,
+            area.width,
+            &format!("prévia: {previa}"),
+            Style::default().fg(palette.subtext0).bg(palette.panel_bg),
+        );
+        cursor
+    };
     render_dependencias(
         buffer,
         Rect::new(

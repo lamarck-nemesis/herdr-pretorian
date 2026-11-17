@@ -285,3 +285,27 @@ fn outros_temas_seguem_o_hospedeiro() {
         Some(HostAppearance::Dark)
     );
 }
+
+#[tokio::test]
+async fn pink_responde_osc_dos_paineis_com_fundo_rosa_em_hospedeiro_escuro() {
+    let mut app = app_com_tema("pink");
+    background(&mut app, DARK);
+    app.set_host_terminal_appearance_state(Some(HostAppearance::Dark), true);
+    let (runtime, _rx) = TerminalRuntime::test_with_channel(80, 24);
+    runtime.apply_host_terminal_theme(app.pane_terminal_theme());
+    runtime.apply_host_terminal_appearance(app.pane_host_terminal_appearance());
+    let id = TerminalId::alloc();
+    app.terminal_runtimes.insert(id.clone(), runtime);
+    assert_eq!(
+        query(&app, &id, b"\x1b]11;?\x07"),
+        [Bytes::from_static(b"\x1b]11;rgb:ffff/fcfc/fefe\x1b\\")]
+    );
+    assert_eq!(
+        query(&app, &id, b"\x1b]10;?\x07"),
+        [Bytes::from_static(b"\x1b]10;rgb:6565/1212/4949\x1b\\")]
+    );
+    assert_eq!(
+        app.pane_host_terminal_appearance(),
+        Some(HostAppearance::Light)
+    );
+}

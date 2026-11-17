@@ -468,7 +468,7 @@ impl ClientShellState {
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
-                if settings.selected == 0 {
+                if settings.selected == 0 && !settings.nome_somente_leitura {
                     settings.nome.insert(text);
                 }
                 true

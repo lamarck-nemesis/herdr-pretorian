@@ -30,6 +30,16 @@ pub struct PretorianConfig {
     pub pje_sem_janela: bool,
 }
 
+impl PretorianConfig {
+    pub(crate) fn nome_efetivo(&self) -> Option<String> {
+        self.nome_com_identidade(std::env::var("PRETORIAN_NOME_CENTAURO").ok().as_deref())
+    }
+
+    fn nome_com_identidade(&self, identidade: Option<&str>) -> Option<String> {
+        identidade.or(self.nome.as_deref()).and_then(sanitizar_nome)
+    }
+}
+
 pub fn comando_agente(agente: Option<&str>, perfil: &Path) -> Result<Option<Vec<String>>, String> {
     match agente {
         None | Some("") => Ok(None),
@@ -76,6 +86,26 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nome_centauro_sanitizado_prevalece_sem_alterar_nome_local() {
+        let config = PretorianConfig {
+            nome: Some("Nome local".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            config
+                .nome_com_identidade(Some("  Pessoa sintética\n  "))
+                .as_deref(),
+            Some("Pessoa sintética")
+        );
+        assert_eq!(
+            config.nome_com_identidade(None).as_deref(),
+            Some("Nome local")
+        );
+        assert_eq!(config.nome_com_identidade(Some("\u{7}")), None);
+        assert_eq!(config.nome.as_deref(), Some("Nome local"));
+    }
 
     #[test]
     fn nova_aba_preserva_agente_e_conexoes_do_perfil() {

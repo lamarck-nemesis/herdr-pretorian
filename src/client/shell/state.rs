@@ -442,6 +442,7 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) section: ClientSettingsSection,
     pub(super) selected: usize,
     pub(super) nome: TextEditor,
+    pub(super) nome_somente_leitura: bool,
     pub(super) integrations: Vec<crate::api::schema::IntegrationInfo>,
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,
