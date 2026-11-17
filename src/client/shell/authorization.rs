@@ -92,6 +92,22 @@ fn ler_saida(leitor: impl std::io::Read + Send + 'static, envio: mpsc::Sender<Ev
 
 impl Autorizacao {
     pub fn iniciar(provedor: &str) -> Result<Self, String> {
+        let informar = |mensagem: &str| Self {
+            mensagem: mensagem.into(),
+            url: None,
+            codigo: None,
+            eventos: mpsc::channel().1,
+            cancelar: Arc::new(AtomicBool::new(false)),
+            concluida: true,
+            entrada: None,
+        };
+        if matches!(provedor, "codex" | "claude")
+            && crate::config::gateway_modelos(|nome| std::env::var(nome).ok()).is_some()
+        {
+            return Ok(informar(
+                "Esta instalação usa o gateway de modelos do escritório. Não há login do agente a autorizar.",
+            ));
+        }
         let mut comando = match provedor {
             "codex" => {
                 let mut c = crate::noninteractive_process::command("codex");
@@ -104,7 +120,6 @@ impl Autorizacao {
                 c
             }
             "deepseek" => {
-                let (_envio, eventos) = mpsc::channel();
                 let mensagem = if std::env::var("DEEPSEEK_API_KEY")
                     .is_ok_and(|chave| !chave.trim().is_empty())
                 {
@@ -112,15 +127,7 @@ impl Autorizacao {
                 } else {
                     "A chave DeepSeek não está disponível nesta instalação. A configuração deve ser feita pelo responsável."
                 };
-                return Ok(Self {
-                    mensagem: mensagem.into(),
-                    url: None,
-                    codigo: None,
-                    eventos,
-                    cancelar: Arc::new(AtomicBool::new(false)),
-                    concluida: true,
-                    entrada: None,
-                });
+                return Ok(informar(mensagem));
             }
             _ => return Err("Escolha um provedor antes de autorizar.".into()),
         };
