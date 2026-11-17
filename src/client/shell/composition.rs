@@ -461,12 +461,12 @@ impl ClientShellState {
         }
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         // Barra de apoio antes dos avisos e notificações, que ficam por cima.
-        if layout.mobile_header.is_empty() {
+        // Sem área visível, não converta a tela inteira a cada frame. Os hits já foram
+        // reiniciados por render_shell, inclusive ao esconder a barra ou estreitar a janela.
+        if layout.mobile_header.is_empty() && !layout.apoio.is_empty() {
             let mut composed = frame.to_ratatui_buffer()?;
             let palette = &self.config.palette;
-            let apoio = (layout.apoio.width > 0)
-                .then(|| render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette))
-                .flatten()
+            let apoio = render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette)
                 .unwrap_or_default();
             occlusion.cover(layout.apoio);
             self.hits.apoio_area = apoio.area;
