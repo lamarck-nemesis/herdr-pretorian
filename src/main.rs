@@ -528,7 +528,7 @@ fn main() -> io::Result<()> {
     if raw_args.len() == 2 && raw_args[1] == "--pretorian-capabilities" {
         println!(
             "{}",
-            serde_json::json!({"inicio_automatico": true, "resolucao_raciocinio": 1, "inicio_gerenciado_provedor": 1})
+            serde_json::json!({"inicio_automatico": true, "resolucao_raciocinio": 1, "inicio_gerenciado_provedor": 1, "gateway_modelos": 1})
         );
         return Ok(());
     }
