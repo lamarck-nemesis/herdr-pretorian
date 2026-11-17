@@ -43,14 +43,14 @@ impl Arranjo {
     /// Rótulo no menu; o arranjo em uso ganha o marcador.
     pub(super) fn rotulo(self, atual: bool) -> &'static str {
         match (self, atual) {
-            (Self::Conversa, false) => "  1  conversa",
-            (Self::Conversa, true) => "● 1  conversa",
-            (Self::ComApoio, false) => "  2  conversa + lembretes",
-            (Self::ComApoio, true) => "● 2  conversa + lembretes",
-            (Self::LadoALado, false) => "  3  lado a lado + lembretes",
-            (Self::LadoALado, true) => "● 3  lado a lado + lembretes",
-            (Self::EmCimaEmbaixo, false) => "  4  em cima e embaixo + lembretes",
-            (Self::EmCimaEmbaixo, true) => "● 4  em cima e embaixo + lembretes",
+            (Self::Conversa, false) => "  1  barra à esquerda",
+            (Self::Conversa, true) => "● 1  barra à esquerda",
+            (Self::ComApoio, false) => "  2  barras à esquerda e à direita",
+            (Self::ComApoio, true) => "● 2  barras à esquerda e à direita",
+            (Self::LadoALado, false) => "  3  barras e divisão vertical central",
+            (Self::LadoALado, true) => "● 3  barras e divisão vertical central",
+            (Self::EmCimaEmbaixo, false) => "  4  barras e divisão horizontal central",
+            (Self::EmCimaEmbaixo, true) => "● 4  barras e divisão horizontal central",
         }
     }
 
@@ -244,13 +244,26 @@ impl ClientShellState {
             .map(|pane| pane.pane_id.as_str())
             .collect();
         let pedida = self.arranjo.atual.divisao();
-        let passos = plano_divisao(
-            pedida.clone(),
-            &paineis,
-            aba.zoomed,
-            self.arranjo.orientacao.clone(),
-        );
+        // Sessão restaurada já dividida: a direção sai da posição dos dois painéis na tela.
+        let orientacao = self.arranjo.orientacao.clone().or_else(|| {
+            let [a, b] = paineis[..] else {
+                return None;
+            };
+            let topo = |id: &str| {
+                self.hits
+                    .panes
+                    .iter()
+                    .find(|hit| hit.pane_id == id)
+                    .map(|hit| hit.rect.y)
+            };
+            Some(match (topo(a)?, topo(b)?) {
+                (ya, yb) if ya == yb => SplitDirection::Right,
+                _ => SplitDirection::Down,
+            })
+        });
+        let passos = plano_divisao(pedida.clone(), &paineis, aba.zoomed, orientacao);
         let aba_id = aba.tab_id.clone();
+        let aba_workspace = aba.workspace_id.clone();
         for passo in passos {
             match passo {
                 PassoDivisao::Dividir(direcao) => {
@@ -265,23 +278,40 @@ impl ClientShellState {
                     crate::input::KeybindMatch::Action(crate::input::KeybindAction::Zoom),
                     outcome,
                 ),
+                // O servidor não move painel dentro da mesma aba: o segundo painel passa por
+                // uma aba temporária, que some quando ele volta.
                 PassoDivisao::Mover {
                     painel,
                     alvo,
                     direcao,
-                } => self.push_endpoint_method(
-                    crate::api::schema::Method::PaneMove(crate::api::schema::PaneMoveParams {
-                        pane_id: painel,
-                        destination: crate::api::schema::PaneMoveDestination::Tab {
+                } => {
+                    use crate::api::schema::{
+                        Method, PaneMoveDestination as Destino, PaneMoveParams,
+                    };
+                    let mover = |destination| {
+                        Method::PaneMove(PaneMoveParams {
+                            pane_id: painel.clone(),
+                            destination,
+                            focus: false,
+                        })
+                    };
+                    self.push_endpoint_method(
+                        mover(Destino::NewTab {
+                            workspace_id: Some(aba_workspace.clone()),
+                            label: None,
+                        }),
+                        outcome,
+                    );
+                    self.push_endpoint_method(
+                        mover(Destino::Tab {
                             tab_id: aba_id.clone(),
                             target_pane_id: Some(alvo),
                             split: direcao,
                             ratio: None,
-                        },
-                        focus: false,
-                    }),
-                    outcome,
-                ),
+                        }),
+                        outcome,
+                    );
+                }
             }
         }
         if pedida.is_some() {
@@ -492,10 +522,10 @@ mod tests {
         assert_eq!(
             rotulos,
             [
-                "  1  conversa",
-                "  2  conversa + lembretes",
-                "● 3  lado a lado + lembretes",
-                "  4  em cima e embaixo + lembretes"
+                "  1  barra à esquerda",
+                "  2  barras à esquerda e à direita",
+                "● 3  barras e divisão vertical central",
+                "  4  barras e divisão horizontal central"
             ]
         );
         let mut estado = EstadoArranjo::default();

@@ -718,7 +718,7 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
             .collect()
     };
 
-    let com_apoio = escolher(&mut state, "2  conversa + lembretes");
+    let com_apoio = escolher(&mut state, "2  barras à esquerda e à direita");
     assert_eq!(state.arranjo.atual, Arranjo::ComApoio);
     assert!(com_apoio.resize, "o servidor precisa saber da nova largura");
     // A imagem antiga da conversa é descartada até o servidor mandar a da nova largura.
@@ -732,7 +732,7 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
     );
     assert_eq!(state.hits.apoio_area, layout.apoio);
 
-    let lado = escolher(&mut state, "3  lado a lado + lembretes");
+    let lado = escolher(&mut state, "3  barras e divisão vertical central");
     assert!(!lado.resize);
     assert!(matches!(
         &metodos(&lado)[..],
@@ -745,17 +745,20 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
     segundo.focused = false;
     dois_paineis.panes.push(segundo);
     state.set_snapshot(Box::new(dois_paineis));
-    let embaixo = escolher(&mut state, "4  em cima e embaixo + lembretes");
+    let embaixo = escolher(&mut state, "4  barras e divisão horizontal central");
     assert_eq!(state.arranjo.atual, Arranjo::EmCimaEmbaixo);
+    // O servidor recusa mover dentro da mesma aba: o painel passa por uma aba temporária.
     assert!(matches!(
         &metodos(&embaixo)[..],
-        [Method::PaneMove(params)] if params.pane_id == "pane_2"
-            && matches!(&params.destination, PaneMoveDestination::Tab {
-                target_pane_id: Some(alvo), split: SplitDirection::Down, ..
-            } if alvo == "pane_1")
+        [Method::PaneMove(saida), Method::PaneMove(volta)]
+            if saida.pane_id == "pane_2" && volta.pane_id == "pane_2"
+            && matches!(&saida.destination, PaneMoveDestination::NewTab { .. })
+            && matches!(&volta.destination, PaneMoveDestination::Tab {
+                tab_id, target_pane_id: Some(alvo), split: SplitDirection::Down, ..
+            } if tab_id == "tab_1" && alvo == "pane_1")
     ));
 
-    let volta = escolher(&mut state, "1  conversa");
+    let volta = escolher(&mut state, "1  barra à esquerda");
     assert_eq!(state.arranjo.atual, Arranjo::Conversa);
     assert!(volta.resize);
     let metodos_volta = metodos(&volta);
