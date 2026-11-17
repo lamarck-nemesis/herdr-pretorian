@@ -767,10 +767,23 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
         .any(|m| matches!(m, Method::PaneClose(_))));
     assert!(matches!(&metodos_volta[..], [Method::PaneZoom(_)]));
     assert_eq!(state.layout(140, 30).apoio.width, 0);
+    state.set_pane_surface(surface());
+    state.compose(140, 30).expect("apoio oculto");
+    assert!(state.hits.apoio_area.is_empty());
+    assert!(state.hits.apoio_rows.is_empty());
+    assert!(state.hits.apoio_abas.is_empty());
+    assert!(state.hits.apoio_adicionar.is_empty());
 
-    // Em tela estreita a barra de apoio não espreme a conversa.
+    // Em tela estreita a barra de apoio não espreme a conversa nem deixa alvos invisíveis.
     state.arranjo.atual = Arranjo::ComApoio;
+    state.compose(140, 30).expect("apoio visível novamente");
+    assert!(!state.hits.apoio_area.is_empty());
     assert_eq!(state.layout(80, 30).apoio.width, 0);
+    state.compose(80, 30).expect("apoio oculto pela largura");
+    assert!(state.hits.apoio_area.is_empty());
+    assert!(state.hits.apoio_rows.is_empty());
+    assert!(state.hits.apoio_abas.is_empty());
+    assert!(state.hits.apoio_adicionar.is_empty());
 }
 
 #[test]
