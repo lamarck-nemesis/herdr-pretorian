@@ -57,6 +57,7 @@ operations::define_operations! {
     ClientWindowTitleSet(ClientWindowTitleSetParams) => "client.window_title.set", false, false;
     ClientWindowTitleClear(EmptyParams) => "client.window_title.clear", false, false;
     ClientShellSurfaceSet(ClientShellSurfaceSetParams) => "client_shell.surface.set", false, true;
+    ClientShellSecondarySet(ClientShellSecondarySetParams) => "client_shell.secondary.set", false, true;
     SessionSnapshot(EmptyParams) => "session.snapshot", false, false;
     WorkspaceCreate(WorkspaceCreateParams) => "workspace.create", true, true;
     WorkspaceList(EmptyParams) => "workspace.list", false, false;
@@ -92,7 +93,7 @@ operations::define_operations! {
     AgentWait(AgentWaitParams) => "agent.wait", false, false;
     PaneSplit(PaneSplitParams) => "pane.split", true, true;
     PaneSwap(PaneSwapParams) => "pane.swap", true, true;
-    PaneMove(PaneMoveParams) => "pane.move", true, true;
+    PaneMove(PaneMoveParams) => "pane.move", true, false;
     PaneZoom(PaneZoomParams) => "pane.zoom", true, true;
     PaneLayout(PaneLayoutParams) => "pane.layout", false, false;
     PaneProcessInfo(PaneProcessInfoParams) => "pane.process_info", false, false;

@@ -1695,6 +1695,38 @@
           ],
           "type": "object"
         },
+        "ClientShellSecondarySetParams": {
+          "description": "Pretorian: divide a conversa desta interface entre a pasta principal e uma secundária.\n`direction` ausente desfaz a divisão; `workspace_id` ausente reserva a metade vazia.\n`tab_id` escolhe a aba ativa da secundária sem mexer na principal.",
+          "properties": {
+            "direction": {
+              "anyOf": [
+                {
+                  "$ref": "#/schemas/request/$defs/SplitDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "focus": {
+              "default": false,
+              "type": "boolean"
+            },
+            "tab_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workspace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
         "ClientShellSurfaceSetParams": {
           "description": "Updates whether the requesting client shell receives and controls pane presentation.",
           "properties": {
@@ -4897,6 +4929,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/ClientShellSurfaceSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "client_shell.secondary.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ClientShellSecondarySetParams"
             }
           },
           "required": [

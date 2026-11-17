@@ -49,6 +49,48 @@ pub(crate) fn compute_tab_surface(
     )
 }
 
+/// Arranjos divididos do Pretorian: a área da conversa é repartida entre a pasta principal e a
+/// secundária. Servidor e interface usam esta mesma conta para nunca discordarem.
+///
+/// Devolve `(principal, secundaria, barra_da_secundaria)`. Lado a lado, uma coluna separa as
+/// metades e a barra de abas da secundária divide a linha de abas da interface (`None`). Em
+/// cima e embaixo, a secundária reserva a primeira linha para a barra de abas dela.
+/// Área pequena demais não se divide: a secundária vem vazia.
+pub(crate) fn dividir_superficie(area: Rect, lado_a_lado: bool) -> (Rect, Rect, Option<Rect>) {
+    if lado_a_lado {
+        if area.width < 21 {
+            return (area, Rect::default(), None);
+        }
+        let largura = area.width / 2;
+        let principal = Rect {
+            width: largura,
+            ..area
+        };
+        let secundaria = Rect {
+            x: area.x + largura + 1,
+            width: area.width - largura - 1,
+            ..area
+        };
+        (principal, secundaria, None)
+    } else {
+        if area.height < 7 {
+            return (area, Rect::default(), None);
+        }
+        let altura = area.height / 2;
+        let principal = Rect {
+            height: altura,
+            ..area
+        };
+        let barra = Rect::new(area.x, area.y + altura, area.width, 1);
+        let secundaria = Rect {
+            y: barra.bottom(),
+            height: area.height - altura - 1,
+            ..area
+        };
+        (principal, secundaria, Some(barra))
+    }
+}
+
 pub(crate) fn compute_tab_surface_for(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,

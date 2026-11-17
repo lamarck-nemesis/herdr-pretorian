@@ -574,6 +574,14 @@ fn handle_request(
         });
     }
 
+    if matches!(&request.method, Method::ClientShellSecondarySet(_)) {
+        return error_response_json(
+            request.id,
+            "connection_local_only",
+            "client_shell.secondary.set is only available through a client shell endpoint".into(),
+        );
+    }
+
     if matches!(&request.method, Method::ClientShellSurfaceSet(_)) {
         return error_response_json(
             request.id,

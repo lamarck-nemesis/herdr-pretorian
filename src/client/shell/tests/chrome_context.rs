@@ -678,16 +678,29 @@ fn raciocinio_mostra_configuracao_repetida_sem_ocultar_os_niveis() {
     assert_eq!(itens[4].1, A::Pagina(P::Raciocinio));
 }
 
+fn secundarias(saida: &ClientShellInput) -> Vec<crate::api::schema::ClientShellSecondarySetParams> {
+    saida
+        .actions
+        .iter()
+        .filter_map(|acao| match acao {
+            ClientShellAction::Endpoint { request, .. } => match &request.method {
+                crate::api::schema::Method::ClientShellSecondarySet(params) => Some(params.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
+fn menu_layout_escolhe_os_quatro_arranjos_pedindo_a_divisao_ao_servidor() {
     use super::super::arranjo::{Arranjo, LARGURA_APOIO};
-    use crate::api::schema::{Method, PaneMoveDestination, SplitDirection};
+    use crate::api::schema::SplitDirection;
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("frame inicial");
     let inicial = state.layout(140, 30);
-    assert_eq!(inicial.pane_surface.y, inicial.tab_bar.bottom());
     let posicao = |state: &ClientShellState, rotulo: &str| {
         let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
             panic!("menu aberto");
@@ -697,7 +710,6 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
             .position(|(texto, _)| texto.ends_with(rotulo))
             .unwrap_or_else(|| panic!("item {rotulo}"))
     };
-    // menu > layout > arranjo; a página marca o arranjo em uso.
     let escolher = |state: &mut ClientShellState, rotulo: &str| {
         let mut saida = ClientShellInput::default();
         state.toggle_global_menu();
@@ -707,65 +719,48 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
         state.activate_global_menu_item(item, &mut saida);
         saida
     };
-    let metodos = |saida: &ClientShellInput| -> Vec<Method> {
-        saida
-            .actions
-            .iter()
-            .filter_map(|acao| match acao {
-                ClientShellAction::Endpoint { request, .. } => Some(request.method.clone()),
-                _ => None,
-            })
-            .collect()
-    };
 
     let com_apoio = escolher(&mut state, "2  barras à esquerda e à direita");
     assert_eq!(state.arranjo.atual, Arranjo::ComApoio);
     assert!(com_apoio.resize, "o servidor precisa saber da nova largura");
-    // A imagem antiga da conversa é descartada até o servidor mandar a da nova largura.
-    state.set_pane_surface(surface());
-    state.compose(140, 30).expect("com apoio");
+    assert_eq!(secundarias(&com_apoio)[0].direction, None);
     let layout = state.layout(140, 30);
     assert_eq!(layout.apoio.width, LARGURA_APOIO);
     assert_eq!(
         layout.pane_surface.width,
         inicial.pane_surface.width - LARGURA_APOIO
     );
-    assert_eq!(state.hits.apoio_area, layout.apoio);
 
     let lado = escolher(&mut state, "3  barras e divisão vertical central");
-    assert!(!lado.resize);
-    assert!(matches!(
-        &metodos(&lado)[..],
-        [Method::PaneSplit(params)] if params.direction == SplitDirection::Right
-    ));
+    let [pedido] = &secundarias(&lado)[..] else {
+        panic!("um pedido de divisão");
+    };
+    assert_eq!(
+        (pedido.direction.clone(), pedido.workspace_id.clone()),
+        (Some(SplitDirection::Right), None)
+    );
+    // Lado a lado, as abas da principal ficam só sobre a metade dela.
+    let layout = state.layout(140, 30);
+    let (metade, _, _) = crate::ui::dividir_superficie(layout.pane_surface, true);
+    assert_eq!(layout.tab_bar.width, metade.width);
+    state.set_pane_surface(surface());
+    let tela = frame_rows(&state.compose(140, 30).expect("dividido").frame).join("\n");
+    assert!(tela.contains("Arraste uma pasta para cá"));
+    assert_ne!(state.hits.fechar_secundaria, Rect::default());
 
-    let mut dois_paineis = snapshot();
-    let mut segundo = dois_paineis.panes[0].clone();
-    segundo.pane_id = "pane_2".into();
-    segundo.focused = false;
-    dois_paineis.panes.push(segundo);
-    state.set_snapshot(Box::new(dois_paineis));
     let embaixo = escolher(&mut state, "4  barras e divisão horizontal central");
-    assert_eq!(state.arranjo.atual, Arranjo::EmCimaEmbaixo);
-    // O servidor recusa mover dentro da mesma aba: o painel passa por uma aba temporária.
-    assert!(matches!(
-        &metodos(&embaixo)[..],
-        [Method::PaneMove(saida), Method::PaneMove(volta)]
-            if saida.pane_id == "pane_2" && volta.pane_id == "pane_2"
-            && matches!(&saida.destination, PaneMoveDestination::NewTab { .. })
-            && matches!(&volta.destination, PaneMoveDestination::Tab {
-                tab_id, target_pane_id: Some(alvo), split: SplitDirection::Down, ..
-            } if tab_id == "tab_1" && alvo == "pane_1")
-    ));
+    assert_eq!(
+        secundarias(&embaixo)[0].direction,
+        Some(SplitDirection::Down)
+    );
+    assert_eq!(
+        state.layout(140, 30).tab_bar.width,
+        layout.pane_surface.width
+    );
 
     let volta = escolher(&mut state, "1  barra à esquerda");
-    assert_eq!(state.arranjo.atual, Arranjo::Conversa);
     assert!(volta.resize);
-    let metodos_volta = metodos(&volta);
-    assert!(!metodos_volta
-        .iter()
-        .any(|m| matches!(m, Method::PaneClose(_))));
-    assert!(matches!(&metodos_volta[..], [Method::PaneZoom(_)]));
+    assert_eq!(secundarias(&volta)[0].direction, None);
     assert_eq!(state.layout(140, 30).apoio.width, 0);
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("apoio oculto");
@@ -787,9 +782,9 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
 }
 
 #[test]
-fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
+fn pasta_na_janela_secundaria_tem_abas_mais_fechar_e_teclado_proprios() {
     use super::super::arranjo::Arranjo;
-    use crate::api::schema::{Method, PaneMoveDestination, SplitDirection};
+    use crate::api::schema::{Method, SplitDirection};
     let mut duas_pastas = snapshot();
     let mut pasta = duas_pastas.workspaces[0].clone();
     pasta.workspace_id = "ws_2".into();
@@ -809,10 +804,17 @@ fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
     duas_pastas.tabs.push(aba);
     duas_pastas.panes.push(painel);
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(duas_pastas));
+    state.set_snapshot(Box::new(duas_pastas.clone()));
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("frame inicial");
-    assert_eq!(state.hits.janela_secundaria, Rect::default());
+    let clicar = |state: &mut ClientShellState, alvo: Rect| {
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: alvo.x + 1,
+            row: alvo.y,
+            modifiers: KeyModifiers::empty(),
+        })])
+    };
 
     state.open_workspace_context_menu("ws_2".into(), 2, 4);
     let Some(ClientShellOverlay::ContextMenu(menu)) = &state.overlay else {
@@ -825,37 +827,69 @@ fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
         .expect("item no menu da pasta");
     state.compose(140, 30).expect("menu");
     let linha = state.hits.context_menu_rows[indice].0;
-    let saida = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: linha.x + 1,
-        row: linha.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
+    let puxar = clicar(&mut state, linha);
     assert_eq!(state.arranjo.atual, Arranjo::LadoALado);
-    assert!(saida.resize);
-    let movimentos: Vec<_> = saida
-        .actions
-        .iter()
-        .filter_map(|acao| match acao {
-            ClientShellAction::Endpoint { request, .. } => match &request.method {
-                Method::PaneMove(params) => Some(params.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
-    assert!(matches!(
-        &movimentos[..],
-        [params] if params.pane_id == "pane_9"
-            && matches!(&params.destination, PaneMoveDestination::Tab {
-                tab_id, target_pane_id: Some(alvo), split: SplitDirection::Right, ..
-            } if tab_id == "tab_1" && alvo == "pane_1")
-    ));
+    assert!(puxar.resize);
+    let [pedido] = &secundarias(&puxar)[..] else {
+        panic!("um pedido de secundária");
+    };
+    assert_eq!(
+        (
+            pedido.direction.clone(),
+            pedido.workspace_id.as_deref(),
+            pedido.focus
+        ),
+        (Some(SplitDirection::Right), Some("ws_2"), false)
+    );
 
     state.set_pane_surface(surface());
-    let frame = state.compose(140, 30).expect("com janela secundária");
-    let texto = frame_rows(&frame.frame).join("\n");
-    assert!(texto.contains("Janela secundária"));
-    assert!(texto.contains("● lsa-pje"));
-    assert_ne!(state.hits.janela_secundaria, Rect::default());
+    let tela = frame_rows(&state.compose(140, 30).expect("secundária").frame).join("\n");
+    assert!(tela.contains("● lsa-pje"), "{tela}");
+    let abas = state.hits.abas_secundaria.clone();
+    let [(aba, tab_id)] = &abas[..] else {
+        panic!("uma aba na barra da secundária");
+    };
+    let aba = *aba;
+    assert_eq!(tab_id, "tab_2");
+    let trocar = clicar(&mut state, aba);
+    assert_eq!(secundarias(&trocar)[0].tab_id.as_deref(), Some("tab_2"));
+
+    let alvo = state.hits.nova_aba_secundaria;
+    let nova = clicar(&mut state, alvo);
+    assert!(matches!(
+        &nova.actions[..],
+        [ClientShellAction::Endpoint { request, .. }] if matches!(&request.method,
+            Method::TabCreate(params) if params.workspace_id.as_deref() == Some("ws_2") && !params.focus)
+    ));
+    // A aba criada vira a ativa da secundária quando chega no snapshot.
+    let mut com_nova = duas_pastas.clone();
+    let mut nova_aba = com_nova.tabs[1].clone();
+    nova_aba.tab_id = "tab_3".into();
+    com_nova.tabs.push(nova_aba);
+    state.set_snapshot(Box::new(com_nova));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert_eq!(secundarias(&tique)[0].tab_id.as_deref(), Some("tab_3"));
+
+    // Teclado: painel da secundária recebe sem trocar a pasta principal.
+    let mut saida = ClientShellInput::default();
+    assert!(state.foco_por_clique("pane_9", &mut saida));
+    assert!(secundarias(&saida)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_9"));
+    let mut saida = ClientShellInput::default();
+    assert!(!state.foco_por_clique("pane_1", &mut saida));
+    assert!(!secundarias(&saida)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_1"));
+
+    // Em tela estreita o apoio some, mas a barra da secundária continua com o ×.
+    assert_eq!(state.layout(80, 30).apoio.width, 0);
+    state.compose(80, 30).expect("secundária sem apoio");
+    assert!(state.hits.apoio_area.is_empty());
+    assert!(!state.hits.fechar_secundaria.is_empty());
+
+    state.compose(140, 30).expect("antes de fechar");
+    let alvo = state.hits.fechar_secundaria;
+    let fechar = clicar(&mut state, alvo);
+    assert_eq!(state.arranjo.atual, Arranjo::ComApoio);
+    assert_eq!(secundarias(&fechar)[0].direction, None);
 }

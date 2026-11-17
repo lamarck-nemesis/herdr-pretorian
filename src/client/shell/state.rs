@@ -149,6 +149,9 @@ pub(super) struct ShellHitMap {
     pub(super) lembretes_rows: Vec<(Rect, usize)>,
     pub(super) apoio_area: Rect,
     pub(super) janela_secundaria: Rect,
+    pub(super) abas_secundaria: Vec<(Rect, String)>,
+    pub(super) nova_aba_secundaria: Rect,
+    pub(super) fechar_secundaria: Rect,
     pub(super) apoio_abas: Vec<(Rect, usize)>,
     pub(super) apoio_rolar: (Rect, Rect),
     pub(super) apoio_rows: Vec<(Rect, usize)>,
@@ -1261,14 +1264,22 @@ impl ClientShellState {
     }
 
     pub(super) fn layout(&self, cols: u16, rows: u16) -> ClientShellLayout {
-        self.config.layout(
+        let mut layout = self.config.layout(
             cols,
             rows,
             self.sidebar_collapsed,
             self.focused_tab_count(),
             self.sidebar_width,
             self.arranjo.largura_apoio(),
-        )
+        );
+        // Lado a lado, as abas da pasta principal ficam só sobre a metade dela.
+        if self.arranjo.lado_a_lado() == Some(true) && layout.mobile_header.is_empty() {
+            let (principal, outra, _) = crate::ui::dividir_superficie(layout.pane_surface, true);
+            if !outra.is_empty() {
+                layout.tab_bar.width = principal.width;
+            }
+        }
+        layout
     }
 
     pub(crate) fn surface_size(&self, cols: u16, rows: u16) -> ClientSurfaceSize {

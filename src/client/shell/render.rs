@@ -13,7 +13,7 @@ pub(super) use overlays::{
     render_apoio, render_client_overlay, render_context_menu, render_global_menu,
 };
 pub(super) use sidebar::{render_collapsed_sidebar, render_sidebar, workspace_entries};
-pub(super) use tabs::{render_tab_bar, tab_bar_status_width};
+pub(super) use tabs::{render_barra_secundaria, render_tab_bar, tab_bar_status_width};
 
 pub(in crate::client::shell) fn render_sidebar_background(
     buffer: &mut Buffer,
