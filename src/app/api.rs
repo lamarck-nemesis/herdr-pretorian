@@ -942,6 +942,13 @@ impl App {
         };
 
         let response = match request.method {
+            Method::ServerStopIfMatches(_) => {
+                return responses::encode_error(
+                    request.id,
+                    "unsupported",
+                    "conditional stop requires headless server",
+                );
+            }
             Method::ServerStop(_) => {
                 self.state.should_quit = true;
                 SuccessResponse {

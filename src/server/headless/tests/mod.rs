@@ -275,6 +275,102 @@ fn pane_updated_events(event_hub: &api::EventHub) -> usize {
 }
 
 #[test]
+fn stop_if_matches_checks_inventory_identity_and_readiness() {
+    let server = test_headless_server();
+    let mut snapshot = server.app.session_metadata_snapshot();
+    let pane: api::schema::PaneInfo = serde_json::from_value(serde_json::json!({
+        "pane_id": "p1", "terminal_id": "t1", "workspace_id": "w1", "tab_id": "t1",
+        "focused": true, "agent_status": "idle", "revision": 0
+    }))
+    .unwrap();
+    let agent: api::schema::AgentInfo = serde_json::from_value(serde_json::json!({
+        "pane_id": "p1", "terminal_id": "t1", "workspace_id": "w1", "tab_id": "t1",
+        "focused": true, "agent_status": "idle", "interactive_ready": true, "revision": 0,
+        "agent_session": {"source": "herdr:codex", "agent": "codex", "kind": "id", "value": "session-1"}
+    })).unwrap();
+    snapshot.panes = vec![pane];
+    snapshot.agents = vec![agent];
+    let expected = vec![api::schema::ExpectedConversation {
+        pane_id: "p1".into(),
+        agent: "codex".into(),
+        session_id: "session-1".into(),
+    }];
+    assert!(HeadlessServer::stop_inventory_matches(&snapshot, &expected));
+    assert!(!HeadlessServer::stop_inventory_matches(&snapshot, &[]));
+    let mut extra = snapshot.clone();
+    extra.panes.push(extra.panes[0].clone());
+    assert!(!HeadlessServer::stop_inventory_matches(&extra, &expected));
+    let mut changed = expected.clone();
+    changed[0].session_id = "session-2".into();
+    assert!(!HeadlessServer::stop_inventory_matches(&snapshot, &changed));
+    let mut busy = snapshot.clone();
+    busy.agents[0].agent_status = api::schema::AgentStatus::Working;
+    assert!(!HeadlessServer::stop_inventory_matches(&busy, &expected));
+    let mut not_ready = snapshot.clone();
+    not_ready.agents[0].interactive_ready = false;
+    assert!(!HeadlessServer::stop_inventory_matches(
+        &not_ready, &expected
+    ));
+    assert!(!HeadlessServer::stop_inventory_matches(
+        &snapshot,
+        &[expected[0].clone(), expected[0].clone()]
+    ));
+}
+
+#[test]
+fn stop_if_matches_rejects_changed_inventory_without_stopping() {
+    let mut server = test_headless_server();
+    let (respond_to, response_rx) = std::sync::mpsc::channel();
+    server.handle_api_request_with_shutdown_check(api::ApiRequestMessage {
+        request: api::schema::Request {
+            id: "conditional-stop".into(),
+            method: api::schema::Method::ServerStopIfMatches(
+                api::schema::ServerStopIfMatchesParams {
+                    panes: vec![api::schema::ExpectedConversation {
+                        pane_id: "p1".into(),
+                        agent: "codex".into(),
+                        session_id: "s1".into(),
+                    }],
+                },
+            ),
+        },
+        respond_to,
+        response_write_complete: None,
+    });
+    let response: serde_json::Value = serde_json::from_str(&response_rx.recv().unwrap()).unwrap();
+    assert_eq!(response["error"]["code"], "inventory_changed");
+    assert!(!server.should_quit.load(Ordering::Acquire));
+}
+
+#[test]
+fn stop_if_matches_accepts_and_blocks_later_server_events() {
+    let mut server = test_headless_server();
+    let (respond_to, response_rx) = std::sync::mpsc::channel();
+    server.handle_api_request_with_shutdown_check(api::ApiRequestMessage {
+        request: api::schema::Request {
+            id: "conditional-stop".into(),
+            method: api::schema::Method::ServerStopIfMatches(
+                api::schema::ServerStopIfMatchesParams { panes: vec![] },
+            ),
+        },
+        respond_to,
+        response_write_complete: None,
+    });
+    let response: serde_json::Value = serde_json::from_str(&response_rx.recv().unwrap()).unwrap();
+    assert_eq!(response["result"]["accepted"], true);
+    assert!(server.should_quit.load(Ordering::Acquire));
+    server
+        .server_event_tx
+        .try_send(ServerEvent::ClientInput {
+            client_id: 1,
+            data: b"input".to_vec(),
+        })
+        .unwrap();
+    assert!(!server.drain_server_events());
+    assert!(server.server_event_rx.try_recv().is_ok());
+}
+
+#[test]
 fn server_stop_interrupts_server_event_backlog() {
     let mut server = test_headless_server();
     for client_id in 1..=64 {
@@ -4331,14 +4427,14 @@ fn explicit_agent_history_read_requires_idle_on_alternate_screen() {
             };
 
             assert_eq!(
-                    server.agent_read_not_idle_error(&request),
-                    Some(api::schema::ErrorBody {
-                        code: "agent_not_idle".into(),
-                        message: format!(
-                            "cannot read 200 lines while {public_pane_id} is working: its alternate-screen history can only be captured by scrolling while idle. Wait and retry, or use --source visible"
-                        ),
-                    })
-                );
+                server.agent_read_not_idle_error(&request),
+                Some(api::schema::ErrorBody {
+                    code: "agent_not_idle".into(),
+                    message: format!(
+                        "cannot read 200 lines while {public_pane_id} is working: its alternate-screen history can only be captured by scrolling while idle. Wait and retry, or use --source visible"
+                    ),
+                })
+            );
 
             let mut default_request = request.clone();
             let api::schema::Method::AgentRead(params) = &mut default_request.method else {
@@ -4680,11 +4776,11 @@ fn terminal_control_rejects_attach_during_alt_screen_read() {
             .contains_key(&terminal_id_string));
         let reason = read_server_shutdown_reason(control_rx.recv().expect("shutdown message"));
         assert_eq!(
-                reason,
-                Some(format!(
-                    "falha ao anexar terminal: o terminal {terminal_id_string} tem uma leitura em andamento; tente novamente"
-                ))
-            );
+            reason,
+            Some(format!(
+                "falha ao anexar terminal: o terminal {terminal_id_string} tem uma leitura em andamento; tente novamente"
+            ))
+        );
     });
 }
 
@@ -7603,7 +7699,9 @@ fn update_notification_is_semantic_for_system_delivery() {
             assert_eq!(notification.title, "Herdr v9.9.9 available");
             assert_eq!(
                 notification.body.as_deref(),
-                Some("Para atualizar, use o instalador do Pretorian. Depois, abra novamente o perfil.")
+                Some(
+                    "Para atualizar, use o instalador do Pretorian. Depois, abra novamente o perfil."
+                )
             );
         }
         other => panic!("expected semantic update notification, got {other:?}"),
