@@ -9,6 +9,9 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+### Adicionado
+- Configurações › usuário: lista das dependências da estação (conta Google no navegador, conferência do BB), lida do arquivo em `PRETORIAN_DEPENDENCIAS_ESTADO` mantido pelo lançador do CLI. Cada item mostra estado (pendente, bloqueado, em andamento, concluído, falhou), detalhe e ação; as setas passam do nome para a lista e Enter grava o pedido que o lançador atende abrindo a janela. Pendência acende o sinal de atenção no menu, em configurações e na aba usuário.
+
 ## [0.6.2] - 2026-11-16
 
 ### Corrigido
