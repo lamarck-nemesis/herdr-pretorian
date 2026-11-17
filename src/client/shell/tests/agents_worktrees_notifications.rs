@@ -35,8 +35,8 @@ fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
 
     let pane = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: 27,
-        row: 1,
+        column: state.layout(106, 20).pane_surface.x + 1,
+        row: state.layout(106, 20).pane_surface.y,
         modifiers: KeyModifiers::empty(),
     })]);
     assert!(pane.requests.is_empty());

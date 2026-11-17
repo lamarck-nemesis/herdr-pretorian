@@ -695,6 +695,9 @@ impl ClientShellState {
             self.navigate_workspace_id = None;
             outcome.repaint = true;
         }
+        if self.overlay.is_none() && self.tratar_mouse_arranjo(mouse, outcome) {
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Onboarding)) {
             if mouse.kind == MouseEventKind::Down(MouseButton::Left)
                 && super::contains(self.hits.overlay_primary, point)
@@ -1299,7 +1302,9 @@ impl ClientShellState {
                         source_workspace_id,
                         target,
                     } => {
-                        if let Some((before_workspace_id, _)) = target {
+                        if super::contains(self.hits.janela_secundaria, point) {
+                            self.puxar_pasta(&source_workspace_id, outcome);
+                        } else if let Some((before_workspace_id, _)) = target {
                             if let Some(method) = self.workspace_move_method(
                                 &source_workspace_id,
                                 before_workspace_id.as_deref(),
@@ -1714,6 +1719,38 @@ impl ClientShellState {
                 }
                 _ => {}
             }
+            return;
+        }
+        if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
+            if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+                return;
+            }
+            let fora = !super::contains(self.hits.lembretes_area, point);
+            let salvar_ou_excluir = super::contains(self.hits.overlay_primary, point);
+            let cancelar = super::contains(self.hits.overlay_cancel, point) || fora;
+            if let Some(formulario) = painel.novo.as_mut() {
+                let campo = self
+                    .hits
+                    .lembretes_rows
+                    .iter()
+                    .find(|(area, _)| super::contains(*area, point))
+                    .map(|(_, n)| *n);
+                if salvar_ou_excluir {
+                    painel.salvar_formulario();
+                } else if cancelar {
+                    painel.novo = None;
+                } else if let Some(n) = campo {
+                    formulario.foco = n;
+                }
+            } else if salvar_ou_excluir {
+                painel.excluir_aberto();
+            } else if cancelar {
+                painel.aberto = None;
+            }
+            if painel.aberto.is_none() && painel.novo.is_none() {
+                self.overlay = None;
+            }
+            outcome.repaint = true;
             return;
         }
         if self.overlay.is_some() {
