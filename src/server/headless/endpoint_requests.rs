@@ -55,6 +55,18 @@ impl HeadlessServer {
             );
             return changed;
         }
+        if let api::schema::Method::ClientShellSecondarySet(params) = &request.method {
+            self.set_client_shell_secondary(client_id, params);
+            self.send_to_client(
+                client_id,
+                crate::server::client_commands::success_message_with_result(
+                    boot_id,
+                    request_id,
+                    api::schema::ResponseResult::Ok {},
+                ),
+            );
+            return true;
+        }
         if client.shell_endpoint_command_in_flight {
             let message = crate::server::client_commands::error_message(
                 boot_id,

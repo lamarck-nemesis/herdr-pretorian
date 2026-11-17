@@ -3,6 +3,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
 pub struct PingParams {}
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ServerStopIfMatchesParams {
+    pub panes: Vec<ExpectedConversation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExpectedConversation {
+    pub pane_id: String,
+    pub agent: String,
+    pub session_id: String,
+}
+
 crate::cli::projection::cli_params! {
     #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
     pub struct ServerLiveHandoffParams => ServerLiveHandoffProjection {

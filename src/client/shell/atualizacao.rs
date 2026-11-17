@@ -13,6 +13,7 @@ enum Etapa {
     Disponivel,
     Atualizando,
     Concluido,
+    Aguardando,
     Erro,
 }
 
@@ -25,6 +26,8 @@ struct Estado {
     percentual: u8,
     notas: Vec<String>,
     reiniciar: bool,
+    #[serde(default)]
+    pedido_reinicio: bool,
 }
 
 pub(super) struct Atualizacao {
@@ -91,10 +94,21 @@ impl Atualizacao {
                         percentual: 0,
                         notas: vec![],
                         reiniciar: false,
+                        pedido_reinicio: estado.pedido_reinicio,
                     });
                 }
             }
-            Etapa::Concluido => {
+            Etapa::Concluido | Etapa::Aguardando => {
+                if estado.reiniciar && estado.pedido_reinicio {
+                    if std::fs::write(canal.join("reiniciar"), b"1").is_ok() {
+                        let mut aguardando = estado.clone();
+                        aguardando.estado = Etapa::Atualizando;
+                        aguardando.mensagem = "Guardando e retomando suas conversas…".into();
+                        self.estado = Some(aguardando);
+                        outcome.repaint = true;
+                    }
+                    return;
+                }
                 if estado.reiniciar {
                     crate::terminal_effects::request_update();
                     outcome.detach = true;
@@ -155,6 +169,7 @@ impl Atualizacao {
             Etapa::Concluido if estado.reiniciar => " Atualização instalada ",
             Etapa::Concluido => " Pretorian atualizado ",
             Etapa::Erro => " Atualização não concluída ",
+            Etapa::Aguardando => " Atualização aguardando ",
         };
         Clear.render(rect, buffer);
         let block = Block::default()
@@ -202,6 +217,7 @@ impl Atualizacao {
             Etapa::Atualizando => "Aguarde… Suas sessões continuam abertas.",
             Etapa::Concluido => "[ Continuar ]",
             Etapa::Erro => "[ Tentar novamente ]",
+            Etapa::Aguardando => "[ Voltar à conversa ]",
         };
         Paragraph::new(label)
             .centered()
@@ -233,6 +249,7 @@ mod tests {
                 percentual: 35,
                 notas: vec!["Permite atualizar sem encerrar sessões.".into()],
                 reiniciar: false,
+                pedido_reinicio: false,
             }),
             botao: Rect::default(),
         }
@@ -309,5 +326,43 @@ mod tests {
         let texto: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
         assert!(texto.contains("35% das etapas"));
         assert!(!texto.contains("[ Continuar ]"));
+    }
+    #[test]
+    fn conversa_ocupada_pode_ser_acessada_sem_anunciar_atualizacao_concluida() {
+        let mut card = cartao(Etapa::Aguardando);
+        let canal = std::env::temp_dir().join(format!("pretorian-ocupada-{}", std::process::id()));
+        std::fs::create_dir(&canal).unwrap();
+        card.canal = Some(canal.clone());
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 100, 30));
+        card.render(&mut buffer, &Palette::from_name("pretorian").unwrap());
+        let texto: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
+        assert!(texto.contains("Atualização aguardando"));
+        assert!(texto.contains("[ Voltar à conversa ]"));
+        assert!(!texto.contains("Pretorian atualizado"));
+        let mut outcome = ClientShellInput::default();
+        card.ativar(&mut outcome);
+        assert!(!card.visivel());
+        assert!(!outcome.detach);
+        std::fs::remove_dir_all(canal).unwrap();
+    }
+
+    #[test]
+    fn retomada_por_pedido_mantem_cliente_aberto_ate_confirmacao_do_lancador() {
+        let canal = std::env::temp_dir().join(format!("pretorian-reinicio-{}", std::process::id()));
+        std::fs::create_dir_all(&canal).unwrap();
+        let mut card = cartao(Etapa::Concluido);
+        card.canal = Some(canal.clone());
+        let estado = card.estado.as_mut().unwrap();
+        estado.reiniciar = true;
+        estado.pedido_reinicio = true;
+        let mut outcome = ClientShellInput::default();
+        card.ativar(&mut outcome);
+        assert_eq!(
+            std::fs::read_to_string(canal.join("reiniciar")).unwrap(),
+            "1"
+        );
+        assert!(!outcome.detach);
+        assert_eq!(card.estado.as_ref().unwrap().estado, Etapa::Atualizando);
+        std::fs::remove_dir_all(canal).unwrap();
     }
 }
