@@ -10,6 +10,7 @@ impl ClientContextMenuOverlay {
                 vec![
                     item("Renomear", Action::Rename),
                     item("Fechar", Action::Close),
+                    item("Abrir na janela secundária", Action::JanelaSecundaria),
                 ]
             }
             ClientContextMenuTarget::Workspace {
@@ -21,6 +22,7 @@ impl ClientContextMenuOverlay {
                 item("Fechar", Action::Close),
                 item("Nova cópia de trabalho", Action::NewWorktree),
                 item("Abrir cópia de trabalho...", Action::OpenWorktree),
+                item("Abrir na janela secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Workspace {
                 is_linked_worktree: true,
@@ -29,6 +31,7 @@ impl ClientContextMenuOverlay {
                 item("Renomear", Action::Rename),
                 item("Fechar", Action::Close),
                 item("Apagar cópia de trabalho...", Action::RemoveWorktree),
+                item("Abrir na janela secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Workspace {
                 has_worktree_children: true,
@@ -51,6 +54,7 @@ impl ClientContextMenuOverlay {
                     if *collapsed { "Expandir" } else { "Recolher" },
                     Action::ToggleGroup,
                 ),
+                item("Abrir na janela secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Tab { .. } => vec![
                 item("Nova aba", Action::NewTab),
@@ -258,6 +262,7 @@ impl ClientShellState {
             ClientContextMenuAction::Close => {
                 self.request_workspace_close(workspace_id, Some(close_group), outcome);
             }
+            ClientContextMenuAction::JanelaSecundaria => self.puxar_pasta(&workspace_id, outcome),
             ClientContextMenuAction::NewWorktree => {
                 self.begin_worktree_action_for(KeybindAction::NewWorktree, workspace_id, outcome)
             }

@@ -12,6 +12,8 @@ pub(super) enum PaginaRaciocinio {
     LoginPje,
     /// Diálogo de nível técnico mostrado antes de abrir uma aba na janela gerenciada.
     NovaAba,
+    /// Os quatro arranjos da shell; guarda o arranjo em uso para marcá-lo.
+    Layout(super::arranjo::Arranjo),
 }
 
 impl ClientGlobalMenuOverlay {
@@ -53,6 +55,11 @@ impl ClientGlobalMenuOverlay {
             )
             .collect(),
             P::Principal => global_menu_items(snapshot),
+            P::Layout(atual) => super::arranjo::Arranjo::TODOS
+                .into_iter()
+                .map(|arranjo| (arranjo.rotulo(arranjo == atual), A::Arranjo(arranjo)))
+                .chain(std::iter::once(("Voltar", A::Pagina(P::Principal))))
+                .collect(),
             P::Raciocinio => vec![
                 ("Trocar", A::Pagina(P::Trocar)),
                 ("Autorizar", A::Autorizar),
@@ -102,6 +109,7 @@ impl ClientGlobalMenuOverlay {
 pub(super) enum ClientGlobalMenuAction {
     Binding(crate::input::KeybindAction),
     WhatsNew,
+    Lembretes,
     /// Fecha o cliente pedindo ao lançador que atualize o Pretorian e reabra a sessão.
     Atualizar,
     Autorizar,
@@ -114,6 +122,7 @@ pub(super) enum ClientGlobalMenuAction {
     PjeSemJanela(bool),
     /// Abre a aba com o nível escolhido para o agente dela.
     NovaAba(crate::config::NivelRaciocinio),
+    Arranjo(super::arranjo::Arranjo),
     PretorianUpdate,
 }
 
@@ -122,6 +131,7 @@ pub(super) fn global_menu_attention(snapshot: &ClientShellSnapshot) -> bool {
         || snapshot.integration_updates_available
         || super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao())
         || super::pretorian_dependencias::pede_atencao()
+        || super::lembretes::pedem_atencao()
 }
 
 pub(super) fn global_menu_item_has_badge(
@@ -131,6 +141,7 @@ pub(super) fn global_menu_item_has_badge(
     (action == ClientGlobalMenuAction::PretorianUpdate
         && super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()))
         || (action == ClientGlobalMenuAction::WhatsNew && snapshot.update_available.is_some())
+        || (action == ClientGlobalMenuAction::Lembretes && super::lembretes::pedem_atencao())
         || (action == ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings)
             && (snapshot.integration_updates_available
                 || super::pretorian_dependencias::pede_atencao()))
@@ -150,6 +161,9 @@ pub(super) fn global_menu_items_for(
         "configurações",
         ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
     )];
+    if super::lembretes::disponivel() {
+        items.push(("ver lembretes", ClientGlobalMenuAction::Lembretes));
+    }
     if snapshot.update_available.is_some() || snapshot.latest_release_notes_available {
         items.push((
             if snapshot.update_available.is_some() {
@@ -163,6 +177,10 @@ pub(super) fn global_menu_items_for(
     if let Some(rotulo) = super::pretorian_update::rotulo_menu() {
         items.push((rotulo, ClientGlobalMenuAction::PretorianUpdate));
     }
+    items.push((
+        "mudar layout",
+        ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Layout(Default::default())),
+    ));
     items.push((
         "raciocínio",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Raciocinio),
@@ -349,7 +367,16 @@ impl ClientShellState {
                 }
             }
             ClientGlobalMenuAction::Pagina(pagina) => {
-                let highlighted = if pagina == PaginaRaciocinio::Configurar {
+                let pagina = match pagina {
+                    PaginaRaciocinio::Layout(_) => PaginaRaciocinio::Layout(self.arranjo.atual),
+                    outra => outra,
+                };
+                let highlighted = if let PaginaRaciocinio::Layout(atual) = pagina {
+                    super::arranjo::Arranjo::TODOS
+                        .iter()
+                        .position(|arranjo| *arranjo == atual)
+                        .unwrap_or(0)
+                } else if pagina == PaginaRaciocinio::Configurar {
                     crate::config::NivelRaciocinio::TODOS
                         .iter()
                         .position(|n| *n == self.config.nivel_raciocinio)
@@ -395,10 +422,12 @@ impl ClientShellState {
                 self.save_settings_edit(crate::config::ConfigEdit::PjeSemJanela(ligado), outcome);
             }
             ClientGlobalMenuAction::NovaAba(nivel) => self.criar_aba_com_nivel(nivel, outcome),
+            ClientGlobalMenuAction::Arranjo(arranjo) => self.escolher_arranjo(arranjo, outcome),
             ClientGlobalMenuAction::Binding(binding) => {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)
             }
             ClientGlobalMenuAction::WhatsNew => self.open_release_notes(),
+            ClientGlobalMenuAction::Lembretes => self.mostrar_lembretes(),
             ClientGlobalMenuAction::Atualizar => {
                 crate::terminal_effects::request_update();
                 outcome.detach = true;
