@@ -121,6 +121,7 @@ pub(super) fn global_menu_attention(snapshot: &ClientShellSnapshot) -> bool {
     snapshot.update_available.is_some()
         || snapshot.integration_updates_available
         || super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao())
+        || super::pretorian_dependencias::pede_atencao()
 }
 
 pub(super) fn global_menu_item_has_badge(
@@ -131,7 +132,8 @@ pub(super) fn global_menu_item_has_badge(
         && super::pretorian_update::estado().is_some_and(|estado| estado.pede_atencao()))
         || (action == ClientGlobalMenuAction::WhatsNew && snapshot.update_available.is_some())
         || (action == ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings)
-            && snapshot.integration_updates_available)
+            && (snapshot.integration_updates_available
+                || super::pretorian_dependencias::pede_atencao()))
 }
 
 pub(super) fn global_menu_items(
