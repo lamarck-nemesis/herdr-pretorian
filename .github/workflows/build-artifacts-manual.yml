@@ -70,11 +70,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-apple-darwin
-            os: macos-26-intel
-            name: herdr-macos-x86_64
           - target: aarch64-apple-darwin
-            os: macos-26
+            os: macos-26-intel
             name: herdr-macos-aarch64
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
@@ -117,7 +114,7 @@ jobs:
         run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Verificar execução nativa Apple Silicon
-        if: matrix.target == 'aarch64-apple-darwin'
+        if: runner.arch == 'ARM64' && matrix.target == 'aarch64-apple-darwin'
         run: |
           test "$(uname -m)" = arm64
           target/${{ matrix.target }}/release/herdr --version
@@ -130,6 +127,7 @@ jobs:
           path = pathlib.Path('target/${{ matrix.target }}/release/herdr')
           data = path.read_bytes()
           header = struct.unpack_from('<8I', data)
+          assert header[0] == 0xfeedfacf and header[1] == 0x0100000c, 'expected ARM64 Mach-O'
           offset = 32
           versions = []
           for _ in range(header[4]):
@@ -147,7 +145,7 @@ jobs:
                     'target': '${{ matrix.target }}', 'deployment': versions[0],
                     'binarySha256': hashlib.sha256(data).hexdigest(),
                     'baselineArm64Minimum': '11.0.0', 'baselineArm64Commit': '4ffdf974bb2bb16ade632ccd9601da7e4338d70b',
-                    'nativeOlderMacOSSmoke': False}
+                    'crossCompiled': True, 'nativeArm64Smoke': False, 'nativeOlderMacOSSmoke': False}
           pathlib.Path('CI_PROVENANCE.json').write_text(json.dumps(record, indent=2) + '\n')
           PYTHON
           xcrun otool -L target/${{ matrix.target }}/release/herdr > MACOS_DYLIBS.txt
