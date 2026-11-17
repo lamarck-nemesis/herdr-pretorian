@@ -555,7 +555,7 @@ fn menu_tem_login_pje_com_modo_headless_ligado_e_desligado() {
     let pagina = ClientGlobalMenuOverlay {
         highlighted: 0,
         pagina: PaginaRaciocinio::LoginPje,
-        mestre_doutor_iguais: false,
+        especialista_doutor_iguais: false,
         provedores: vec![],
         autorizacao: None,
     };
@@ -626,15 +626,15 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
     };
     assert_eq!(menu.highlighted, 1);
     let itens = menu.items(state.snapshot.as_deref().unwrap());
-    assert!(itens[1].0.contains("Graduado (padrão)"));
-    assert!(itens[4].0.contains("investigar hipóteses"));
+    assert!(itens[1].0.contains("Especialista (padrão)"));
+    assert!(itens[2].0.contains("casos desafiadores"));
     let frame = state.compose(120, 30).unwrap();
     let texto = frame
         .cells
         .iter()
         .map(|celula| celula.symbol.as_str())
         .collect::<String>();
-    assert!(texto.contains("Graduado (padrão)"));
+    assert!(texto.contains("Especialista (padrão)"));
 }
 
 #[test]
@@ -666,16 +666,16 @@ fn raciocinio_mostra_configuracao_repetida_sem_ocultar_os_niveis() {
     use crate::client::shell::global_menu::{ClientGlobalMenuAction as A, PaginaRaciocinio as P};
     let menu = ClientGlobalMenuOverlay {
         pagina: P::Configurar,
-        mestre_doutor_iguais: true,
+        especialista_doutor_iguais: true,
         ..Default::default()
     };
     let snap = snapshot();
     let itens = menu.items(&snap);
-    assert_eq!(itens.len(), 7);
-    assert_eq!(itens[4].1, A::Nivel(crate::config::NivelRaciocinio::Doutor));
-    assert!(itens[5].0.contains("mesma configuração"));
-    assert_eq!(itens[5].1, A::Nada);
-    assert_eq!(itens[6].1, A::Pagina(P::Raciocinio));
+    assert_eq!(itens.len(), 5);
+    assert_eq!(itens[2].1, A::Nivel(crate::config::NivelRaciocinio::Doutor));
+    assert!(itens[3].0.contains("mesma configuração"));
+    assert_eq!(itens[3].1, A::Nada);
+    assert_eq!(itens[4].1, A::Pagina(P::Raciocinio));
 }
 
 #[test]

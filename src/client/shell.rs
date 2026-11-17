@@ -31,6 +31,7 @@ mod notification_policy;
 mod notifications;
 mod overlay_input;
 mod preferences;
+mod pretorian_dependencias;
 mod pretorian_update;
 mod render;
 mod scroll;

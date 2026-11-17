@@ -468,7 +468,9 @@ impl ClientShellState {
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
-                settings.nome.insert(text);
+                if settings.selected == 0 {
+                    settings.nome.insert(text);
+                }
                 true
             }
             Some(ClientShellOverlay::Help(help)) if help.search_focused => {
@@ -655,7 +657,7 @@ impl ClientShellState {
                     self.activate_global_menu_item(highlighted, outcome);
                 }
                 // No diálogo de nível da aba nova, o número escolhe direto; a linha 0 é o título.
-                KeyCode::Char(tecla @ '1'..='5')
+                KeyCode::Char(tecla @ '1'..='3')
                     if matches!(
                         &self.overlay,
                         Some(ClientShellOverlay::GlobalMenu(menu))
