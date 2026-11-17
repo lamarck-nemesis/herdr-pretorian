@@ -2667,6 +2667,9 @@ impl HeadlessServer {
     }
 
     fn handle_server_event_with_render_impact(&mut self, ev: ServerEvent) -> RenderImpact {
+        if self.should_quit.load(Ordering::Acquire) {
+            return RenderImpact::None;
+        }
         if self.handle_server_event(ev) {
             RenderImpact::Full
         } else {
@@ -2910,16 +2913,78 @@ impl HeadlessServer {
         let _ = msg.respond_to.send(response);
     }
 
+    fn stop_inventory_matches(
+        snapshot: &api::schema::SessionSnapshot,
+        expected: &[api::schema::ExpectedConversation],
+    ) -> bool {
+        use api::schema::AgentStatus;
+        if snapshot.panes.len() != expected.len() || snapshot.agents.len() != expected.len() {
+            return false;
+        }
+        let mut seen = std::collections::HashSet::new();
+        expected.iter().all(|item| {
+            if item.pane_id.is_empty()
+                || item.agent.is_empty()
+                || item.session_id.is_empty()
+                || !seen.insert(&item.pane_id)
+            {
+                return false;
+            }
+            let Some(agent) = snapshot.agents.iter().find(|a| a.pane_id == item.pane_id) else {
+                return false;
+            };
+            let Some(session) = &agent.agent_session else {
+                return false;
+            };
+            snapshot
+                .panes
+                .iter()
+                .filter(|pane| pane.pane_id == item.pane_id)
+                .count()
+                == 1
+                && session.kind == crate::agent_resume::AgentSessionRefKind::Id
+                && session.agent == item.agent
+                && session.value == item.session_id
+                && matches!(agent.agent_status, AgentStatus::Idle | AgentStatus::Done)
+                && !agent.launch_pending
+        })
+    }
+
     fn handle_api_request_with_shutdown_check_inner(
         &mut self,
         msg: api::ApiRequestMessage,
         skip_default_workspace_for_request: bool,
         client_local: bool,
     ) -> bool {
-        if self.shutting_down || self.host_shutdown_requested() {
+        if self.shutting_down
+            || self.should_quit.load(Ordering::Acquire)
+            || self.host_shutdown_requested()
+        {
             // During shutdown, respond with server_unavailable.
             Self::reject_api_request_for_shutdown(msg);
             return false;
+        }
+
+        if let api::schema::Method::ServerStopIfMatches(params) = &msg.request.method {
+            self.drain_all_internal_events_with_forwarding();
+            if !Self::stop_inventory_matches(&self.app.session_metadata_snapshot(), &params.panes) {
+                let response = serde_json::json!({"id": msg.request.id, "error": {
+                    "code": "inventory_changed", "message": "As conversas ou seu estado mudaram."
+                }})
+                .to_string();
+                let _ = msg.respond_to.send(response);
+                return false;
+            }
+            self.server_stop
+                .request(ShutdownReason::ApiStop { caller: None });
+            let response = serde_json::to_string(&api::schema::SuccessResponse {
+                id: msg.request.id,
+                result: api::schema::ResponseResult::ServerStopIfMatches { accepted: true },
+            })
+            .unwrap_or_else(|_| "{}".to_string());
+            let _ = msg.respond_to.send(response);
+            wait_for_live_handoff_response_write(msg.response_write_complete);
+            return true;
         }
 
         let frozen_alt_screen_read = match self.alt_screen_read_conflict(&msg.request) {

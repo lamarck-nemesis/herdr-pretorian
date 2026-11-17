@@ -2183,6 +2183,26 @@
           ],
           "type": "object"
         },
+        "ExpectedConversation": {
+          "additionalProperties": false,
+          "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "pane_id": {
+              "type": "string"
+            },
+            "session_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pane_id",
+            "agent",
+            "session_id"
+          ],
+          "type": "object"
+        },
         "IntegrationInstallParams": {
           "properties": {
             "target": {
@@ -3922,6 +3942,21 @@
           },
           "required": [
             "socket_path"
+          ],
+          "type": "object"
+        },
+        "ServerStopIfMatchesParams": {
+          "additionalProperties": false,
+          "properties": {
+            "panes": {
+              "items": {
+                "$ref": "#/schemas/request/$defs/ExpectedConversation"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "panes"
           ],
           "type": "object"
         },
@@ -6353,6 +6388,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/PluginPaneCloseParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "server.stop_if_matches",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ServerStopIfMatchesParams"
             }
           },
           "required": [
@@ -10461,6 +10512,22 @@
               },
               "required": [
                 "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "accepted": {
+                  "type": "boolean"
+                },
+                "type": {
+                  "const": "server_stop_if_matches",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "accepted"
               ],
               "type": "object"
             }
