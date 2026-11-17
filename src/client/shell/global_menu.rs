@@ -43,7 +43,7 @@ impl ClientGlobalMenuOverlay {
                 items
             }
             P::NovaAba => std::iter::once((
-                "Nível técnico da nova aba · tecle 1 a 5 · Esc cancela",
+                "Nível técnico da nova aba · tecle 1 a 3 · Esc cancela",
                 A::Nada,
             ))
             .chain(
@@ -88,8 +88,8 @@ impl ClientGlobalMenuOverlay {
             P::Configurar => crate::config::NivelRaciocinio::TODOS
                 .into_iter()
                 .map(|n| (n.descricao(), A::Nivel(n)))
-                .chain(self.mestre_doutor_iguais.then_some((
-                    "Mestre e Doutor usam a mesma configuração nesta instalação.",
+                .chain(self.especialista_doutor_iguais.then_some((
+                    "Especialista e Doutor usam a mesma configuração nesta instalação.",
                     A::Nada,
                 )))
                 .chain(std::iter::once(("Voltar", A::Pagina(P::Raciocinio))))
@@ -189,7 +189,7 @@ impl ClientShellState {
             self.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                 highlighted: 0,
                 pagina: PaginaRaciocinio::Principal,
-                mestre_doutor_iguais: false,
+                especialista_doutor_iguais: false,
                 autorizacao: None,
                 provedores: crate::config::provedores_disponiveis(
                     std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
@@ -208,7 +208,7 @@ impl ClientShellState {
             // A primeira linha é o título do diálogo.
             highlighted: padrao + 1,
             pagina: PaginaRaciocinio::NovaAba,
-            mestre_doutor_iguais: false,
+            especialista_doutor_iguais: false,
             autorizacao: None,
             provedores: crate::config::provedores_disponiveis(
                 std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
@@ -340,7 +340,7 @@ impl ClientShellState {
                             Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                                 highlighted: 0,
                                 pagina: PaginaRaciocinio::Autorizar,
-                                mestre_doutor_iguais: false,
+                                especialista_doutor_iguais: false,
                                 provedores,
                                 autorizacao: Some(autorizacao),
                             }))
@@ -369,8 +369,8 @@ impl ClientShellState {
                 self.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
                     highlighted,
                     pagina,
-                    mestre_doutor_iguais: pagina == PaginaRaciocinio::Configurar
-                        && crate::config::mestre_e_doutor_iguais(
+                    especialista_doutor_iguais: pagina == PaginaRaciocinio::Configurar
+                        && crate::config::especialista_e_doutor_iguais(
                             self.config.provedor_raciocinio.as_deref().unwrap_or(""),
                             |chave| std::env::var(chave).ok(),
                         ),

@@ -612,7 +612,7 @@ impl ClientShellState {
                     self.activate_global_menu_item(highlighted, outcome);
                 }
                 // No diálogo de nível da aba nova, o número escolhe direto; a linha 0 é o título.
-                KeyCode::Char(tecla @ '1'..='5')
+                KeyCode::Char(tecla @ '1'..='3')
                     if matches!(
                         &self.overlay,
                         Some(ClientShellOverlay::GlobalMenu(menu))
