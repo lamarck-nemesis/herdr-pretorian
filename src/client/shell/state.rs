@@ -895,6 +895,7 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) atualizacao: super::atualizacao::Atualizacao,
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
@@ -1070,6 +1071,7 @@ impl ClientShellState {
         }
         Self {
             machine_diagnostics: Default::default(),
+            atualizacao: Default::default(),
             config,
             snapshot: None,
             active_snapshot_generation: None,

@@ -751,6 +751,13 @@ impl ClientShellState {
             self.hits.pane_splits.clear();
             self.hits.popup = None;
         }
+        if self.atualizacao.visivel() {
+            let mut composed = frame.to_ratatui_buffer()?;
+            if let Some(rect) = self.atualizacao.render(&mut composed, &self.config.palette) {
+                occlusion.cover(rect);
+                frame.replace_from_ratatui_buffer_preserving_effects(&composed, None);
+            }
+        }
         let graphics = self.compose_graphics(layout, &occlusion);
         Some(crate::client::frame_output::ComposedFrame { frame, graphics })
     }
