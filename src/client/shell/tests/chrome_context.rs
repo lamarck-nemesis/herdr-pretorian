@@ -876,6 +876,26 @@ fn pasta_na_janela_secundaria_tem_abas_mais_fechar_e_teclado_proprios() {
     assert!(state.foco_por_clique("pane_9", &mut saida));
     assert!(secundarias(&saida)[0].focus);
     assert_eq!(state.focused_pane_id().as_deref(), Some("pane_9"));
+    // O painel da secundária fecha: o teclado volta à principal.
+    let mut sem_painel = duas_pastas.clone();
+    sem_painel.panes.retain(|pane| pane.pane_id != "pane_9");
+    state.set_snapshot(Box::new(sem_painel));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert!(!secundarias(&tique)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_1"));
+    // A principal muda de foco por atalho ou aba: o teclado também volta.
+    state.set_snapshot(Box::new(duas_pastas.clone()));
+    assert!(state.foco_por_clique("pane_9", &mut ClientShellInput::default()));
+    let mut outro_foco = duas_pastas.clone();
+    outro_foco.focused_pane_id = Some("pane_7".into());
+    state.set_snapshot(Box::new(outro_foco));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert!(!secundarias(&tique)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_7"));
+    state.set_snapshot(Box::new(duas_pastas.clone()));
+    assert!(state.foco_por_clique("pane_9", &mut ClientShellInput::default()));
     let mut saida = ClientShellInput::default();
     assert!(!state.foco_por_clique("pane_1", &mut saida));
     assert!(!secundarias(&saida)[0].focus);
