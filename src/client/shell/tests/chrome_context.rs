@@ -881,6 +881,12 @@ fn pasta_na_janela_secundaria_tem_abas_mais_fechar_e_teclado_proprios() {
     assert!(!secundarias(&saida)[0].focus);
     assert_eq!(state.focused_pane_id().as_deref(), Some("pane_1"));
 
+    // Em tela estreita o apoio some, mas a barra da secundária continua com o ×.
+    assert_eq!(state.layout(80, 30).apoio.width, 0);
+    state.compose(80, 30).expect("secundária sem apoio");
+    assert!(state.hits.apoio_area.is_empty());
+    assert!(!state.hits.fechar_secundaria.is_empty());
+
     state.compose(140, 30).expect("antes de fechar");
     let alvo = state.hits.fechar_secundaria;
     let fechar = clicar(&mut state, alvo);

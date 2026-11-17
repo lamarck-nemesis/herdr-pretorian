@@ -473,20 +473,26 @@ impl ClientShellState {
         // Barra de apoio antes dos avisos e notificações, que ficam por cima.
         // Sem área visível, não converta a tela inteira a cada frame. Os hits já foram
         // reiniciados por render_shell, inclusive ao esconder a barra ou estreitar a janela.
-        if layout.mobile_header.is_empty() && !layout.apoio.is_empty() {
+        // A metade secundária pede a conversão mesmo com o apoio oculto pela largura.
+        if layout.mobile_header.is_empty()
+            && (!layout.apoio.is_empty() || self.arranjo.lado_a_lado().is_some())
+        {
             let mut composed = frame.to_ratatui_buffer()?;
             let palette = &self.config.palette;
-            let apoio = render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette)
-                .unwrap_or_default();
-            occlusion.cover(layout.apoio);
-            self.hits.apoio_area = apoio.area;
-            self.hits.apoio_rows = apoio.lembretes_rows;
-            self.hits.apoio_anterior = apoio.lembretes_anterior;
-            self.hits.apoio_proxima = apoio.lembretes_proxima;
-            self.hits.apoio_adicionar = apoio.lembretes_adicionar;
-            self.hits.apoio_por_pagina = apoio.lembretes_por_pagina;
-            self.hits.apoio_abas = apoio.apoio_abas;
-            self.hits.apoio_rolar = apoio.apoio_rolar;
+            if !layout.apoio.is_empty() {
+                let apoio =
+                    render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette)
+                        .unwrap_or_default();
+                occlusion.cover(layout.apoio);
+                self.hits.apoio_area = apoio.area;
+                self.hits.apoio_rows = apoio.lembretes_rows;
+                self.hits.apoio_anterior = apoio.lembretes_anterior;
+                self.hits.apoio_proxima = apoio.lembretes_proxima;
+                self.hits.apoio_adicionar = apoio.lembretes_adicionar;
+                self.hits.apoio_por_pagina = apoio.lembretes_por_pagina;
+                self.hits.apoio_abas = apoio.apoio_abas;
+                self.hits.apoio_rolar = apoio.apoio_rolar;
+            }
             // Arranjos divididos: separador, barra de abas da secundária e, sem pasta, o convite.
             self.hits.abas_secundaria.clear();
             self.hits.nova_aba_secundaria = Rect::default();
