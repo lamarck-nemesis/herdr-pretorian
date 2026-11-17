@@ -532,12 +532,9 @@ mod tests {
     }
 
     #[test]
-    fn app_padrao_mostra_assinatura_na_barra_de_abas() {
+    fn app_padrao_deixa_a_barra_de_abas_sem_assinatura() {
         let app = test_app();
-        assert_eq!(
-            app.state.tab_bar_right,
-            vec![TabBarStatusSegment::Text(Some(crate::config::assinatura()))]
-        );
+        assert!(app.state.tab_bar_right.is_empty());
     }
 
     #[cfg(unix)]

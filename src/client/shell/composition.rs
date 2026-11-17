@@ -77,6 +77,7 @@ impl ClientShellState {
             reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
+            janela_secundaria: None,
         };
         if let Some(snapshot) = local_snapshot {
             render::render_sidebar(
@@ -233,6 +234,7 @@ impl ClientShellState {
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
+                janela_secundaria: self.arranjo.janela_secundaria(),
             },
         );
         self.hits.panes = surface
@@ -458,6 +460,26 @@ impl ClientShellState {
             }
         }
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
+        // Barra de apoio antes dos avisos e notificações, que ficam por cima.
+        if layout.mobile_header.is_empty() {
+            let mut composed = frame.to_ratatui_buffer()?;
+            let palette = &self.config.palette;
+            let apoio = (layout.apoio.width > 0)
+                .then(|| render::render_apoio(&mut composed, layout.apoio, &self.arranjo, palette))
+                .flatten()
+                .unwrap_or_default();
+            occlusion.cover(layout.apoio);
+            self.hits.apoio_area = apoio.area;
+            self.hits.apoio_rows = apoio.lembretes_rows;
+            self.hits.apoio_anterior = apoio.lembretes_anterior;
+            self.hits.apoio_proxima = apoio.lembretes_proxima;
+            self.hits.apoio_adicionar = apoio.lembretes_adicionar;
+            self.hits.apoio_por_pagina = apoio.lembretes_por_pagina;
+            self.hits.apoio_abas = apoio.apoio_abas;
+            self.hits.apoio_rolar = apoio.apoio_rolar;
+            let cursor = frame.cursor.clone();
+            frame.replace_from_ratatui_buffer_preserving_effects(&composed, cursor);
+        }
         self.hits.notification_toast = Rect::default();
         let has_config_diagnostic = self.config_diagnostic.is_some();
         let active_lifecycle = self
@@ -682,6 +704,8 @@ impl ClientShellState {
                 self.hits.overlay_primary = rendered.primary;
                 self.hits.overlay_clear = rendered.clear;
                 self.hits.overlay_cancel = rendered.cancel;
+                self.hits.lembretes_area = rendered.area;
+                self.hits.lembretes_rows = rendered.lembretes_rows;
                 self.hits.navigator_popup = rendered.navigator_popup;
                 self.hits.navigator_search = rendered.navigator_search;
                 self.hits.navigator_rows = rendered.navigator_rows;
@@ -726,6 +750,13 @@ impl ClientShellState {
             self.hits.panes.clear();
             self.hits.pane_splits.clear();
             self.hits.popup = None;
+        }
+        if self.atualizacao.visivel() {
+            let mut composed = frame.to_ratatui_buffer()?;
+            if let Some(rect) = self.atualizacao.render(&mut composed, &self.config.palette) {
+                occlusion.cover(rect);
+                frame.replace_from_ratatui_buffer_preserving_effects(&composed, None);
+            }
         }
         let graphics = self.compose_graphics(layout, &occlusion);
         Some(crate::client::frame_output::ComposedFrame { frame, graphics })

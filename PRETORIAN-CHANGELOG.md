@@ -9,6 +9,16 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.7.0] - 2026-11-17
+
+### Adicionado
+- Painel de lembretes das análises locais mantidas pelo CLI 0.17.0, com leitura, cadastro manual e remoção do lembrete sem excluir a análise.
+- Quatro arranjos da área de trabalho, barra de apoio e transferência da sessão viva para a divisão secundária, preservando os painéis ao mudar de direção.
+- Configurações › usuário: lista das dependências da estação (conta Google no navegador, conferência do BB), lida do arquivo em `PRETORIAN_DEPENDENCIAS_ESTADO` mantido pelo lançador do CLI. Cada item mostra estado (pendente, bloqueado, em andamento, concluído, falhou), detalhe e ação; as setas passam do nome para a lista e Enter grava o pedido que o lançador atende abrindo a janela. Pendência acende o sinal de atenção no menu, em configurações e na aba usuário.
+
+### Alterado
+- Menu de raciocínio com Graduado, Especialista (padrão) e Doutor, migrando as preferências antigas para os três níveis. Requer o CLI 0.17.0 para aplicar os mesmos modelos e esforços.
+
 ## [0.6.2] - 2026-11-16
 
 ### Corrigido

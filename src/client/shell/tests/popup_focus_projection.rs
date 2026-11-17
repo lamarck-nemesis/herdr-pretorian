@@ -170,9 +170,11 @@ fn desktop_composition_keeps_shell_outside_origin_relative_surface() {
     assert!(text.contains("main"));
     assert!(text.contains("LIVE"));
     assert!(!text.contains("1 1"));
+    // Cursor do fixture em (1, 1) da superfície, deslocado para a origem da conversa.
+    let origem = state.layout(106, 20).pane_surface;
     assert_eq!(
         frame.cursor.as_ref().map(|cursor| (cursor.x, cursor.y)),
-        Some((27, 2))
+        Some((origem.x + 1, origem.y + 1))
     );
 }
 

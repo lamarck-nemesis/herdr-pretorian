@@ -189,10 +189,15 @@ mod tests {
             "arquivo existente"
         );
         std::fs::remove_file(temporary).unwrap();
-        save(&path, &config, ConfigEdit::Nivel(NivelRaciocinio::Mestre)).unwrap();
+        save(
+            &path,
+            &config,
+            ConfigEdit::Nivel(NivelRaciocinio::Especialista),
+        )
+        .unwrap();
         let saved = parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(saved.agente, "deepseek");
-        assert_eq!(saved.nivel, NivelRaciocinio::Mestre);
+        assert_eq!(saved.nivel, NivelRaciocinio::Especialista);
         std::fs::write(&path, "invalid").unwrap();
         assert!(overlay_at(&mut config, &path).is_err());
         assert!(save(&path, &config, ConfigEdit::Agente("codex")).is_err());

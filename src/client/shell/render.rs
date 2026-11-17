@@ -9,7 +9,9 @@ mod tabs;
 
 pub(super) use super::agent_sidebar::{ordered_agent_pane_ids, render_agent_panel};
 pub(super) use super::aggregate_navigation::navigator_rows as client_navigator_rows;
-pub(super) use overlays::{render_client_overlay, render_context_menu, render_global_menu};
+pub(super) use overlays::{
+    render_apoio, render_client_overlay, render_context_menu, render_global_menu,
+};
 pub(super) use sidebar::{render_collapsed_sidebar, render_sidebar, workspace_entries};
 pub(super) use tabs::{render_tab_bar, tab_bar_status_width};
 
@@ -250,6 +252,8 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) reveal_navigation_workspace: &'a mut bool,
     pub(super) dragged_workspace_id: Option<&'a str>,
     pub(super) workspace_drop_indicator_row: Option<u16>,
+    /// Arranjos divididos: a barra ganha embaixo a seção da janela secundária.
+    pub(super) janela_secundaria: Option<Option<&'a str>>,
 }
 
 pub(super) fn render_shell(
@@ -301,14 +305,28 @@ pub(super) fn render_shell(
                 &mut hits,
             );
         } else {
-            render_sidebar(
-                buffer,
-                layout.sidebar,
-                snapshot,
-                config,
-                &mut state,
-                &mut hits,
-            );
+            // A última linha da barra leva a assinatura; "nova pasta · menu" fica logo acima.
+            let assinatura = (layout.sidebar.height > 6).then(|| Rect {
+                y: layout.sidebar.bottom() - 1,
+                height: 1,
+                ..layout.sidebar
+            });
+            let area = Rect {
+                height: layout.sidebar.height - assinatura.map_or(0, |linha| linha.height),
+                ..layout.sidebar
+            };
+            render_sidebar(buffer, area, snapshot, config, &mut state, &mut hits);
+            if let Some(linha) = assinatura {
+                render_sidebar_background(buffer, linha, &config.palette);
+                tabs::render_assinatura(
+                    buffer,
+                    linha.x + 1,
+                    linha.y,
+                    &crate::config::assinatura(),
+                    &config.palette,
+                    config.palette.sidebar_bg,
+                );
+            }
         }
     }
     if layout.tab_bar.height > 0 {

@@ -3,29 +3,21 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NivelRaciocinio {
-    Estagiario,
-    #[default]
+    #[serde(alias = "estagiario")]
     Graduado,
+    #[default]
+    #[serde(alias = "mestre")]
     Especialista,
-    Mestre,
     Doutor,
 }
 
 impl NivelRaciocinio {
-    pub const TODOS: [Self; 5] = [
-        Self::Estagiario,
-        Self::Graduado,
-        Self::Especialista,
-        Self::Mestre,
-        Self::Doutor,
-    ];
+    pub const TODOS: [Self; 3] = [Self::Graduado, Self::Especialista, Self::Doutor];
 
     pub fn chave(self) -> &'static str {
         match self {
-            Self::Estagiario => "estagiario",
             Self::Graduado => "graduado",
             Self::Especialista => "especialista",
-            Self::Mestre => "mestre",
             Self::Doutor => "doutor",
         }
     }
@@ -33,40 +25,41 @@ impl NivelRaciocinio {
     /// Rótulo do diálogo de nível ao abrir uma aba; o número é a tecla que escolhe o nível.
     pub fn rotulo_numerado(self) -> &'static str {
         match self {
-            Self::Estagiario => "1 · Estagiário · extrair, classificar e resumir textos curtos",
-            Self::Graduado => "2 · Graduado · rotinas bem definidas e primeiras versões",
-            Self::Especialista => "3 · Especialista · analisar e revisar com profundidade",
-            Self::Mestre => "4 · Mestre · problemas complexos e comparação de alternativas",
-            Self::Doutor => "5 · Doutor · investigar hipóteses e revisar problemas difíceis",
+            Self::Graduado => {
+                "1 · Graduado · agilidade para tarefas simples e rotinas bem definidas."
+            }
+            Self::Especialista => {
+                "2 · Especialista (padrão) · equilíbrio entre rapidez e precisão. Use no dia a dia."
+            }
+            Self::Doutor => {
+                "3 · Doutor · análise aprofundada para casos desafiadores. Use excepcionalmente."
+            }
         }
     }
 
     pub fn descricao(self) -> &'static str {
         match self {
-            Self::Estagiario => "Estagiário · extrair, classificar e resumir textos curtos",
-            Self::Graduado => "Graduado (padrão) · rotinas bem definidas e primeiras versões",
-            Self::Especialista => "Especialista · analisar e revisar com profundidade",
-            Self::Mestre => "Mestre · problemas complexos e comparação de alternativas",
-            Self::Doutor => "Doutor · investigar hipóteses e revisar problemas difíceis",
+            Self::Graduado => "Graduado · agilidade para tarefas simples e rotinas bem definidas.",
+            Self::Especialista => {
+                "Especialista (padrão) · equilíbrio entre rapidez e precisão. Use no dia a dia."
+            }
+            Self::Doutor => {
+                "Doutor · análise aprofundada para casos desafiadores. Use excepcionalmente."
+            }
         }
     }
 
     pub fn modelo_padrao(self, provedor: &str) -> Result<(&'static str, &'static str), String> {
         let modelo = match (provedor, self) {
-            ("codex", Self::Estagiario) => ("gpt-6-luna", "low"),
             ("codex", Self::Graduado) => ("gpt-6.1-terra", "medium"),
-            ("codex", Self::Especialista) => ("gpt-6.1-sol", "high"),
-            ("codex", Self::Mestre) => ("gpt-6-astra", "medium"),
-            ("codex", Self::Doutor) => ("gpt-6-astra", "xhigh"),
-            ("claude", Self::Estagiario) => ("haiku", "low"),
+            ("codex", Self::Especialista) => ("gpt-6.1-sol", "medium"),
+            ("codex", Self::Doutor) => ("gpt-6-astra", "medium"),
             ("claude", Self::Graduado) => ("sonnet", "medium"),
-            ("claude", Self::Especialista) => ("opus", "high"),
-            ("claude", Self::Mestre) => ("fable", "high"),
-            ("claude", Self::Doutor) => ("fable", "xhigh"),
-            ("deepseek", Self::Estagiario) => ("deepseek-flash", "low"),
+            ("claude", Self::Especialista) => ("opus", "medium"),
+            ("claude", Self::Doutor) => ("fable", "medium"),
             ("deepseek", Self::Graduado) => ("deepseek-flash", "high"),
             ("deepseek", Self::Especialista) => ("deepseek-v4-pro", "high"),
-            ("deepseek", Self::Mestre | Self::Doutor) => ("deepseek-v4-pro", "max"),
+            ("deepseek", Self::Doutor) => ("deepseek-v4-pro", "max"),
             _ => return Err("Provedor de raciocínio não suportado.".into()),
         };
         Ok(modelo)
@@ -108,12 +101,15 @@ pub fn configuracao_modelo(
     Ok((modelo, esforco))
 }
 
-pub fn mestre_e_doutor_iguais(provedor: &str, ambiente: impl Fn(&str) -> Option<String>) -> bool {
+pub fn especialista_e_doutor_iguais(
+    provedor: &str,
+    ambiente: impl Fn(&str) -> Option<String>,
+) -> bool {
     match (
-        configuracao_modelo(provedor, NivelRaciocinio::Mestre, &ambiente),
+        configuracao_modelo(provedor, NivelRaciocinio::Especialista, &ambiente),
         configuracao_modelo(provedor, NivelRaciocinio::Doutor, &ambiente),
     ) {
-        (Ok(mestre), Ok(doutor)) => mestre == doutor,
+        (Ok(especialista), Ok(doutor)) => especialista == doutor,
         _ => false,
     }
 }
@@ -166,14 +162,14 @@ mod tests {
 
     #[test]
     fn igualdade_de_configuracao_considera_esforco_efetivo_e_substituicoes() {
-        assert!(mestre_e_doutor_iguais("deepseek", |_| None));
-        assert!(!mestre_e_doutor_iguais("codex", |_| None));
-        assert!(!mestre_e_doutor_iguais("invalido", |_| None));
-        assert!(!mestre_e_doutor_iguais("deepseek", |chave| {
+        assert!(!especialista_e_doutor_iguais("deepseek", |_| None));
+        assert!(!especialista_e_doutor_iguais("codex", |_| None));
+        assert!(!especialista_e_doutor_iguais("invalido", |_| None));
+        assert!(!especialista_e_doutor_iguais("deepseek", |chave| {
             (chave == "PRETORIAN_DEEPSEEK_DOUTOR_MODELO").then(|| "outro-modelo".into())
         }));
-        assert!(mestre_e_doutor_iguais("deepseek", |chave| {
-            if chave.ends_with("MESTRE_ESFORCO") {
+        assert!(especialista_e_doutor_iguais("deepseek", |chave| {
+            if chave.ends_with("ESPECIALISTA_ESFORCO") {
                 Some("medium".into())
             } else if chave.ends_with("DOUTOR_ESFORCO") {
                 Some("xhigh".into())
@@ -203,18 +199,34 @@ mod tests {
     }
 
     #[test]
-    fn graduado_e_padrao_e_modelos_podem_mudar_sem_trocar_o_perfil() {
-        assert_eq!(NivelRaciocinio::default(), NivelRaciocinio::Graduado);
+    fn especialista_e_padrao_e_modelos_podem_mudar_sem_trocar_o_perfil() {
+        assert_eq!(NivelRaciocinio::default(), NivelRaciocinio::Especialista);
         let (modelo, esforco) =
             configuracao_modelo("codex", NivelRaciocinio::Especialista, |chave| {
                 (chave == "PRETORIAN_CODEX_ESPECIALISTA_MODELO").then(|| "modelo-novo".into())
             })
             .unwrap();
         assert_eq!(modelo, "modelo-novo");
-        assert_eq!(esforco, "high");
+        assert_eq!(esforco, "medium");
         assert!(
             configuracao_modelo("codex", NivelRaciocinio::Doutor, |_| Some("\n".into())).is_err()
         );
+    }
+
+    #[test]
+    fn preferencias_antigas_convergem_para_niveis_atuais() {
+        for (antigo, esperado) in [
+            ("estagiario", NivelRaciocinio::Graduado),
+            ("mestre", NivelRaciocinio::Especialista),
+        ] {
+            let nivel: NivelRaciocinio = serde_json::from_value(serde_json::json!(antigo)).unwrap();
+            assert_eq!(nivel, esperado);
+            assert_eq!(
+                resolver_raciocinio("codex", antigo, |_| None).unwrap()["nivel"],
+                esperado.chave()
+            );
+        }
+        assert_eq!(NivelRaciocinio::TODOS.len(), 3);
     }
 
     #[test]

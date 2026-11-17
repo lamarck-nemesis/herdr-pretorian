@@ -227,6 +227,9 @@ impl ClientShellState {
             outcome.repaint = true;
         }
         for event in events {
+            if self.atualizacao.input(&event, &mut outcome) {
+                continue;
+            }
             let event = match event {
                 RawInputEvent::Key(key) => match self.host_text_commit(&key) {
                     Some(text) => RawInputEvent::Text(crate::input::TextCommit::new(text)),
@@ -567,6 +570,10 @@ impl ClientShellState {
         matches!(
             self.overlay.as_ref(),
             Some(ClientShellOverlay::Rename(_))
+                | Some(ClientShellOverlay::Lembretes(super::lembretes::Painel {
+                    novo: Some(_),
+                    ..
+                }))
                 | Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
                     section: ClientSettingsSection::Usuario,
                     ..

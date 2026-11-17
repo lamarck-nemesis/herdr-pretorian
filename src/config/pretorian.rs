@@ -67,12 +67,9 @@ impl Config {
     }
 
     /// `ui.tab_bar_right` explícito prevalece (inclusive o gravado pelo lançador); sem ele, a
-    /// barra mostra a assinatura. Marca e usuário ficam no título da janela.
+    /// barra de abas fica limpa: a assinatura mora no pé da barra esquerda.
     pub(crate) fn tab_bar_right_efetivo(&self) -> Vec<TabBarRightEntryConfig> {
-        if !self.ui.tab_bar_right.is_empty() {
-            return self.ui.tab_bar_right.clone();
-        }
-        vec![TabBarRightEntryConfig::Text { text: assinatura() }]
+        self.ui.tab_bar_right.clone()
     }
 }
 
@@ -143,10 +140,9 @@ nome = "Y"
     }
 
     #[test]
-    fn tab_bar_right_vazio_usa_assinatura_sem_nome() {
-        let assinatura = vec![TabBarRightEntryConfig::Text { text: assinatura() }];
+    fn tab_bar_right_vazio_deixa_a_barra_de_abas_limpa() {
         let config: Config = toml::from_str("[pretorian]\nnome = \" Ana \"\n").unwrap();
-        assert_eq!(config.tab_bar_right_efetivo(), assinatura);
-        assert_eq!(Config::default().tab_bar_right_efetivo(), assinatura);
+        assert!(config.tab_bar_right_efetivo().is_empty());
+        assert!(Config::default().tab_bar_right_efetivo().is_empty());
     }
 }

@@ -65,6 +65,7 @@ pub(super) struct ClientShellLayout {
     pub tab_bar: Rect,
     pub mobile_header: Rect,
     pub pane_surface: Rect,
+    pub apoio: Rect,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,6 +145,17 @@ pub(super) struct ShellHitMap {
     pub(super) release_notes_scrollbar: Rect,
     pub(super) release_notes_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) release_notes_max_scroll: usize,
+    pub(super) lembretes_area: Rect,
+    pub(super) lembretes_rows: Vec<(Rect, usize)>,
+    pub(super) apoio_area: Rect,
+    pub(super) janela_secundaria: Rect,
+    pub(super) apoio_abas: Vec<(Rect, usize)>,
+    pub(super) apoio_rolar: (Rect, Rect),
+    pub(super) apoio_rows: Vec<(Rect, usize)>,
+    pub(super) apoio_anterior: Rect,
+    pub(super) apoio_proxima: Rect,
+    pub(super) apoio_adicionar: Rect,
+    pub(super) apoio_por_pagina: usize,
 }
 
 #[derive(Clone)]
@@ -285,6 +297,7 @@ pub(super) enum ClientShellMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientShellOverlayKind {
     PretorianUpdate,
+    Lembretes,
     Onboarding,
     ProductAnnouncement,
     ReleaseNotes,
@@ -387,7 +400,7 @@ pub(super) struct ClientHelpOverlay {
 pub(super) struct ClientGlobalMenuOverlay {
     pub(super) highlighted: usize,
     pub(super) pagina: super::global_menu::PaginaRaciocinio,
-    pub(super) mestre_doutor_iguais: bool,
+    pub(super) especialista_doutor_iguais: bool,
     pub(super) provedores: Vec<&'static str>,
     pub(super) autorizacao: Option<super::authorization::Autorizacao>,
 }
@@ -545,6 +558,7 @@ pub(super) enum ClientContextMenuAction {
     Zoom,
     ToggleRightClickPassthrough,
     ClosePane,
+    JanelaSecundaria,
 }
 
 #[derive(Debug)]
@@ -602,6 +616,7 @@ pub(super) struct ClientConfirmCloseOverlay {
 #[derive(Debug)]
 pub(super) enum ClientShellOverlay {
     PretorianUpdate(super::pretorian_update::Cartao),
+    Lembretes(super::lembretes::Painel),
     Onboarding,
     ProductAnnouncement(crate::app::state::ProductAnnouncementState),
     ReleaseNotes(crate::app::state::ReleaseNotesState),
@@ -621,6 +636,7 @@ impl ClientShellOverlay {
     pub(super) fn kind(&self) -> ClientShellOverlayKind {
         match self {
             Self::PretorianUpdate(_) => ClientShellOverlayKind::PretorianUpdate,
+            Self::Lembretes(_) => ClientShellOverlayKind::Lembretes,
             Self::Onboarding => ClientShellOverlayKind::Onboarding,
             Self::ProductAnnouncement(_) => ClientShellOverlayKind::ProductAnnouncement,
             Self::ReleaseNotes(_) => ClientShellOverlayKind::ReleaseNotes,
@@ -879,6 +895,7 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) atualizacao: super::atualizacao::Atualizacao,
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
@@ -893,6 +910,7 @@ pub(crate) struct ClientShellState {
     pub(super) popup_terminal_id: Option<String>,
     pub(super) sidebar_collapsed: bool,
     pub(super) sidebar_collapsed_manual: bool,
+    pub(super) arranjo: super::arranjo::EstadoArranjo,
     pub(super) sidebar_width: u16,
     pub(super) sidebar_width_manual: bool,
     pub(super) sidebar_section_split: f32,
@@ -1053,6 +1071,7 @@ impl ClientShellState {
         }
         Self {
             machine_diagnostics: Default::default(),
+            atualizacao: Default::default(),
             config,
             snapshot: None,
             active_snapshot_generation: None,
@@ -1067,6 +1086,7 @@ impl ClientShellState {
             popup_terminal_id: None,
             sidebar_collapsed,
             sidebar_collapsed_manual: preferences.sidebar_collapsed.is_some(),
+            arranjo: Default::default(),
             sidebar_width,
             sidebar_width_manual: preferences.sidebar_width.is_some(),
             sidebar_section_split,
@@ -1247,6 +1267,7 @@ impl ClientShellState {
             self.sidebar_collapsed,
             self.focused_tab_count(),
             self.sidebar_width,
+            self.arranjo.largura_apoio(),
         )
     }
 

@@ -459,10 +459,18 @@ impl ClientShellState {
                 rename.input.insert(text);
                 true
             }
+            Some(ClientShellOverlay::Lembretes(painel)) if painel.novo.is_some() => {
+                if let Some(formulario) = painel.novo.as_mut() {
+                    formulario.inserir(text);
+                }
+                true
+            }
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
-                settings.nome.insert(text);
+                if settings.selected == 0 {
+                    settings.nome.insert(text);
+                }
                 true
             }
             Some(ClientShellOverlay::Help(help)) if help.search_focused => {
@@ -489,6 +497,45 @@ impl ClientShellState {
     ) {
         use crossterm::event::KeyModifiers;
 
+        if let Some(ClientShellOverlay::Lembretes(painel)) = self.overlay.as_mut() {
+            if let Some(formulario) = painel.novo.as_mut() {
+                let texto = key
+                    .generated_text
+                    .as_deref()
+                    .filter(|texto| !texto.is_empty());
+                match (key.code, texto) {
+                    (KeyCode::Esc, _) => painel.novo = None,
+                    (KeyCode::Enter, _)
+                        if formulario.foco + 1 == super::lembretes::CAMPOS.len() =>
+                    {
+                        painel.salvar_formulario()
+                    }
+                    (KeyCode::Enter | KeyCode::Tab | KeyCode::Down, _) => formulario.focar(1),
+                    (KeyCode::BackTab | KeyCode::Up, _) => formulario.focar(-1),
+                    (_, Some(texto)) => {
+                        formulario.erro = None;
+                        formulario.inserir(texto);
+                    }
+                    _ => {
+                        formulario.erro = None;
+                        if formulario.campos[formulario.foco].handle_key(key).is_none() {
+                            return;
+                        }
+                    }
+                }
+            } else {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Enter => painel.aberto = None,
+                    KeyCode::Delete | KeyCode::Char('x') => painel.excluir_aberto(),
+                    _ => return,
+                }
+            }
+            if painel.aberto.is_none() && painel.novo.is_none() {
+                self.overlay = None;
+            }
+            outcome.repaint = true;
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::PretorianUpdate(_))) {
             if matches!(key.code, KeyCode::Esc | KeyCode::Enter) {
                 self.overlay = None;
@@ -610,7 +657,7 @@ impl ClientShellState {
                     self.activate_global_menu_item(highlighted, outcome);
                 }
                 // No diálogo de nível da aba nova, o número escolhe direto; a linha 0 é o título.
-                KeyCode::Char(tecla @ '1'..='5')
+                KeyCode::Char(tecla @ '1'..='3')
                     if matches!(
                         &self.overlay,
                         Some(ClientShellOverlay::GlobalMenu(menu))
