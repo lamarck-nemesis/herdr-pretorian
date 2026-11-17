@@ -60,6 +60,20 @@ fn ambiente_deepseek(modelo: &str, extra_env: &mut Vec<(String, String)>) -> Res
     Ok(())
 }
 
+/// Aponta o Claude Code da aba para o gateway de modelos, quando a instalação tem um.
+fn ambiente_gateway(extra_env: &mut Vec<(String, String)>) {
+    let Some((url, chave)) = crate::config::gateway_modelos(|nome| std::env::var(nome).ok()) else {
+        return;
+    };
+    extra_env.extend([
+        ("ANTHROPIC_BASE_URL".into(), url),
+        ("ANTHROPIC_AUTH_TOKEN".into(), chave),
+        ("ANTHROPIC_API_KEY".into(), String::new()),
+        // Fora de um host da Anthropic o Claude Code desliga a busca de ferramentas.
+        ("ENABLE_TOOL_SEARCH".into(), "true".into()),
+    ]);
+}
+
 impl App {
     pub(super) fn preparar_iniciador_aba(
         &mut self,
@@ -213,7 +227,9 @@ impl App {
                         .ok_or("Modelo da conversa DeepSeek não identificado.")?;
                     ambiente_deepseek(&modelo, extra_env)?;
                 }
-                Some("codex" | "claude") | None => {}
+                Some("codex") => {}
+                // Sem provedor explícito o agente inicial pode ser o Claude; no Codex o ambiente é inerte.
+                Some("claude") | None => ambiente_gateway(extra_env),
                 Some(_) => return Err("Provedor inicial inválido.".into()),
             }
             return Ok(None);
@@ -241,10 +257,16 @@ impl App {
                 "-c".into(),
                 format!("model_reasoning_effort={}", toml::Value::String(esforco)),
             ]);
+            if let Some((url, _)) = crate::config::gateway_modelos(|nome| std::env::var(nome).ok())
+            {
+                argv.extend(crate::config::argumentos_gateway_codex(&url));
+            }
         } else {
             extra_env.push(("CLAUDE_CODE_EFFORT_LEVEL".into(), esforco));
             if provedor == "deepseek" {
                 ambiente_deepseek(&modelo, extra_env)?;
+            } else {
+                ambiente_gateway(extra_env);
             }
         }
         Ok(if self.state.pretorian_inicio_gerenciado {
