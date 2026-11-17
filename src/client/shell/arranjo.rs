@@ -97,6 +97,9 @@ pub(super) struct EstadoArranjo {
     pub(super) pasta_secundaria: Option<String>,
     /// O teclado está na secundária, no painel clicado por último nela.
     pub(super) painel_secundario: Option<String>,
+    /// Painel em foco na principal quando o teclado foi para a secundária; se ele mudar por
+    /// atalho, aba ou pasta, o teclado volta à principal.
+    foco_principal: Option<String>,
     /// "+" pedido na secundária: abas que ela tinha, para escolher a nova quando chegar.
     abas_antes_da_nova: Option<Vec<String>>,
 }
@@ -224,6 +227,10 @@ impl ClientShellState {
         if pasta.is_some() && pasta.as_deref() == self.arranjo.secundaria() {
             if self.arranjo.painel_secundario.as_deref() != Some(pane_id) {
                 self.arranjo.painel_secundario = Some(pane_id.to_owned());
+                self.arranjo.foco_principal = self
+                    .snapshot
+                    .as_deref()
+                    .and_then(|snapshot| snapshot.focused_pane_id.clone());
                 self.enviar_secundaria(None, outcome);
             }
             return true;
@@ -255,6 +262,19 @@ impl ClientShellState {
             self.enviar_secundaria(None, outcome);
             return;
         }
+        // O painel do teclado fechou, saiu da pasta secundária ou a principal mudou de foco.
+        if let Some(painel) = self.arranjo.painel_secundario.as_deref() {
+            let vivo = snapshot.panes.iter().any(|pane| {
+                pane.pane_id == painel && Some(pane.workspace_id.as_str()) == pasta.as_deref()
+            });
+            if !vivo || snapshot.focused_pane_id != self.arranjo.foco_principal {
+                self.arranjo.painel_secundario = None;
+                self.enviar_secundaria(None, outcome);
+            }
+        }
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
         let (Some(pasta), Some(antes)) = (pasta, self.arranjo.abas_antes_da_nova.as_ref()) else {
             return;
         };
