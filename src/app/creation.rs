@@ -127,25 +127,33 @@ impl App {
         &mut self,
         initial_cwd: PathBuf,
         focus: bool,
-        extra_env: Vec<(String, String)>,
+        mut extra_env: Vec<(String, String)>,
     ) -> std::io::Result<usize> {
         let (rows, cols) = self.state.new_pane_size(crate::ui::NewPanePlacement::Alone);
+        let perfil = std::env::var_os("PRETORIAN_PASTA_PERFIL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| initial_cwd.clone());
+        let comando = self
+            .comando_pretorian(&perfil, &mut extra_env, true)
+            .map_err(std::io::Error::other)?;
         let (ws, terminal, runtime) = Workspace::new_with_extra_env(
             initial_cwd,
             rows,
             cols,
             self.state.pane_scrollback_limit_bytes,
-            self.state.host_terminal_theme,
+            self.pane_terminal_theme(),
             self.pane_host_terminal_appearance(),
             crate::pane::PaneShellConfig::new(&self.state.default_shell, self.state.shell_mode),
             self.event_tx.clone(),
             self.render_notify.clone(),
             self.render_dirty.clone(),
             extra_env,
+            comando.as_deref(),
         )?;
         self.terminal_runtimes.insert(terminal.id.clone(), runtime);
         self.state.terminals.insert(terminal.id.clone(), terminal);
         self.state.workspaces.push(ws);
+        self.state.pretorian_aguarda_workspace = false;
         let idx = self.state.workspaces.len() - 1;
         self.state
             .remove_alias_shadowed_by_new_pane(self.state.workspaces[idx].tabs[0].root_pane);

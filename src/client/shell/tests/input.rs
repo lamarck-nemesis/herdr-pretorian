@@ -199,7 +199,8 @@ fn client_shell_graphics_follow_final_shell_origin_and_local_overlay_visibility(
             asset: key,
             logical_placement_id: 1,
             x: 0,
-            y: 0,
+            // Última linha da conversa, fora da janela de boas-vindas aberta adiante.
+            y: state.layout(106, 20).pane_surface.height - 1,
             cols: 1,
             rows: 1,
             source_x: 0,
@@ -219,7 +220,8 @@ fn client_shell_graphics_follow_final_shell_origin_and_local_overlay_visibility(
     let visible = visible.graphics.clone().into_inline_bytes();
     let visible = String::from_utf8_lossy(&visible);
     assert!(visible.contains("a=t,t=d"));
-    assert!(visible.contains("\u{1b}[2;27H"));
+    let origem = state.layout(106, 20).pane_surface;
+    assert!(visible.contains(&format!("\u{1b}[{};{}H", origem.bottom(), origem.x + 1)));
 
     state.overlay = Some(ClientShellOverlay::Onboarding);
     let uncovered = state.compose(106, 20).expect("overlay frame");

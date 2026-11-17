@@ -262,3 +262,33 @@ mod mobile;
 mod mouse_selection;
 mod popup_focus_projection;
 mod startup_overlays;
+
+#[test]
+fn tema_pretorian_pinta_celulas_padrao_dos_paineis_com_as_cores_do_tema() {
+    use ratatui::style::Color;
+
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 20).expect("composed frame");
+    let pane = state.hits.panes[0].clone();
+    let cell = &frame.cells[usize::from(pane.inner_rect.y) * 106 + usize::from(pane.inner_rect.x)];
+    assert_eq!(
+        cell.bg,
+        crate::protocol::color_to_u32(Color::Rgb(255, 255, 255))
+    );
+    assert_eq!(
+        cell.fg,
+        crate::protocol::color_to_u32(Color::Rgb(47, 51, 68))
+    );
+
+    let mut config = ClientShellConfig::from_config(&Config::default());
+    config.theme_name = "tokyo-night".into();
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 20).expect("composed frame");
+    let pane = state.hits.panes[0].clone();
+    let cell = &frame.cells[usize::from(pane.inner_rect.y) * 106 + usize::from(pane.inner_rect.x)];
+    assert_eq!(cell.bg, crate::protocol::color_to_u32(Color::Reset));
+}

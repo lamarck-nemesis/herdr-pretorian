@@ -133,6 +133,13 @@ impl ClientShellConfig {
             copy_on_select: config.ui.copy_on_select,
             clipboard_toast_enabled: config.ui.toast.clipboard.enabled,
             clipboard_toast_position: config.ui.toast.clipboard.position,
+            provedor_raciocinio: config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
+            nivel_raciocinio: config.pretorian.nivel,
+            pje_sem_janela: config.pretorian.pje_sem_janela,
             nome_usuario: config
                 .pretorian
                 .nome
@@ -387,6 +394,13 @@ impl ClientShellConfig {
                 config.experimental.switch_ascii_input_source_in_prefix;
         }
         if !invalid_section("pretorian") {
+            self.provedor_raciocinio = config
+                .pretorian
+                .agente
+                .clone()
+                .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
+            self.nivel_raciocinio = config.pretorian.nivel;
+            self.pje_sem_janela = config.pretorian.pje_sem_janela;
             self.nome_usuario = config
                 .pretorian
                 .nome
@@ -404,6 +418,7 @@ impl ClientShellConfig {
         sidebar_collapsed: bool,
         tab_count: usize,
         sidebar_width: u16,
+        apoio: u16,
     ) -> ClientShellLayout {
         if cols <= self.mobile_width_threshold {
             let header_height = rows.min(2);
@@ -412,6 +427,7 @@ impl ClientShellConfig {
                 tab_bar: Rect::default(),
                 mobile_header: Rect::new(0, 0, cols, header_height),
                 pane_surface: Rect::new(0, header_height, cols, rows.saturating_sub(header_height)),
+                apoio: Rect::default(),
             };
         }
 
@@ -429,7 +445,14 @@ impl ClientShellConfig {
             sidebar_width.clamp(min, max)
         }
         .min(cols.saturating_sub(1));
-        let main = Rect::new(sidebar_width, 0, cols.saturating_sub(sidebar_width), rows);
+        let restante = cols.saturating_sub(sidebar_width);
+        // A barra de apoio só aparece se a conversa continuar com largura útil.
+        let apoio = if restante.saturating_sub(apoio) >= 40 {
+            apoio
+        } else {
+            0
+        };
+        let main = Rect::new(sidebar_width, 0, restante - apoio, rows);
         let show_tab_bar = rows > 1 && !(self.hide_tab_bar_when_single_tab && tab_count == 1);
         let tab_height = u16::from(show_tab_bar);
         let (tab_bar, pane_surface) = match self.tab_bar_position {
@@ -458,6 +481,7 @@ impl ClientShellConfig {
             tab_bar,
             mobile_header: Rect::default(),
             pane_surface,
+            apoio: Rect::new(main.right(), 0, apoio, rows),
         }
     }
 
@@ -475,7 +499,7 @@ impl ClientShellConfig {
             .unwrap_or(self.sidebar_width)
             .clamp(min_width, max_width);
         let surface = self
-            .layout(cols, rows, sidebar_collapsed, 0, sidebar_width)
+            .layout(cols, rows, sidebar_collapsed, 0, sidebar_width, 0)
             .pane_surface;
         ClientSurfaceSize {
             cols: surface.width.max(1),

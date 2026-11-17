@@ -83,7 +83,8 @@ impl ClientShellState {
     fn settings_choice_count(&self) -> usize {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
-                ClientSettingsSection::Usuario => 0,
+                // Posição 0 é o campo do nome; as seguintes, as dependências da estação.
+                ClientSettingsSection::Usuario => 1 + super::pretorian_dependencias::itens().len(),
                 ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
@@ -120,7 +121,7 @@ impl ClientShellState {
         }
     }
 
-    fn save_settings_edit(
+    pub(super) fn save_settings_edit(
         &mut self,
         edit: crate::config::ConfigEdit<'_>,
         outcome: &mut ClientShellInput,
@@ -149,6 +150,13 @@ impl ClientShellState {
         let section = settings.section;
         let selected = settings.selected;
         match section {
+            ClientSettingsSection::Usuario if selected > 0 => {
+                let itens = super::pretorian_dependencias::itens();
+                if let Some(item) = itens.get(selected - 1).filter(|item| item.aceita_pedido()) {
+                    super::pretorian_dependencias::pedir(&item.id);
+                }
+                outcome.repaint = true;
+            }
             ClientSettingsSection::Usuario => {
                 let nome =
                     crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
@@ -359,7 +367,8 @@ impl ClientShellState {
         true
     }
 
-    /// Na seção "usuário" o campo de texto recebe as teclas; só tab muda de seção e enter aplica.
+    /// Na seção "usuário" o campo de texto recebe as teclas; só tab muda de seção, as setas passam
+    /// do nome para as dependências e enter aplica o nome ou executa a dependência selecionada.
     fn route_settings_nome_key(
         &mut self,
         key: &crate::input::TerminalKey,
@@ -383,6 +392,17 @@ impl ClientShellState {
         }
         if code == KeyCode::Enter && modifiers.is_empty() {
             self.apply_settings_choice(outcome);
+            return true;
+        }
+        if matches!(code, KeyCode::Up | KeyCode::Down) && modifiers.is_empty() {
+            self.move_settings_selection(if code == KeyCode::Up { -1 } else { 1 });
+            outcome.repaint = true;
+            return true;
+        }
+        let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() else {
+            return false;
+        };
+        if settings.selected > 0 {
             return true;
         }
         if code == KeyCode::Char('c') && modifiers == KeyModifiers::CONTROL {

@@ -2383,7 +2383,9 @@ async fn run_client_loop(
                             | shell.tick_atualizacao(now)
                             | shell.tick_copy_feedback(now)
                             | shell.tick_workspace_highlight(now)
-                            | shell.tick_endpoint_error(now);
+                            | shell.tick_endpoint_error(now)
+                            | shell.tick_autorizacao();
+                        outcome.resize |= shell.tomar_redimensionamento();
                         let frame = outcome
                             .repaint
                             .then(|| shell.compose(state.reported_size.0, state.reported_size.1))

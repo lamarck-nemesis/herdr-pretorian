@@ -570,6 +570,10 @@ impl ClientShellState {
         matches!(
             self.overlay.as_ref(),
             Some(ClientShellOverlay::Rename(_))
+                | Some(ClientShellOverlay::Lembretes(super::lembretes::Painel {
+                    novo: Some(_),
+                    ..
+                }))
                 | Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
                     section: ClientSettingsSection::Usuario,
                     ..

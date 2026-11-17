@@ -62,17 +62,52 @@ impl App {
         } else {
             return encode_error(id, "workspace_not_found", "no active workspace");
         };
-        let cwd = cwd.map(PathBuf::from).unwrap_or_else(|| {
+        let cwd_explicito = cwd.is_some();
+        let mut cwd = cwd.map(PathBuf::from).unwrap_or_else(|| {
             self.resolve_new_terminal_cwd(self.focused_pane_cwd_in_workspace(ws_idx))
         });
         let (rows, cols) = self.state.new_pane_size(crate::ui::NewPanePlacement::Alone);
         let default_shell = self.state.default_shell.clone();
         let scrollback_limit_bytes = self.state.pane_scrollback_limit_bytes;
-        let host_terminal_theme = self.state.host_terminal_theme;
+        let host_terminal_theme = self.pane_terminal_theme();
         let host_terminal_appearance = self.pane_host_terminal_appearance();
-        let extra_env = match super::env::normalize_launch_env(env) {
+        let mut extra_env = match super::env::normalize_launch_env(env) {
             Ok(env) => env,
             Err((code, message)) => return encode_error(id, &code, message),
+        };
+        if self.state.pretorian_painel_gerenciado {
+            // Aba criada agora não é painel restaurado: o lançador não deve reencontrar conversa pelo número do painel.
+            extra_env.push(("PRETORIAN_ABA_NOVA".into(), "1".into()));
+        }
+        let perfil = std::env::var_os("PRETORIAN_PASTA_PERFIL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                self.state
+                    .workspaces
+                    .get(ws_idx)
+                    .map(|ws| ws.identity_cwd.clone())
+                    .unwrap_or_else(|| cwd.clone())
+            });
+        if self.state.pretorian_inicio_gerenciado {
+            if cwd_explicito && cwd.canonicalize().ok() != perfil.canonicalize().ok() {
+                return encode_error(id, "invalid_cwd", "A nova aba deve usar a pasta do perfil.");
+            }
+            cwd = perfil.clone();
+            if !extra_env.is_empty() {
+                return encode_error(
+                    id,
+                    "invalid_env",
+                    "A aba gerenciada usa o ambiente validado pelo lançador.",
+                );
+            }
+        }
+        let iniciador = match self.preparar_iniciador_aba(&perfil) {
+            Ok(iniciador) => iniciador,
+            Err(message) => return encode_error(id, "invalid_agent", message),
+        };
+        let comando = match self.comando_pretorian(&perfil, &mut extra_env, false) {
+            Ok(comando) => comando,
+            Err(message) => return encode_error(id, "invalid_agent", message),
         };
         let result = self
             .state
@@ -80,6 +115,18 @@ impl App {
             .get_mut(ws_idx)
             .ok_or_else(|| std::io::Error::other("workspace disappeared"))
             .and_then(|ws| {
+                if let Some(argv) = comando.as_deref() {
+                    return ws.create_tab_argv_command(
+                        rows,
+                        cols,
+                        cwd,
+                        argv,
+                        extra_env,
+                        scrollback_limit_bytes,
+                        host_terminal_theme,
+                        host_terminal_appearance,
+                    );
+                }
                 ws.create_tab(
                     rows,
                     cols,
@@ -119,6 +166,12 @@ impl App {
                 }
                 self.schedule_session_save();
                 self.emit_tab_created_events(ws_idx, tab_idx);
+                if let Some(iniciador) = iniciador {
+                    let pane = self
+                        .root_pane_info(ws_idx, tab_idx)
+                        .expect("new tab has a root pane");
+                    self.iniciar_aba_gerenciada(iniciador, &pane);
+                }
                 encode_success(
                     id,
                     self.tab_created_result(ws_idx, tab_idx)
@@ -429,6 +482,63 @@ mod tests {
                     && tabs[2].tab_id == moved_id
             )
         }));
+    }
+
+    #[tokio::test]
+    async fn nova_aba_gerenciada_recusa_partida_antes_do_primeiro_agente() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![Workspace::test_new("tabs")];
+        app.state.active = Some(0);
+        app.state.pretorian_inicio_gerenciado = true;
+        app.state.pretorian_agente = Some("codex".into());
+        let response = app.handle_tab_create(
+            "req".into(),
+            TabCreateParams {
+                workspace_id: None,
+                cwd: None,
+                focus: true,
+                label: None,
+                env: Default::default(),
+            },
+        );
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["error"]["code"], "invalid_agent");
+        assert_eq!(app.state.workspaces[0].tabs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn nova_aba_recusa_agente_invalido_sem_criar_terminal() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![Workspace::test_new("tabs")];
+        app.state.active = Some(0);
+        app.state.pretorian_agente = Some("invalido".into());
+        let response = app.handle_tab_create(
+            "req".into(),
+            TabCreateParams {
+                workspace_id: None,
+                cwd: None,
+                focus: true,
+                label: None,
+                env: Default::default(),
+            },
+        );
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["error"]["code"], "invalid_agent");
+        assert_eq!(app.state.workspaces[0].tabs.len(), 1);
     }
 
     #[tokio::test]

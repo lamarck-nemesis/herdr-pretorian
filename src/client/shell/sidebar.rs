@@ -67,6 +67,72 @@ pub(in crate::client::shell) fn expanded_sidebar_sections(
     )
 }
 
+/// Seção de baixo da barra nos arranjos divididos: a pasta na metade secundária da conversa,
+/// ou o convite para arrastar uma pasta até aqui.
+fn render_janela_secundaria(
+    buffer: &mut Buffer,
+    area: Rect,
+    rotulo: Option<&str>,
+    palette: &Palette,
+) {
+    if area.height < 3 {
+        return;
+    }
+    put_text(
+        buffer,
+        area.x,
+        area.y,
+        area.width,
+        " Janela secundária",
+        Style::default()
+            .fg(palette.text)
+            .add_modifier(Modifier::BOLD),
+    );
+    let x = area.x.saturating_add(1);
+    let largura = area.width.saturating_sub(1);
+    match rotulo {
+        Some(rotulo) => {
+            put_text(
+                buffer,
+                x,
+                area.y + 2,
+                2,
+                "● ",
+                Style::default().fg(palette.accent),
+            );
+            put_text(
+                buffer,
+                x + 2,
+                area.y + 2,
+                largura.saturating_sub(2),
+                rotulo,
+                Style::default().fg(palette.text),
+            );
+        }
+        None => {
+            let convite = Style::default()
+                .fg(palette.subtext0)
+                .add_modifier(Modifier::ITALIC);
+            put_text(
+                buffer,
+                x,
+                area.y + 2,
+                largura,
+                "Arraste uma pasta aqui",
+                convite,
+            );
+            put_text(
+                buffer,
+                x,
+                area.y + 3,
+                largura,
+                "ou use o menu dela.",
+                convite,
+            );
+        }
+    }
+}
+
 pub(crate) fn render_collapsed_sidebar(
     buffer: &mut Buffer,
     area: Rect,
@@ -235,8 +301,9 @@ pub(crate) fn render_sidebar(
     } else {
         Rect::new(area.right().saturating_sub(1), area.y, 1, area.height)
     };
+    let dividir = config.show_agent_panel || state.janela_secundaria.is_some();
     let (workspace_area, detail_area, section_divider) =
-        expanded_sidebar_sections(area, state.sidebar_section_split, config.show_agent_panel);
+        expanded_sidebar_sections(area, state.sidebar_section_split, dividir);
     hits.sidebar_section_divider = section_divider;
     put_text(
         buffer,
@@ -473,7 +540,22 @@ pub(crate) fn render_sidebar(
         }
     }
 
-    if config.show_agent_panel {
+    hits.janela_secundaria = Rect::default();
+    if let Some(rotulo) = state.janela_secundaria {
+        // A primeira linha da seção é o divisor arrastável, como no painel de agentes.
+        let conteudo = Rect {
+            y: detail_area.y.saturating_add(1),
+            height: detail_area.height.saturating_sub(1),
+            ..detail_area
+        };
+        render_janela_secundaria(buffer, conteudo, rotulo, palette);
+        hits.janela_secundaria = detail_area;
+        for x in section_divider.x..section_divider.right() {
+            buffer[(x, section_divider.y)]
+                .set_symbol("─")
+                .set_style(Style::default().fg(palette.surface_dim));
+        }
+    } else if config.show_agent_panel {
         super::render_agent_panel(
             buffer,
             detail_area,

@@ -30,6 +30,13 @@ pub(crate) struct OverlayRender {
     pub(crate) release_notes_scrollbar: Rect,
     pub(crate) release_notes_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(crate) release_notes_max_scroll: usize,
+    pub(crate) lembretes_rows: Vec<(Rect, usize)>,
+    pub(crate) lembretes_anterior: Rect,
+    pub(crate) lembretes_proxima: Rect,
+    pub(crate) lembretes_adicionar: Rect,
+    pub(crate) apoio_abas: Vec<(Rect, usize)>,
+    pub(crate) apoio_rolar: (Rect, Rect),
+    pub(crate) lembretes_por_pagina: usize,
     pub(crate) cursor: Option<crate::protocol::CursorState>,
 }
 
@@ -56,6 +63,8 @@ pub(crate) fn render_client_overlay(
         }
     }
     match o {
+        ClientShellOverlay::PretorianUpdate(v) => render_pretorian_update(b, v, p),
+        ClientShellOverlay::Lembretes(v) => render_lembretes(b, v, p),
         ClientShellOverlay::Onboarding => render_onboarding_overlay(b, k, p),
         ClientShellOverlay::ProductAnnouncement(v) => render_product_announcement_overlay(b, v, p),
         ClientShellOverlay::ReleaseNotes(v) => {
@@ -90,7 +99,7 @@ pub(crate) fn render_global_menu(
     snapshot: &ClientShellSnapshot,
     palette: &Palette,
 ) -> Option<OverlayRender> {
-    let items = super::super::global_menu::global_menu_items(snapshot);
+    let items = menu.items(snapshot);
     let screen = buffer.area;
     let width = items
         .iter()
@@ -1314,4 +1323,627 @@ fn render_confirm_close_overlay(
         cursor: None,
         ..OverlayRender::default()
     })
+}
+
+fn render_pretorian_update(
+    b: &mut Buffer,
+    v: &super::pretorian_update::Cartao,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let q = popup(b.area, 72, 10)?;
+    let i = panel(b, q, p.accent, p.panel_bg)?;
+    let cheios = usize::from(v.percentual) / 5;
+    let linhas = [
+        "Atualização do Pretorian".to_owned(),
+        format!(
+            "Versão em uso: v. {}",
+            crate::build_info::pretorian_version()
+        ),
+        String::new(),
+        format!(
+            "[{}{}] {:3}% do processo",
+            "#".repeat(cheios),
+            "-".repeat(20 - cheios),
+            v.percentual
+        ),
+        v.mensagem.clone(),
+    ];
+    for (n, linha) in linhas.iter().enumerate() {
+        put_text(
+            b,
+            i.x,
+            i.y + n as u16,
+            i.width,
+            linha,
+            Style::default().fg(p.text).bg(p.panel_bg),
+        );
+    }
+    let fechar = Rect::new(i.x, i.y + 6, 24.min(i.width), 1);
+    button(
+        b,
+        fechar,
+        " esc fechar / continuar ",
+        Style::default().fg(p.text).bg(p.surface0),
+    );
+    Some(OverlayRender {
+        area: q,
+        cancel: fechar,
+        ..OverlayRender::default()
+    })
+}
+
+fn encurtar(texto: &str, largura: usize) -> String {
+    if texto.chars().count() <= largura {
+        return texto.to_owned();
+    }
+    let mut curto: String = texto.chars().take(largura.saturating_sub(1)).collect();
+    curto.push('…');
+    curto
+}
+
+fn quebrar_linhas(texto: &str, largura: usize) -> Vec<String> {
+    let mut linhas = vec![String::new()];
+    for palavra in texto.split_whitespace() {
+        let atual = linhas.last_mut().expect("sempre há uma linha");
+        if !atual.is_empty() && atual.width() + 1 + palavra.width() > largura {
+            linhas.push(palavra.to_owned());
+        } else {
+            if !atual.is_empty() {
+                atual.push(' ');
+            }
+            atual.push_str(palavra);
+        }
+    }
+    linhas
+}
+
+/// Painel fixo à direita: cabeçalho, uma linha por lembrete e paginação. Com um lembrete
+/// aberto, a janela de detalhe fica por cima e só ela recebe cliques.
+/// Janelas de lembrete (detalhe ou formulário) sobre a tela. A lista mora na barra direita.
+fn render_lembretes(
+    b: &mut Buffer,
+    v: &super::lembretes::Painel,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    if let Some(formulario) = &v.novo {
+        return render_lembrete_novo(b, formulario, p);
+    }
+    if let Some(lembrete) = &v.aberto {
+        return render_lembrete_aberto(b, lembrete, p);
+    }
+    Some(OverlayRender::default())
+}
+
+/// Barra de lembretes à direita, no mesmo padrão da barra esquerda: fundo próprio, divisor
+/// fino na borda, título em negrito, linha destacada e ações discretas no rodapé.
+pub(crate) fn render_apoio(
+    b: &mut Buffer,
+    q: Rect,
+    estado: &super::arranjo::EstadoArranjo,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    use super::arranjo::ConteudoApoio;
+    let mut desenho = match estado.conteudo {
+        ConteudoApoio::Lembretes => {
+            let lista = if super::lembretes::disponivel() {
+                super::lembretes::lista()
+            } else {
+                Some(Err("Lembretes indisponíveis nesta sessão.".into()))
+            };
+            desenhar_apoio(b, q, &estado.apoio, lista, p)?
+        }
+    };
+    let navegacao = Rect::new(q.x + 1, q.y, q.width.saturating_sub(1), 1);
+    let (abas, rolar) = desenhar_navegacao(b, navegacao, estado, p);
+    desenho.apoio_abas = abas;
+    desenho.apoio_rolar = rolar;
+    Some(desenho)
+}
+
+/// Navegação da barra de apoio no padrão das abas da conversa: aba ativa na cor de destaque,
+/// as outras em cinza, e setas quando não cabem todas.
+fn desenhar_navegacao(
+    b: &mut Buffer,
+    area: Rect,
+    estado: &super::arranjo::EstadoArranjo,
+    p: &Palette,
+) -> (Vec<(Rect, usize)>, (Rect, Rect)) {
+    use super::arranjo::ConteudoApoio;
+    b.set_style(area, Style::default().bg(p.sidebar_bg));
+    let larguras: Vec<u16> = ConteudoApoio::TODOS
+        .iter()
+        .map(|c| display_width(c.rotulo()) + 4)
+        .collect();
+    let excede = larguras.iter().sum::<u16>() > area.width;
+    let seta = Style::default().fg(p.overlay1).bg(p.surface0);
+    let mut rolar = (Rect::default(), Rect::default());
+    let mut x = area.x;
+    let mut direita = area.right();
+    if excede {
+        rolar.0 = Rect::new(area.x, area.y, 3, 1);
+        rolar.1 = Rect::new(area.right().saturating_sub(3), area.y, 3, 1);
+        put_text(b, rolar.0.x, area.y, 3, " < ", seta);
+        put_text(b, rolar.1.x, area.y, 3, " > ", seta);
+        x += 3;
+        direita = rolar.1.x;
+    }
+    let inicio = if excede { estado.navegacao_inicio } else { 0 };
+    let mut abas = Vec::new();
+    for (n, conteudo) in ConteudoApoio::TODOS.iter().enumerate().skip(inicio) {
+        let largura = larguras[n].min(direita.saturating_sub(x));
+        if largura == 0 {
+            break;
+        }
+        let estilo = if *conteudo == estado.conteudo {
+            Style::default()
+                .fg(contrast(p))
+                .bg(p.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(p.overlay0).bg(p.surface0)
+        };
+        let rect = Rect::new(x, area.y, largura, 1);
+        button(b, rect, conteudo.rotulo(), estilo);
+        abas.push((rect, n));
+        x += largura + 1;
+    }
+    (abas, rolar)
+}
+
+fn desenhar_apoio(
+    b: &mut Buffer,
+    q: Rect,
+    v: &super::lembretes::Painel,
+    lista: Option<Result<super::lembretes::Lista, String>>,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    use super::lembretes::data_curta;
+    if q.width < 12 || q.height < 6 {
+        return None;
+    }
+    let base = Style::default().fg(p.text).bg(p.sidebar_bg);
+    b.set_style(q, base);
+    for y in q.y..q.bottom() {
+        b[(q.x, y)]
+            .set_symbol("│")
+            .set_style(base.fg(p.surface_dim));
+    }
+    let i = Rect::new(q.x + 1, q.y, q.width - 1, q.height);
+    let suave = base.fg(p.subtext0).add_modifier(Modifier::ITALIC);
+    let discreto = base.fg(p.overlay0);
+    // A primeira linha é a navegação da barra, desenhada por quem chama.
+    // Navegação, data, contagem e uma linha em branco; depois cabeçalho e linhas da tabela, e uma
+    // linha em branco antes do rodapé.
+    let cabecalho = i.y + 4;
+    let primeira = cabecalho + 1;
+    let rodape = i.bottom() - 1;
+    let por_pagina = usize::from(rodape.saturating_sub(primeira + 1)).max(1);
+    let mut desenho = OverlayRender {
+        area: q,
+        lembretes_por_pagina: por_pagina,
+        lembretes_adicionar: Rect::new(i.x, rodape, 12.min(i.width), 1),
+        ..OverlayRender::default()
+    };
+    put_text(b, i.x, rodape, i.width, " + adicionar", discreto);
+    let texto_x = i.x + 1;
+    let texto_w = i.width.saturating_sub(1);
+    let lista = match lista {
+        None => {
+            put_text(b, texto_x, i.y + 1, texto_w, "Carregando…", suave);
+            return Some(desenho);
+        }
+        Some(Err(erro)) => {
+            put_text(b, texto_x, i.y + 1, texto_w, &erro, suave);
+            return Some(desenho);
+        }
+        Some(Ok(lista)) => lista,
+    };
+    let agora = lista.agora_atual(std::time::Instant::now());
+    put_text(b, texto_x, i.y + 1, texto_w, &data_curta(&agora), suave);
+    let contagem = format!("{} de {} não lidos", lista.nao_lidos, lista.total);
+    put_text(b, texto_x, i.y + 2, texto_w, &contagem, suave);
+    if lista.lembretes.is_empty() {
+        put_text(
+            b,
+            texto_x,
+            primeira,
+            texto_w,
+            "Nenhum lembrete agendado.",
+            suave,
+        );
+        return Some(desenho);
+    }
+    let selecionado = v.selecionado.min(lista.lembretes.len() - 1);
+    let pagina = selecionado / por_pagina;
+    let paginas = lista.lembretes.len().div_ceil(por_pagina);
+    // Tabela no padrão das TUIs bem acabadas (k9s, exemplo oficial do ratatui): colunas
+    // alinhadas por espaço, cabeçalho destacado, número à direita e seleção com marcador.
+    use ratatui::layout::{Alignment, Constraint};
+    use ratatui::widgets::{Cell, HighlightSpacing, Row, StatefulWidget, Table, TableState};
+    let numero_w = lista.lembretes.len().to_string().len().max(2) as u16;
+    // Marcador (1) e dois espaços entre colunas; o resto vai 2/5 para o cliente e 3/5 para o resumo.
+    let texto_util = i.width.saturating_sub(1 + 1 + numero_w + 2);
+    let cliente_w = texto_util * 2 / 5;
+    let resumo_w = texto_util - cliente_w;
+    let visiveis = &lista.lembretes
+        [pagina * por_pagina..(pagina * por_pagina + por_pagina).min(lista.lembretes.len())];
+    let linhas = visiveis.iter().enumerate().map(|(k, lembrete)| {
+        let estilo = if lembrete.lido {
+            base.fg(p.subtext0)
+        } else {
+            base.add_modifier(Modifier::BOLD)
+        };
+        Row::new([
+            Cell::from(
+                ratatui::text::Line::from((pagina * por_pagina + k + 1).to_string())
+                    .alignment(Alignment::Right),
+            ),
+            Cell::from(encurtar(lembrete.cliente(), cliente_w as usize)),
+            Cell::from(encurtar(
+                lembrete.relatorio.as_deref().unwrap_or(""),
+                resumo_w as usize,
+            )),
+        ])
+        .style(estilo)
+    });
+    let titulo = |texto: &'static str| Cell::from(texto);
+    let cabecalho_linha = Row::new([
+        Cell::from(ratatui::text::Line::from("Nº").alignment(Alignment::Right)),
+        titulo("Cliente"),
+        titulo("Resumo"),
+    ])
+    .style(base.fg(p.accent).add_modifier(Modifier::BOLD));
+    let area_tabela = Rect::new(
+        i.x,
+        cabecalho,
+        i.width.saturating_sub(1),
+        primeira - cabecalho + visiveis.len() as u16,
+    );
+    let tabela = Table::new(
+        linhas,
+        [
+            Constraint::Length(numero_w),
+            Constraint::Length(cliente_w),
+            Constraint::Length(resumo_w),
+        ],
+    )
+    .header(cabecalho_linha)
+    .column_spacing(1)
+    .style(base)
+    .row_highlight_style(Style::default().bg(p.active_row_bg))
+    .highlight_symbol("▌")
+    .highlight_spacing(HighlightSpacing::Always);
+    let mut estado = TableState::default().with_selected(Some(selecionado - pagina * por_pagina));
+    StatefulWidget::render(tabela, area_tabela, b, &mut estado);
+    for k in 0..visiveis.len() {
+        let y = primeira + k as u16;
+        desenho
+            .lembretes_rows
+            .push((Rect::new(i.x, y, i.width, 1), pagina * por_pagina + k));
+    }
+    if paginas > 1 {
+        let indice = format!("‹ {}/{} ›", pagina + 1, paginas);
+        let largura = display_width(&indice);
+        let x = i.right().saturating_sub(largura + 1);
+        put_text(b, x, rodape, largura, &indice, discreto);
+        if pagina > 0 {
+            desenho.lembretes_anterior = Rect::new(x, rodape, 2, 1);
+        }
+        if pagina + 1 < paginas {
+            desenho.lembretes_proxima = Rect::new(x + largura - 2, rodape, 2, 1);
+        }
+    }
+    Some(desenho)
+}
+
+/// As janelas ficam sobre as linhas do painel; sem limpar, o negrito delas vaza para o texto.
+fn limpar(b: &mut Buffer, q: Rect) {
+    for y in q.y..q.bottom() {
+        for x in q.x..q.right() {
+            b[(x, y)].reset();
+        }
+    }
+}
+
+fn render_lembrete_novo(
+    b: &mut Buffer,
+    f: &super::lembretes::Formulario,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let q = popup(b.area, 72, 15)?;
+    limpar(b, q);
+    let i = panel(b, q, p.accent, p.panel_bg)?;
+    let base = Style::default().fg(p.text).bg(p.panel_bg);
+    put_text(
+        b,
+        i.x,
+        i.y,
+        i.width,
+        "Novo lembrete",
+        base.add_modifier(Modifier::BOLD),
+    );
+    let mut desenho = OverlayRender {
+        area: q,
+        ..OverlayRender::default()
+    };
+    for (n, rotulo) in super::lembretes::CAMPOS.iter().enumerate() {
+        let y = i.y + 2 + 3 * n as u16;
+        put_text(b, i.x, y, i.width, rotulo, base.fg(p.subtext0));
+        let campo = Rect::new(i.x, y + 1, i.width, 1);
+        let estilo = if n == f.foco {
+            base.bg(p.surface0)
+        } else {
+            base.bg(p.surface_dim)
+        };
+        b.set_style(campo, estilo);
+        let interno = Rect::new(campo.x + 1, campo.y, campo.width.saturating_sub(1), 1);
+        let cursor = text_editor::render(b, interno, &f.campos[n], estilo);
+        if n == f.foco {
+            desenho.cursor = cursor;
+        }
+        desenho.lembretes_rows.push((campo, n));
+    }
+    let botoes = i.bottom() - 1;
+    if let Some(erro) = f.erro {
+        put_text(b, i.x, botoes - 1, i.width, erro, base.fg(p.accent));
+    }
+    let [salvar, cancelar] = row(Rect::new(i.x, botoes, i.width, 1), &[12, 16], 2, 0)[..] else {
+        return None;
+    };
+    button(
+        b,
+        salvar,
+        " salvar ",
+        Style::default().fg(p.panel_bg).bg(p.accent),
+    );
+    button(b, cancelar, " esc cancelar ", base.bg(p.surface0));
+    desenho.primary = salvar;
+    desenho.cancel = cancelar;
+    Some(desenho)
+}
+
+fn render_lembrete_aberto(
+    b: &mut Buffer,
+    l: &super::lembretes::Lembrete,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let q = popup(b.area, 72, 16)?;
+    limpar(b, q);
+    let i = panel(b, q, p.accent, p.panel_bg)?;
+    let base = Style::default().fg(p.text).bg(p.panel_bg);
+    let suave = base.fg(p.subtext0);
+    put_text(
+        b,
+        i.x,
+        i.y,
+        i.width,
+        l.cliente(),
+        base.add_modifier(Modifier::BOLD),
+    );
+    let verificar = format!(
+        "Verificar em {}",
+        super::lembretes::data_curta(&l.verificar_em)
+    );
+    put_text(b, i.x, i.y + 1, i.width, &verificar, suave);
+    if let Some(assunto) = &l.assunto {
+        put_text(
+            b,
+            i.x,
+            i.y + 2,
+            i.width,
+            &format!("Assunto: {assunto}"),
+            suave,
+        );
+    }
+    let botoes = i.bottom() - 1;
+    let relatorio = l.relatorio.as_deref().unwrap_or("Sem resumo registrado.");
+    for (n, linha) in quebrar_linhas(relatorio, i.width as usize)
+        .iter()
+        .take(usize::from(botoes.saturating_sub(i.y + 5)))
+        .enumerate()
+    {
+        put_text(b, i.x, i.y + 4 + n as u16, i.width, linha, base);
+    }
+    let [excluir, fechar] = row(Rect::new(i.x, botoes, i.width, 1), &[13, 13], 2, 0)[..] else {
+        return None;
+    };
+    button(
+        b,
+        excluir,
+        " excluir ",
+        Style::default().fg(p.panel_bg).bg(p.accent),
+    );
+    button(b, fechar, " esc fechar ", base.bg(p.surface0));
+    Some(OverlayRender {
+        area: q,
+        primary: excluir,
+        cancel: fechar,
+        ..OverlayRender::default()
+    })
+}
+
+#[cfg(test)]
+mod lembretes_tests {
+    use super::super::lembretes::{Formulario, Lembrete, Lista, Painel};
+    use super::*;
+
+    fn texto(buffer: &Buffer) -> String {
+        (buffer.area.y..buffer.area.bottom())
+            .map(|y| {
+                (buffer.area.x..buffer.area.right())
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+                    + "\n"
+            })
+            .collect()
+    }
+
+    fn lista(quantos: usize) -> Lista {
+        Lista {
+            agora: "2026-11-16T16:05".into(),
+            recebida_em: None,
+            lembretes: (0..quantos)
+                .map(|n| Lembrete {
+                    id: format!("a{n}"),
+                    cliente_nome: Some(format!("Cliente {n}")),
+                    relatorio: Some("Analisar a qualidade de segurado.".into()),
+                    assunto: Some("qualidade-segurado".into()),
+                    verificar_em: "2026-11-16T09:00".into(),
+                    lido: n % 2 == 1,
+                })
+                .collect(),
+            total: quantos,
+            nao_lidos: quantos.div_ceil(2),
+        }
+    }
+
+    #[test]
+    fn barra_direita_segue_o_padrao_da_barra_esquerda() {
+        let palette = Palette::pretorian();
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 46, 20));
+        let desenho = desenhar_apoio(
+            &mut buffer,
+            Rect::new(0, 0, 46, 20),
+            &Painel::default(),
+            Some(Ok(lista(30))),
+            &palette,
+        )
+        .unwrap();
+        let tela = texto(&buffer);
+        assert_eq!(buffer[(0, 5)].symbol(), "│");
+        assert_eq!(buffer[(10, 10)].bg, palette.sidebar_bg);
+        for esperado in [
+            "16 de nov. 16:05",
+            "15 de 30 não lidos",
+            "Nº Cliente",
+            "▌ 1 Cliente 0",
+            " + adicionar",
+            "‹ 1/",
+        ] {
+            assert!(tela.contains(esperado), "{esperado}\n{tela}");
+        }
+        assert_eq!(buffer[(5, 5)].bg, palette.active_row_bg);
+        assert_eq!(desenho.lembretes_rows.len(), desenho.lembretes_por_pagina);
+        assert!(desenho.lembretes_proxima.width > 0);
+        assert_eq!(desenho.lembretes_anterior.width, 0);
+        assert_eq!(desenho.lembretes_adicionar.y, 19);
+        assert_eq!(encurtar("José Francisco da Silva", 10), "José Fran…");
+        assert_eq!(encurtar("Ana", 10), "Ana");
+    }
+
+    #[test]
+    fn navegacao_da_barra_destaca_o_conteudo_ativo_como_as_abas() {
+        let palette = Palette::pretorian();
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 46, 1));
+        let estado = super::super::arranjo::EstadoArranjo::default();
+        let (abas, rolar) =
+            desenhar_navegacao(&mut buffer, Rect::new(0, 0, 46, 1), &estado, &palette);
+        assert!(texto(&buffer).contains("Lembretes"));
+        assert_eq!(abas.len(), 1);
+        assert_eq!(buffer[(abas[0].0.x, 0)].bg, palette.accent);
+        // Com um conteúdo só, não há setas.
+        assert_eq!(rolar, (Rect::default(), Rect::default()));
+    }
+
+    #[test]
+    fn barra_mostra_carregamento_erro_e_lista_vazia() {
+        let palette = Palette::pretorian();
+        for (lista, esperado) in [
+            (None, "Carregando…"),
+            (
+                Some(Err("Lembretes indisponíveis.".into())),
+                "Lembretes indisponíveis.",
+            ),
+            (Some(Ok(lista(0))), "Nenhum lembrete agendado."),
+        ] {
+            let mut buffer = Buffer::empty(Rect::new(0, 0, 46, 20));
+            desenhar_apoio(
+                &mut buffer,
+                Rect::new(0, 0, 46, 20),
+                &Painel::default(),
+                lista,
+                &palette,
+            )
+            .unwrap();
+            assert!(texto(&buffer).contains(esperado), "{esperado}");
+        }
+    }
+
+    #[test]
+    fn lembrete_aberto_mostra_detalhe_e_botoes_sem_herdar_negrito() {
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 30));
+        buffer.set_style(buffer.area, Style::default().add_modifier(Modifier::BOLD));
+        let painel = Painel {
+            aberto: lista(1).lembretes.into_iter().next(),
+            ..Painel::default()
+        };
+        let desenho = render_lembretes(&mut buffer, &painel, &Palette::catppuccin()).unwrap();
+        let tela = texto(&buffer);
+        assert!(tela.contains("Verificar em 16 de nov. 09:00"));
+        assert!(tela.contains("Analisar a qualidade de segurado."));
+        assert!(tela.contains("excluir"));
+        assert!(desenho.primary.width > 0 && desenho.cancel.width > 0);
+        let linha = desenho.area.y + 5;
+        assert!((desenho.area.x..desenho.area.right())
+            .all(|x| !buffer[(x, linha)].modifier.contains(Modifier::BOLD)));
+    }
+
+    #[test]
+    fn formulario_mostra_campos_erro_e_cursor_no_campo_em_foco() {
+        let mut formulario = Formulario::novo("2026-11-17T05:10");
+        formulario.conferir();
+        let painel = Painel {
+            novo: Some(formulario),
+            ..Painel::default()
+        };
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 120, 30));
+        let desenho = render_lembretes(&mut buffer, &painel, &Palette::catppuccin()).unwrap();
+        let tela = texto(&buffer);
+        for esperado in [
+            "Novo lembrete",
+            "Cliente (opcional)",
+            "Data e hora (DD/MM/AAAA HH:MM)",
+            "17/11/2026 05:10",
+            "Escreva o lembrete.",
+            "salvar",
+        ] {
+            assert!(tela.contains(esperado), "{esperado}");
+        }
+        assert_eq!(desenho.lembretes_rows.len(), 3);
+        assert_eq!(
+            desenho.cursor.map(|c| c.y),
+            Some(desenho.lembretes_rows[1].0.y)
+        );
+    }
+
+    #[test]
+    fn quebra_o_resumo_por_palavra() {
+        assert_eq!(
+            quebrar_linhas("um dois tres quatro", 8),
+            ["um dois", "tres", "quatro"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod pretorian_update_tests {
+    use super::*;
+
+    #[test]
+    fn cartao_mostra_versao_progresso_e_fechamento() {
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 90, 24));
+        let mut cartao = super::super::pretorian_update::Cartao::novo();
+        cartao.percentual = 75;
+        cartao.mensagem = "Instalando a nova versão…".into();
+        let palette = Palette::catppuccin();
+        let desenho = render_pretorian_update(&mut buffer, &cartao, &palette).unwrap();
+        let texto: String = buffer
+            .content
+            .iter()
+            .map(|celula| celula.symbol())
+            .collect();
+        assert!(texto.contains("[###############-----]  75%"));
+        assert!(texto.contains(crate::build_info::pretorian_version()));
+        assert!(desenho.cancel.width > 0);
+    }
 }

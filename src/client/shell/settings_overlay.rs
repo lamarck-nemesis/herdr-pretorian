@@ -73,7 +73,9 @@ pub(super) fn render_settings_overlay(
     let mut tab_x = inner.x;
     let mut tab_hits = Vec::new();
     for section in ClientSettingsSection::ALL {
-        let badge = *section == ClientSettingsSection::Integrations && integration_badge;
+        let badge = (*section == ClientSettingsSection::Integrations && integration_badge)
+            || (*section == ClientSettingsSection::Usuario
+                && super::super::pretorian_dependencias::pede_atencao());
         let label = if badge {
             format!(" ● {} ", section.label())
         } else {
@@ -130,7 +132,7 @@ pub(super) fn render_settings_overlay(
     let mut cursor = None;
     match settings.section {
         ClientSettingsSection::Usuario => {
-            cursor = render_usuario_section(buffer, content, settings, palette);
+            cursor = render_usuario_section(buffer, content, settings, palette, &mut choice_hits);
         }
         ClientSettingsSection::Indicators => {
             render_choice_section(
@@ -190,6 +192,8 @@ pub(super) fn render_settings_overlay(
             primary,
             if settings.section == ClientSettingsSection::Integrations {
                 " ↵ instalar "
+            } else if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
+                " ↵ executar "
             } else {
                 " ↵ aplicar "
             },
@@ -216,8 +220,10 @@ pub(super) fn render_settings_overlay(
         inner.x,
         inner.bottom().saturating_sub(2),
         inner.width,
-        if settings.section == ClientSettingsSection::Usuario {
-            " digite o nome  ^c limpar  tab seção"
+        if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
+            " ↑↓ selecionar  ↵ executar  tab seção"
+        } else if settings.section == ClientSettingsSection::Usuario {
+            " digite o nome  ↓ dependências  ^c limpar  tab seção"
         } else {
             " ↑↓ selecionar  tab seção"
         },
@@ -241,6 +247,7 @@ fn render_usuario_section(
     area: Rect,
     settings: &ClientSettingsOverlay,
     palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
 ) -> Option<crate::protocol::CursorState> {
     put_text(
         buffer,
@@ -282,7 +289,132 @@ fn render_usuario_section(
         &format!("prévia: {previa}"),
         Style::default().fg(palette.subtext0).bg(palette.panel_bg),
     );
-    cursor
+    render_dependencias(
+        buffer,
+        Rect::new(
+            area.x,
+            area.y + 7,
+            area.width,
+            area.height.saturating_sub(7),
+        ),
+        settings.selected,
+        palette,
+        hits,
+    );
+    // Com uma dependência selecionada o campo do nome não recebe teclas: sem cursor nele.
+    cursor.filter(|_| settings.selected == 0)
+}
+
+/// Lista das dependências da estação; posição 1 em diante da seleção da seção usuário.
+fn render_dependencias(
+    buffer: &mut Buffer,
+    area: Rect,
+    selected: usize,
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) {
+    let itens = super::super::pretorian_dependencias::itens();
+    if itens.is_empty() || area.height < 2 {
+        return;
+    }
+    put_text(
+        buffer,
+        area.x,
+        area.y,
+        area.width,
+        "dependências",
+        Style::default()
+            .fg(palette.text)
+            .bg(palette.panel_bg)
+            .add_modifier(Modifier::BOLD),
+    );
+    let mut y = area.y + 1;
+    for (index, item) in itens.iter().enumerate() {
+        if y >= area.bottom() {
+            break;
+        }
+        let escolhido = selected == index + 1;
+        let cor = match item.estado.as_str() {
+            "ok" => palette.green,
+            "em_andamento" => palette.yellow,
+            "bloqueado" => palette.overlay0,
+            _ => palette.red,
+        };
+        let fundo = if escolhido {
+            palette.surface0
+        } else {
+            palette.panel_bg
+        };
+        let linha = Rect::new(area.x, y, area.width, 1);
+        buffer.set_style(linha, Style::default().bg(fundo));
+        put_text(
+            buffer,
+            area.x,
+            y,
+            4,
+            &format!("{} {}", if escolhido { "›" } else { " " }, item.simbolo()),
+            Style::default().fg(cor).bg(fundo),
+        );
+        let acao = if item.aceita_pedido() {
+            item.acao.as_str()
+        } else {
+            ""
+        };
+        let largura_acao = display_width(acao);
+        put_text(
+            buffer,
+            area.x + 4,
+            y,
+            area.width.saturating_sub(5 + largura_acao),
+            &item.titulo,
+            Style::default().fg(palette.text).bg(fundo),
+        );
+        put_text(
+            buffer,
+            area.right().saturating_sub(largura_acao + 1),
+            y,
+            largura_acao,
+            acao,
+            Style::default().fg(palette.accent).bg(fundo),
+        );
+        hits.push((linha, index + 1));
+        y += 1;
+        if escolhido {
+            for texto in quebrar(&item.detalhe, area.width.saturating_sub(6)) {
+                if y >= area.bottom() {
+                    break;
+                }
+                put_text(
+                    buffer,
+                    area.x + 4,
+                    y,
+                    area.width.saturating_sub(4),
+                    &texto,
+                    Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+                );
+                y += 1;
+            }
+        }
+    }
+}
+
+/// Quebra por palavras para caber em `largura` colunas.
+fn quebrar(texto: &str, largura: u16) -> Vec<String> {
+    let mut linhas = Vec::new();
+    let mut atual = String::new();
+    for palavra in texto.split_whitespace() {
+        if !atual.is_empty() && display_width(&atual) + 1 + display_width(palavra) > largura {
+            linhas.push(std::mem::take(&mut atual));
+        }
+        if !atual.is_empty() {
+            atual.push(' ');
+        }
+        atual.push_str(palavra);
+    }
+    if !atual.is_empty() {
+        linhas.push(atual);
+    }
+    linhas
 }
 
 fn render_choice_section(

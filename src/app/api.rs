@@ -613,7 +613,7 @@ impl App {
             cols,
             cwd,
             self.state.pane_scrollback_limit_bytes,
-            self.state.host_terminal_theme,
+            self.pane_terminal_theme(),
             self.pane_host_terminal_appearance(),
             crate::pane::PaneShellConfig::new(&self.state.default_shell, self.state.shell_mode),
             &launch_env,
@@ -1271,7 +1271,7 @@ impl App {
         serde_json::to_string(&response).unwrap()
     }
 
-    fn handle_notification_show(
+    pub(super) fn handle_notification_show(
         &mut self,
         id: String,
         params: crate::api::schema::NotificationShowParams,

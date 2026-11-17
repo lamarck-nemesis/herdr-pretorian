@@ -22,7 +22,7 @@ pub(crate) struct PopupPaneState {
     pub height: Option<crate::popup_size::PopupSize>,
 }
 
-use crate::terminal_theme::{HostAppearance, TerminalTheme};
+use crate::terminal_theme::{HostAppearance, RgbColor, TerminalTheme};
 use crate::workspace::Workspace;
 
 // ---------------------------------------------------------------------------
@@ -123,6 +123,30 @@ impl Palette {
             blue: Color::Rgb(30, 102, 245),
             teal: Color::Rgb(23, 146, 153),
             peach: Color::Rgb(254, 100, 11),
+        }
+    }
+
+    /// No tema Pretorian os painéis usam fundo e texto próprios, independentes do terminal
+    /// hospedeiro. Sem isso, foot, Windows Terminal (WSL) e qualquer terminal escuro mostram a
+    /// barra lateral clara ao lado de painéis escuros. Devolve `(texto, fundo)` quando vale.
+    pub fn cores_paineis_fixas(&self, theme_name: &str) -> Option<(RgbColor, RgbColor)> {
+        if crate::config::canonical_theme_name(theme_name) != Some("pretorian") {
+            return None;
+        }
+        match (self.text, self.panel_bg) {
+            (Color::Rgb(tr, tg, tb), Color::Rgb(fr, fg, fb)) => Some((
+                RgbColor {
+                    r: tr,
+                    g: tg,
+                    b: tb,
+                },
+                RgbColor {
+                    r: fr,
+                    g: fg,
+                    b: fb,
+                },
+            )),
+            _ => None,
         }
     }
 
@@ -484,6 +508,12 @@ pub struct AppState {
     pub cjk_ime_cursor_shape: u8,
     pub kitty_graphics_enabled: bool,
     pub default_shell: String,
+    pub pretorian_agente: Option<String>,
+    pub pretorian_inicio_gerenciado: bool,
+    pub pretorian_painel_gerenciado: bool,
+    pub pretorian_aguarda_workspace: bool,
+    pub pretorian_primeiro_agente_identificado: bool,
+    pub pretorian_nivel: crate::config::NivelRaciocinio,
     pub shell_mode: crate::config::ShellModeConfig,
     pub new_terminal_cwd: NewTerminalCwdConfig,
     pub pane_scrollback_limit_bytes: usize,
@@ -721,6 +751,12 @@ impl AppState {
             cjk_ime_cursor_shape: 2, // steady_block
             kitty_graphics_enabled: false,
             default_shell: String::new(),
+            pretorian_agente: None,
+            pretorian_inicio_gerenciado: false,
+            pretorian_painel_gerenciado: false,
+            pretorian_aguarda_workspace: false,
+            pretorian_primeiro_agente_identificado: false,
+            pretorian_nivel: crate::config::NivelRaciocinio::default(),
             shell_mode: crate::config::ShellModeConfig::Auto,
             new_terminal_cwd: NewTerminalCwdConfig::Follow,
             pane_scrollback_limit_bytes: crate::config::DEFAULT_SCROLLBACK_LIMIT_BYTES,
@@ -992,6 +1028,24 @@ mod tests {
             Palette::pretorian()
         );
         assert_eq!(Palette::from_name("pretorian"), Some(Palette::pretorian()));
+    }
+
+    #[test]
+    fn cores_paineis_fixas_so_no_tema_pretorian() {
+        let (texto, fundo) = Palette::pretorian()
+            .cores_paineis_fixas("pretorian")
+            .expect("tema Pretorian fixa as cores dos painéis");
+        assert_eq!((texto.r, texto.g, texto.b), (47, 51, 68));
+        assert_eq!((fundo.r, fundo.g, fundo.b), (255, 255, 255));
+        assert!(Palette::pretorian()
+            .cores_paineis_fixas("Pretorian")
+            .is_some());
+        assert!(Palette::catppuccin_latte()
+            .cores_paineis_fixas("catppuccin-latte")
+            .is_none());
+        let mut transparente = Palette::pretorian();
+        transparente.panel_bg = Color::Reset;
+        assert!(transparente.cores_paineis_fixas("pretorian").is_none());
     }
 
     #[test]

@@ -278,8 +278,8 @@ fn render_tab_bar_status(
             x = x.saturating_add(separator_width);
         }
         let width = display_width(&segment.text);
-        if segment.text == crate::config::ASSINATURA {
-            render_assinatura(buffer, x, area.y, &segment.text, palette);
+        if segment.text == crate::config::assinatura() {
+            render_assinatura(buffer, x, area.y, &segment.text, palette, palette.panel_bg);
             x = x.saturating_add(width);
             continue;
         }
@@ -297,8 +297,15 @@ fn render_tab_bar_status(
 }
 
 /// Assinatura do Lamarck Hub: site em negrito, divisor fino na cor de borda, ano discreto.
-fn render_assinatura(buffer: &mut Buffer, x: u16, y: u16, text: &str, palette: &Palette) {
-    let base = Style::default().bg(palette.panel_bg);
+pub(super) fn render_assinatura(
+    buffer: &mut Buffer,
+    x: u16,
+    y: u16,
+    text: &str,
+    palette: &Palette,
+    fundo: ratatui::style::Color,
+) {
+    let base = Style::default().bg(fundo);
     let right = x.saturating_add(display_width(text));
     let mut x = x;
     for (index, part) in text.split('│').enumerate() {
