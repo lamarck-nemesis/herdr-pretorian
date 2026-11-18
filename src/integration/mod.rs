@@ -1,4 +1,6 @@
 mod actions;
+mod automatic;
+pub(crate) use automatic::prepare_managed;
 mod claude_settings;
 mod command;
 mod config_edit;

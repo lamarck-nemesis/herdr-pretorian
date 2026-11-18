@@ -126,11 +126,14 @@ impl Palette {
         }
     }
 
-    /// No tema Pretorian os painéis usam fundo e texto próprios, independentes do terminal
+    /// Nos temas Pretorian, Pink e ZenDataOps os painéis usam fundo e texto próprios, independentes do terminal
     /// hospedeiro. Sem isso, foot, Windows Terminal (WSL) e qualquer terminal escuro mostram a
     /// barra lateral clara ao lado de painéis escuros. Devolve `(texto, fundo)` quando vale.
     pub fn cores_paineis_fixas(&self, theme_name: &str) -> Option<(RgbColor, RgbColor)> {
-        if crate::config::canonical_theme_name(theme_name) != Some("pretorian") {
+        if !matches!(
+            crate::config::canonical_theme_name(theme_name),
+            Some("pretorian" | "pink" | "zendataops")
+        ) {
             return None;
         }
         match (self.text, self.panel_bg) {
@@ -175,6 +178,56 @@ impl Palette {
         }
     }
 
+    // Radix Colors: https://github.com/radix-ui/colors/blob/master/src/light.ts (pink).
+    pub fn pink() -> Self {
+        Self {
+            accent: Color::Rgb(194, 41, 138),
+            panel_bg: Color::Rgb(255, 252, 254),
+            sidebar_bg: Color::Rgb(254, 247, 251),
+            active_row_bg: Color::Rgb(254, 233, 245),
+            selection_bg: Color::Rgb(246, 206, 231),
+            surface0: Color::Rgb(254, 233, 245),
+            surface1: Color::Rgb(251, 220, 239),
+            surface_dim: Color::Rgb(254, 247, 251),
+            overlay0: Color::Rgb(194, 41, 138),
+            overlay1: Color::Rgb(194, 41, 138),
+            text: Color::Rgb(101, 18, 73),
+            subtext0: Color::Rgb(194, 41, 138),
+            mauve: Color::Rgb(194, 41, 138),
+            green: Color::Rgb(194, 41, 138),
+            yellow: Color::Rgb(194, 41, 138),
+            red: Color::Rgb(101, 18, 73),
+            blue: Color::Rgb(194, 41, 138),
+            teal: Color::Rgb(194, 41, 138),
+            peach: Color::Rgb(194, 41, 138),
+        }
+    }
+
+    // Radix Colors: https://github.com/radix-ui/colors/blob/main/src/light.ts (sand, brown, crimson).
+    pub fn zendataops() -> Self {
+        Self {
+            accent: Color::Rgb(203, 29, 99),
+            panel_bg: Color::Rgb(253, 253, 252),
+            sidebar_bg: Color::Rgb(249, 249, 248),
+            active_row_bg: Color::Rgb(255, 233, 240),
+            selection_bg: Color::Rgb(250, 206, 221),
+            surface0: Color::Rgb(241, 240, 239),
+            surface1: Color::Rgb(233, 232, 230),
+            surface_dim: Color::Rgb(249, 249, 248),
+            overlay0: Color::Rgb(129, 94, 70),
+            overlay1: Color::Rgb(129, 94, 70),
+            text: Color::Rgb(62, 51, 46),
+            subtext0: Color::Rgb(129, 94, 70),
+            mauve: Color::Rgb(203, 29, 99),
+            green: Color::Rgb(129, 94, 70),
+            yellow: Color::Rgb(129, 94, 70),
+            red: Color::Rgb(203, 29, 99),
+            blue: Color::Rgb(203, 29, 99),
+            teal: Color::Rgb(129, 94, 70),
+            peach: Color::Rgb(129, 94, 70),
+        }
+    }
+
     /// Terminal 16-color theme.
     #[cfg(test)]
     pub fn terminal() -> Self {
@@ -205,6 +258,8 @@ impl Palette {
     pub fn from_name(name: &str) -> Option<Self> {
         match crate::config::canonical_theme_name(name)? {
             "pretorian" => Some(Self::pretorian()),
+            "pink" => Some(Self::pink()),
+            "zendataops" => Some(Self::zendataops()),
             _ => None,
         }
     }

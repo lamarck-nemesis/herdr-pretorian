@@ -97,9 +97,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # panel_bg = "#eff1f5"
 # text = "#4c4f69"
 
-# Seção própria do Pretorian. O nome aparece na barra lateral, abaixo de "Área de Trabalho";
-# também pode ser definido em configurações > usuário. Um ui.tab_bar_right explícito
-# substitui esse cabeçalho.
+# O nome definido em Configurações > Centauro fica bloqueado após aplicar.
 # [pretorian]
 # nome = ""
 # agente = "codex"
@@ -845,6 +843,10 @@ fn main() -> io::Result<()> {
 
     let loaded_config = config::Config::load();
     exit_if_nested_disabled(&loaded_config.config);
+
+    if let Err(error) = integration::prepare_managed() {
+        eprintln!("{error}");
+    }
 
     let saved_federation =
         client::endpoint::EndpointCatalog::load().is_ok_and(|catalog| catalog.has_enabled_ssh());

@@ -81,22 +81,7 @@ impl ClientShellState {
                     return;
                 }
                 if action == crate::input::KeybindAction::NewWorkspace {
-                    if self.config.prompt_new_workspace_name {
-                        self.open_new_workspace_overlay();
-                    } else {
-                        self.push_endpoint_method(
-                            crate::api::schema::Method::WorkspaceCreate(
-                                crate::api::schema::WorkspaceCreateParams {
-                                    source_workspace_id: self.workspace_action_id(),
-                                    cwd: None,
-                                    focus: true,
-                                    label: None,
-                                    env: Default::default(),
-                                },
-                            ),
-                            outcome,
-                        );
-                    }
+                    self.open_new_workspace_overlay();
                     outcome.repaint = true;
                     return;
                 }
@@ -132,15 +117,7 @@ impl ClientShellState {
                     }
                     return;
                 }
-                if action == crate::input::KeybindAction::NewTab
-                    && crate::terminal_effects::painel_gerenciado()
-                {
-                    self.open_new_tab_level_menu();
-                    outcome.repaint = true;
-                    return;
-                }
-                if action == crate::input::KeybindAction::NewTab && self.config.prompt_new_tab_name
-                {
+                if action == crate::input::KeybindAction::NewTab {
                     self.open_new_tab_overlay();
                     outcome.repaint = true;
                     return;
@@ -876,7 +853,7 @@ impl ClientShellState {
         use crate::api::schema::{
             Method, PaneDirection, PaneFocusDirectionParams, PaneResizeParams, PaneSplitParams,
             PaneSwapParams, PaneTarget, PaneZoomMode, PaneZoomParams, SplitDirection,
-            TabCreateParams, TabMoveParams, TabTarget, WorkspaceTarget,
+            TabMoveParams, TabTarget, WorkspaceTarget,
         };
         use crate::input::KeybindAction;
 
@@ -1027,15 +1004,6 @@ impl ClientShellState {
                 Some(Method::TabMove(TabMoveParams {
                     tab_id: focused_tab,
                     insert_index,
-                }))
-            }
-            KeybindAction::NewTab if !self.config.prompt_new_tab_name => {
-                Some(Method::TabCreate(TabCreateParams {
-                    workspace_id: Some(focused_workspace),
-                    cwd: None,
-                    focus: true,
-                    label: None,
-                    env: Default::default(),
                 }))
             }
             KeybindAction::FocusPaneLeft
