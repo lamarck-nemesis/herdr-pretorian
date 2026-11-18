@@ -1,4 +1,4 @@
-//! Arranjos da shell do Pretorian, escolhidos em "menu > mudar layout".
+//! Arranjos da shell do Pretorian, escolhidos em "menu > Mudar Layout".
 //!
 //! Regiões (calculadas em `ClientShellConfig::layout`):
 //!
@@ -42,14 +42,14 @@ impl Arranjo {
     /// Rótulo no menu; o arranjo em uso ganha o marcador.
     pub(super) fn rotulo(self, atual: bool) -> &'static str {
         match (self, atual) {
-            (Self::Conversa, false) => "  1  barra à esquerda",
-            (Self::Conversa, true) => "● 1  barra à esquerda",
-            (Self::ComApoio, false) => "  2  barras à esquerda e à direita",
-            (Self::ComApoio, true) => "● 2  barras à esquerda e à direita",
-            (Self::LadoALado, false) => "  3  barras e divisão vertical central",
-            (Self::LadoALado, true) => "● 3  barras e divisão vertical central",
-            (Self::EmCimaEmbaixo, false) => "  4  barras e divisão horizontal central",
-            (Self::EmCimaEmbaixo, true) => "● 4  barras e divisão horizontal central",
+            (Self::Conversa, false) => "  1  Barra à Esquerda",
+            (Self::Conversa, true) => "● 1  Barra à Esquerda",
+            (Self::ComApoio, false) => "  2  Barras à Esquerda e à Direita",
+            (Self::ComApoio, true) => "● 2  Barras à Esquerda e à Direita",
+            (Self::LadoALado, false) => "  3  Barras e Divisão Vertical Central",
+            (Self::LadoALado, true) => "● 3  Barras e Divisão Vertical Central",
+            (Self::EmCimaEmbaixo, false) => "  4  Barras e Divisão Horizontal Central",
+            (Self::EmCimaEmbaixo, true) => "● 4  Barras e Divisão Horizontal Central",
         }
     }
 
@@ -185,29 +185,31 @@ impl ClientShellState {
 
     /// "+" da secundária: a aba nasce na pasta dela sem tirar o foco da principal.
     pub(super) fn nova_aba_secundaria(&mut self, outcome: &mut ClientShellInput) {
-        let (Some(pasta), Some(snapshot)) = (self.arranjo.secundaria(), self.snapshot.as_deref())
-        else {
+        let Some(pasta) = self.arranjo.secundaria().map(str::to_owned) else {
             return;
         };
-        let pasta = pasta.to_owned();
-        self.arranjo.abas_antes_da_nova = Some(
-            snapshot
-                .tabs
-                .iter()
-                .filter(|tab| tab.workspace_id == pasta)
-                .map(|tab| tab.tab_id.clone())
-                .collect(),
-        );
-        self.push_endpoint_method(
-            crate::api::schema::Method::TabCreate(crate::api::schema::TabCreateParams {
-                workspace_id: Some(pasta),
-                cwd: None,
-                focus: false,
-                label: None,
-                env: Default::default(),
-            }),
-            outcome,
-        );
+        self.open_new_tab_for_workspace(pasta);
+        if let Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+            target: ClientRenameTarget::NewTab { focus, .. },
+            ..
+        })) = self.overlay.as_mut()
+        {
+            *focus = false;
+        }
+        outcome.repaint = true;
+    }
+
+    pub(super) fn marcar_nova_aba_secundaria(&mut self, pasta: &str) {
+        if let Some(snapshot) = self.snapshot.as_deref() {
+            self.arranjo.abas_antes_da_nova = Some(
+                snapshot
+                    .tabs
+                    .iter()
+                    .filter(|tab| tab.workspace_id == pasta)
+                    .map(|tab| tab.tab_id.clone())
+                    .collect(),
+            );
+        }
     }
 
     /// Clique num painel: o da secundária leva o teclado para ela sem trocar a pasta principal.
@@ -309,7 +311,7 @@ impl ClientShellState {
         outcome.repaint = true;
     }
 
-    /// "ver lembretes" e a abertura automática levam ao arranjo com a barra de apoio.
+    /// "Ver Lembretes" e a abertura automática levam ao arranjo com a barra de apoio.
     pub(super) fn mostrar_lembretes(&mut self) {
         let antes = self.arranjo.largura_apoio();
         if !self.arranjo.atual.tem_apoio() {
@@ -419,10 +421,10 @@ mod tests {
         assert_eq!(
             rotulos,
             [
-                "  1  barra à esquerda",
-                "  2  barras à esquerda e à direita",
-                "● 3  barras e divisão vertical central",
-                "  4  barras e divisão horizontal central"
+                "  1  Barra à Esquerda",
+                "  2  Barras à Esquerda e à Direita",
+                "● 3  Barras e Divisão Vertical Central",
+                "  4  Barras e Divisão Horizontal Central"
             ]
         );
         let mut estado = EstadoArranjo::default();

@@ -83,7 +83,7 @@ fn render_janela_secundaria(
         area.x,
         area.y,
         area.width,
-        " Janela secundária",
+        " Janela Secundária",
         Style::default()
             .fg(palette.text)
             .add_modifier(Modifier::BOLD),
@@ -133,20 +133,115 @@ fn render_janela_secundaria(
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::client::shell) enum SidebarAction {
+    NewWorkspace,
+    Menu,
+}
+
+pub(in crate::client::shell) fn render_sidebar_actions(
+    buffer: &mut Buffer,
+    area: Rect,
+    attention: bool,
+    palette: &Palette,
+    active: Option<SidebarAction>,
+    hits: &mut ShellHitMap,
+) -> Rect {
+    let width = area.width.saturating_sub(1);
+    if width < 3 || area.height == 0 {
+        return area;
+    }
+    let menu_width = if width < 11 {
+        1
+    } else if attention {
+        9
+    } else {
+        7
+    };
+    let compact = width < 14 + menu_width;
+    let new_width = if compact { 1 } else { 13 };
+    hits.new_workspace = Rect::new(area.x, area.y, new_width, 1);
+    hits.global_launcher = Rect::new(area.x + width - menu_width, area.y, menu_width, 1);
+    let new_style = Style::default()
+        .fg(palette.accent)
+        .bg(if active == Some(SidebarAction::NewWorkspace) {
+            palette.selection_bg
+        } else {
+            palette.surface0
+        })
+        .remove_modifier(Modifier::BOLD);
+    let menu_style = Style::default()
+        .fg(if attention {
+            palette.accent
+        } else {
+            palette.subtext0
+        })
+        .bg(if active == Some(SidebarAction::Menu) {
+            palette.surface1
+        } else {
+            palette.sidebar_bg
+        })
+        .remove_modifier(Modifier::BOLD);
+    buffer.set_style(hits.new_workspace, new_style);
+    buffer.set_style(hits.global_launcher, menu_style);
+    put_text(
+        buffer,
+        hits.new_workspace.x,
+        area.y,
+        new_width,
+        if compact { "+" } else { " + Nova Pasta" },
+        new_style,
+    );
+    put_text(
+        buffer,
+        hits.global_launcher.x,
+        area.y,
+        menu_width,
+        if menu_width == 1 {
+            "▾"
+        } else if attention {
+            "● Menu ▾"
+        } else {
+            "Menu ▾"
+        },
+        menu_style,
+    );
+    Rect::new(area.x, area.y + 1, area.width, area.height - 1)
+}
+
 pub(crate) fn render_collapsed_sidebar(
     buffer: &mut Buffer,
     area: Rect,
     snapshot: &ClientShellSnapshot,
     config: &ClientShellConfig,
     selected_workspace_id: Option<&str>,
+    active_action: Option<SidebarAction>,
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
     let selection_background = workspace_selection_background(palette);
     let active_background = workspace_active_background(palette, selected_workspace_id.is_some());
     render_sidebar_background(buffer, area, palette);
+    let content = if config.mouse_capture {
+        render_sidebar_actions(
+            buffer,
+            area,
+            super::super::global_menu::global_menu_attention(snapshot),
+            palette,
+            active_action,
+            hits,
+        )
+    } else {
+        area
+    };
+    let content = Rect {
+        height: content
+            .height
+            .saturating_sub(u16::from(!config.show_agent_panel)),
+        ..content
+    };
     let (workspace_area, divider_y, detail_area) =
-        collapsed_sidebar_sections(area, config.show_agent_panel);
+        collapsed_sidebar_sections(content, config.show_agent_panel);
     for (index, workspace) in snapshot
         .workspaces
         .iter()
@@ -286,6 +381,38 @@ pub(crate) fn render_collapsed_sidebar(
     );
 }
 
+pub(in crate::client::shell) fn render_centauro_header(
+    buffer: &mut Buffer,
+    area: Rect,
+    config: &ClientShellConfig,
+) -> u16 {
+    let lines = [
+        config.nome_usuario.as_deref().unwrap_or("Área de Trabalho"),
+        config.profissao_centauro.as_deref().unwrap_or(""),
+        config.rotulo_centauro.as_deref().unwrap_or(""),
+    ];
+    let count = if config.nome_usuario.is_some() { 3 } else { 1 };
+    for (index, line) in lines.iter().take(count).enumerate() {
+        if index as u16 >= area.height {
+            break;
+        }
+        let style = Style::default().fg(config.palette.text);
+        put_text(
+            buffer,
+            area.x.saturating_add(1),
+            area.y + index as u16,
+            area.width.saturating_sub(1),
+            line,
+            if index == 0 {
+                style.add_modifier(Modifier::BOLD)
+            } else {
+                style
+            },
+        );
+    }
+    count as u16 + 1
+}
+
 pub(crate) fn render_sidebar(
     buffer: &mut Buffer,
     area: Rect,
@@ -305,40 +432,34 @@ pub(crate) fn render_sidebar(
     let (workspace_area, detail_area, section_divider) =
         expanded_sidebar_sections(area, state.sidebar_section_split, dividir);
     hits.sidebar_section_divider = section_divider;
-    put_text(
-        buffer,
+    let header_rows = render_centauro_header(buffer, workspace_area, config);
+    let workspace_area = Rect::new(
         workspace_area.x,
-        workspace_area.y,
+        workspace_area
+            .y
+            .saturating_add(header_rows.min(workspace_area.height)),
         workspace_area.width,
-        " Área de Trabalho",
-        Style::default()
-            .fg(palette.text)
-            .add_modifier(Modifier::BOLD),
+        workspace_area.height.saturating_sub(header_rows),
     );
-    // O nome do usuário entra como subtítulo e empurra a lista uma linha para baixo.
-    let header_rows = match config.nome_usuario.as_deref() {
-        Some(nome) => {
-            put_text(
-                buffer,
-                workspace_area.x.saturating_add(1),
-                workspace_area.y.saturating_add(1),
-                workspace_area.width.saturating_sub(1),
-                nome,
-                Style::default()
-                    .fg(palette.subtext0)
-                    .add_modifier(Modifier::ITALIC),
-            );
-            WORKSPACE_HEADER_ROWS + 1
-        }
-        None => WORKSPACE_HEADER_ROWS,
+    let workspace_area = if config.mouse_capture {
+        render_sidebar_actions(
+            buffer,
+            workspace_area,
+            super::super::global_menu::global_menu_attention(snapshot),
+            palette,
+            state.sidebar_action,
+            hits,
+        )
+    } else {
+        workspace_area
     };
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(header_rows),
+        workspace_area.y,
         workspace_area.width,
-        workspace_area.height.saturating_sub(header_rows + 1),
+        workspace_area.height.saturating_sub(1),
     );
     hits.workspace_body = body;
     let row_heights = entries
@@ -478,66 +599,6 @@ pub(crate) fn render_sidebar(
             &"─".repeat(body.width as usize),
             Style::default().fg(palette.accent),
         );
-    }
-
-    let footer_y = workspace_area.bottom().saturating_sub(1);
-    // As duas últimas colunas da linha são do botão de recolher a barra.
-    let footer_area = Rect {
-        width: workspace_area.width.saturating_sub(2),
-        ..workspace_area
-    };
-    if config.mouse_capture {
-        hits.new_workspace = Rect::new(
-            workspace_area.x,
-            footer_y,
-            11.min(workspace_area.width),
-            u16::from(workspace_area.height > 0),
-        );
-        put_text(
-            buffer,
-            workspace_area.x,
-            footer_y,
-            workspace_area.width,
-            " nova pasta",
-            Style::default().fg(palette.overlay0),
-        );
-        let attention = super::super::global_menu::global_menu_attention(snapshot);
-        let launcher_width = if attention { 8 } else { 6 }.min(workspace_area.width);
-        hits.global_launcher = Rect::new(
-            footer_area.right().saturating_sub(launcher_width),
-            footer_y,
-            launcher_width,
-            1,
-        );
-        if attention {
-            let start_x = footer_area.right().saturating_sub(6);
-            put_text(
-                buffer,
-                start_x,
-                footer_y,
-                2,
-                "● ",
-                Style::default()
-                    .fg(palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            );
-            put_text(
-                buffer,
-                start_x.saturating_add(2),
-                footer_y,
-                4,
-                "menu",
-                Style::default().fg(palette.overlay0),
-            );
-        } else {
-            put_right_text(
-                buffer,
-                footer_area,
-                footer_y,
-                "menu",
-                Style::default().fg(palette.overlay0),
-            );
-        }
     }
 
     hits.janela_secundaria = Rect::default();

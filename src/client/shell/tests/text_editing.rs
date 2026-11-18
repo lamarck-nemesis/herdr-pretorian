@@ -323,7 +323,7 @@ fn all_naming_targets_preserve_submission_and_empty_semantics() {
             }
             let result = press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
             assert!(state.overlay.is_none());
-            if empty && matches!(field, 1 | 3) {
+            if empty && matches!(field, 0..=3) {
                 assert!(result.actions.is_empty());
                 continue;
             }

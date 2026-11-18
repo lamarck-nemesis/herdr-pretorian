@@ -22,7 +22,7 @@ fn navigate_update_status_uses_released_desktop_and_mobile_placement() {
             .collect::<String>()
     };
     assert!(row_text(&bottom, 29).contains("atualização pronta"));
-    assert!(!row_text(&bottom, 28).contains("atualização pronta"));
+    assert!(!row_text(&bottom, 28).contains("Atualização Pronta"));
     assert!(state.hits.tabs.is_empty());
     assert!(state.hits.new_tab.is_empty());
     assert!(state.hits.tab_scroll_left.is_empty());
@@ -54,7 +54,7 @@ fn navigate_update_status_uses_released_desktop_and_mobile_placement() {
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
     assert!(
-        mobile_text.contains("atualização pronta"),
+        mobile_text.contains("Atualização Pronta"),
         "{mobile_text:?}"
     );
 }
@@ -224,7 +224,7 @@ fn mobile_header_and_switcher_render_released_sections_and_stable_targets() {
     assert!(header_text.contains("client-shell"));
     assert!(header_text.contains("aba 1"));
     assert!(header_text.contains("aguardando"));
-    assert!(header_text.contains("alternar"));
+    assert!(header_text.contains("Alternar"));
     assert_eq!(state.hits.mobile_switch, Rect::new(34, 0, 10, 2));
 
     let click = |rect: Rect| {
@@ -254,16 +254,16 @@ fn mobile_header_and_switcher_render_released_sections_and_stable_targets() {
         "switcher must clear the pane surface"
     );
     for expected in [
-        "alternar",
-        "fechar",
+        "Alternar",
+        "Fechar",
         "agentes",
-        "espaços",
-        "+ novo espaço",
-        "abas",
-        "+ nova aba",
-        "menu",
-        "configurações",
-        "desconectar",
+        "Espaços",
+        "+ Nova Pasta",
+        "Abas",
+        "+ Nova Aba",
+        "Menu",
+        "Configurações",
+        "Desconectar",
     ] {
         assert!(switcher_text.contains(expected), "missing {expected}");
     }
@@ -410,9 +410,7 @@ fn mobile_background_workspace_uses_its_own_active_tab_status() {
 
 #[test]
 fn mobile_switcher_create_and_menu_rows_reuse_client_actions() {
-    let mut config = ClientShellConfig::from_config(&Config::default());
-    config.prompt_new_workspace_name = true;
-    config.prompt_new_tab_name = true;
+    let config = ClientShellConfig::from_config(&Config::default());
     let mut state = ClientShellState::new(config);
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());

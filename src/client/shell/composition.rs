@@ -55,6 +55,18 @@ impl ClientShellState {
                     == Some(ClientEndpointStatus::Online)
         });
         let mut render_state = render::ShellRenderState {
+            sidebar_action: match &self.overlay {
+                Some(ClientShellOverlay::GlobalMenu(_)) => {
+                    Some(super::sidebar::SidebarAction::Menu)
+                }
+                Some(ClientShellOverlay::Rename(rename))
+                    if matches!(rename.target, ClientRenameTarget::NewWorkspace { .. }) =>
+                {
+                    Some(super::sidebar::SidebarAction::NewWorkspace)
+                }
+                None => self.sidebar_action_hover,
+                _ => None,
+            },
             machine_diagnostics: &self.machine_diagnostics,
             endpoints: &self.endpoints,
             active_endpoint_id: &self.active_endpoint_id,
@@ -219,6 +231,18 @@ impl ClientShellState {
             snapshot,
             &self.config,
             render::ShellRenderState {
+                sidebar_action: match &self.overlay {
+                    Some(ClientShellOverlay::GlobalMenu(_)) => {
+                        Some(super::sidebar::SidebarAction::Menu)
+                    }
+                    Some(ClientShellOverlay::Rename(rename))
+                        if matches!(rename.target, ClientRenameTarget::NewWorkspace { .. }) =>
+                    {
+                        Some(super::sidebar::SidebarAction::NewWorkspace)
+                    }
+                    None => self.sidebar_action_hover,
+                    _ => None,
+                },
                 machine_diagnostics: &self.machine_diagnostics,
                 endpoints: &self.endpoints,
                 active_endpoint_id: &self.active_endpoint_id,
