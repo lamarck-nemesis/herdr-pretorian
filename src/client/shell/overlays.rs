@@ -693,7 +693,7 @@ fn render_rename_overlay(
         .fg(p.text)
         .bg(p.surface0)
         .add_modifier(Modifier::BOLD);
-    button(b, *clear, " ^c limpar ", n);
+    button(b, *clear, " ^c Limpar ", n);
     button(b, *cancel, " esc Cancelar ", n);
     Some(OverlayRender {
         area: q,
