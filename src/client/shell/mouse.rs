@@ -513,7 +513,7 @@ impl ClientShellState {
     fn workspace_drop_target_at(&self, point: (u16, u16)) -> Option<(Option<String>, u16)> {
         if self.hits.workspace_body.height == 0
             || point.1 < self.hits.workspace_body.y.saturating_sub(1)
-            || point.1 >= self.hits.new_workspace.y
+            || point.1 >= self.hits.workspace_body.bottom()
             || self.hits.workspaces.iter().any(|hit| {
                 hit.endpoint_id != self.active_endpoint_id && super::contains(hit.rect, point)
             })
@@ -575,7 +575,7 @@ impl ClientShellState {
                     .map(|workspace| workspace.workspace_id.clone())
             });
             let row = last_hit.rect.bottom();
-            if row < self.hits.new_workspace.y {
+            if row < self.hits.workspace_body.bottom() {
                 slots.push((before, row));
             }
         }
@@ -685,6 +685,19 @@ impl ClientShellState {
     pub(super) fn handle_mouse(&mut self, mouse: MouseEvent, outcome: &mut ClientShellInput) {
         self.update_link_hover(mouse, outcome);
         let point = (mouse.column, mouse.row);
+        let hovered = if self.overlay.is_some() {
+            None
+        } else if super::contains(self.hits.new_workspace, point) {
+            Some(super::sidebar::SidebarAction::NewWorkspace)
+        } else if super::contains(self.hits.global_launcher, point) {
+            Some(super::sidebar::SidebarAction::Menu)
+        } else {
+            None
+        };
+        if self.sidebar_action_hover != hovered {
+            self.sidebar_action_hover = hovered;
+            outcome.repaint = true;
+        }
         if self.mode == ClientShellMode::Navigate
             && self.workspace_preview_action_blocked()
             && self.overlay.is_none()
@@ -1547,13 +1560,14 @@ impl ClientShellState {
                     let immediate = matches!(
                         self.overlay,
                         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-                            section: ClientSettingsSection::Indicators
-                                | ClientSettingsSection::Sound
-                                | ClientSettingsSection::Toast,
+                            section: ClientSettingsSection::Sound,
                             ..
                         }))
                     );
-                    if immediate {
+                    let about_action = matches!(&self.overlay,
+                        Some(ClientShellOverlay::Settings(settings)) if settings.section == ClientSettingsSection::Usuario
+                            && (settings.dependencias || !matches!(index, 0 | 2)));
+                    if immediate || about_action {
                         self.apply_settings_choice(outcome);
                     }
                     outcome.repaint = true;

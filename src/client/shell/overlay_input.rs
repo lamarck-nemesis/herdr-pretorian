@@ -346,18 +346,12 @@ impl ClientShellState {
                 .find(|workspace| workspace.workspace_id == workspace_id)
                 .map(|workspace| workspace.new_workspace_cwd.clone())
         });
-        let suggested_name = cwd
-            .as_deref()
-            .map(std::path::Path::new)
-            .map(crate::workspace::derive_label_from_cwd)
-            .unwrap_or_else(|| "espaço".to_owned());
         self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-            title: "novo espaço",
-            input: TextEditor::new(&suggested_name, true),
+            title: "Nova Pasta",
+            input: TextEditor::new("", false),
             target: ClientRenameTarget::NewWorkspace {
                 source_workspace_id,
                 cwd,
-                suggested_name,
             },
         }));
     }
@@ -377,7 +371,7 @@ impl ClientShellState {
             return;
         };
         self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-            title: "renomear espaço",
+            title: "Renomear Pasta",
             input: TextEditor::new(&workspace.label, false),
             target: ClientRenameTarget::Workspace { workspace_id },
         }));
@@ -390,19 +384,16 @@ impl ClientShellState {
         let Some(workspace_id) = snapshot.focused_workspace_id.clone() else {
             return;
         };
-        let default_name = (snapshot
-            .tabs
-            .iter()
-            .filter(|tab| tab.workspace_id == workspace_id)
-            .count()
-            + 1)
-        .to_string();
+        self.open_new_tab_for_workspace(workspace_id);
+    }
+
+    pub(super) fn open_new_tab_for_workspace(&mut self, workspace_id: String) {
         self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-            title: "nova aba",
-            input: TextEditor::new(&default_name, true),
+            title: "Nova Aba",
+            input: TextEditor::new("", false),
             target: ClientRenameTarget::NewTab {
                 workspace_id,
-                default_name,
+                focus: true,
             },
         }));
     }
@@ -418,7 +409,7 @@ impl ClientShellState {
             return;
         };
         self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-            title: "renomear aba",
+            title: "Renomear Aba",
             input: TextEditor::new(&tab.label, false),
             target: ClientRenameTarget::Tab {
                 tab_id: tab.tab_id.clone(),
@@ -439,7 +430,7 @@ impl ClientShellState {
             return;
         };
         self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-            title: "renomear painel",
+            title: "Renomear Painel",
             input: TextEditor::new(
                 pane.label.as_deref().unwrap_or_default(),
                 pane.label.is_none(),
@@ -468,8 +459,12 @@ impl ClientShellState {
             Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
-                if settings.selected == 0 {
-                    settings.nome.insert(text);
+                if !settings.dependencias {
+                    if settings.selected == 0 && !settings.nome_somente_leitura {
+                        settings.nome.insert(text);
+                    } else if settings.selected == 2 {
+                        settings.sobre.insert(text);
+                    }
                 }
                 true
             }
@@ -1011,18 +1006,36 @@ impl ClientShellState {
             return;
         };
         let trimmed = rename.input.trim();
+        if trimmed.is_empty()
+            && matches!(
+                rename.target,
+                ClientRenameTarget::NewWorkspace { .. } | ClientRenameTarget::NewTab { .. }
+            )
+        {
+            outcome.repaint = true;
+            return;
+        }
+        if let ClientRenameTarget::NewTab {
+            workspace_id,
+            focus,
+        } = &rename.target
+        {
+            if crate::terminal_effects::painel_gerenciado() {
+                self.open_new_tab_level_menu(workspace_id.clone(), trimmed.to_owned(), *focus);
+                outcome.repaint = true;
+                return;
+            }
+        }
         let method = match rename.target {
             ClientRenameTarget::NewWorkspace {
                 source_workspace_id,
                 cwd,
-                suggested_name,
             } => Some(crate::api::schema::Method::WorkspaceCreate(
                 crate::api::schema::WorkspaceCreateParams {
                     source_workspace_id,
                     cwd,
                     focus: true,
-                    label: (!trimmed.is_empty() && trimmed != suggested_name)
-                        .then(|| trimmed.to_owned()),
+                    label: Some(trimmed.to_owned()),
                     env: Default::default(),
                 },
             )),
@@ -1036,17 +1049,21 @@ impl ClientShellState {
             }),
             ClientRenameTarget::NewTab {
                 workspace_id,
-                default_name,
-            } => Some(crate::api::schema::Method::TabCreate(
-                crate::api::schema::TabCreateParams {
-                    workspace_id: Some(workspace_id),
-                    cwd: None,
-                    focus: true,
-                    label: (!trimmed.is_empty() && trimmed != default_name)
-                        .then(|| trimmed.to_owned()),
-                    env: Default::default(),
-                },
-            )),
+                focus,
+            } => {
+                if !focus {
+                    self.marcar_nova_aba_secundaria(&workspace_id);
+                }
+                Some(crate::api::schema::Method::TabCreate(
+                    crate::api::schema::TabCreateParams {
+                        workspace_id: Some(workspace_id),
+                        cwd: None,
+                        focus,
+                        label: Some(trimmed.to_owned()),
+                        env: Default::default(),
+                    },
+                ))
+            }
             ClientRenameTarget::Tab {
                 tab_id,
                 auto_name,

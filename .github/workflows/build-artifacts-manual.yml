@@ -175,12 +175,13 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            os: macos-15
+            os: macos-26-intel
             name: herdr-macos-x86_64
           - target: aarch64-apple-darwin
-            os: macos-15
+            os: macos-26
             name: herdr-macos-aarch64
     env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
       LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
       LIBGHOSTTY_VT_SIMD: ${{ inputs.libghostty_simd }}
 

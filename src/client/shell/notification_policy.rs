@@ -232,7 +232,7 @@ impl ClientShellState {
                     .strip_suffix(" finished")
                     .map(|agent| format!("{agent} concluiu"))
                     .unwrap_or_else(|| pending.event.title.clone()),
-                SemanticNotificationKind::UpdateInstalled => "atualização pronta".to_owned(),
+                SemanticNotificationKind::UpdateInstalled => "Atualização Pronta".to_owned(),
                 SemanticNotificationKind::Custom => pending.event.title.clone(),
             };
             match self.config.toast_delivery {
