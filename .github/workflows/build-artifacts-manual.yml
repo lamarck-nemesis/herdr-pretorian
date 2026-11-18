@@ -56,141 +56,38 @@ on:
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   RUST_TOOLCHAIN_VERSION: 1.96.1
 
 jobs:
-  build-macos:
-    if: ${{ !inputs.prova_visual && (inputs.build_group == 'macos' || inputs.build_group == 'all') }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            os: macos-26-intel
-            name: herdr-macos-aarch64
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
-      SOURCE_COMMIT: 253263bfe38f04af02d5f4c3963177c3c5adfddc
-      LIBGHOSTTY_VT_OPTIMIZE: ${{ inputs.libghostty_optimize }}
-      LIBGHOSTTY_VT_SIMD: ${{ inputs.libghostty_simd }}
-
+  verificar:
+    runs-on: macos-15
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          persist-credentials: false
-          ref: 253263bfe38f04af02d5f4c3963177c3c5adfddc
-
-      - name: Confirmar revisão fonte e ambiente
+      - name: Conferir candidato no macOS Apple Silicon
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-          git diff --exit-code HEAD
-          sw_vers
-          xcodebuild -version
-          xcrun --show-sdk-version
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
-          targets: ${{ matrix.target }}
-
-      - name: Install Zig
-        uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
-        with:
-          version: 0.16.0
-
-      - name: Install macOS build tools
-        run: brew install cmake ninja
-
-      - name: Remove Zig caches
-        run: rm -rf .zig-cache vendor/libghostty-vt/.zig-cache vendor/libghostty-vt/zig-out
-
-      - name: Build
-        run: cargo build --release --locked --target ${{ matrix.target }}
-
-      - name: Verificar execução nativa Apple Silicon
-        if: runner.arch == 'ARM64' && matrix.target == 'aarch64-apple-darwin'
-        run: |
+          set -euo pipefail
           test "$(uname -m)" = arm64
-          target/${{ matrix.target }}/release/herdr --version
-          target/${{ matrix.target }}/release/herdr --help >/dev/null
-
-      - name: Conferir deployment target e registrar proveniência
-        run: |
+          sw_vers
+          run_id=44344197817
+          repo=lamarck-nemesis/herdr-pretorian
+          gh run watch "$run_id" --repo "$repo" --exit-status --interval 45
+          gh run download "$run_id" --repo "$repo" --name herdr-macos-aarch64-ReleaseSafe-simd-false --dir candidato
+          cd candidato
           python3 - <<'PYTHON'
-          import hashlib, json, os, pathlib, struct, subprocess
-          path = pathlib.Path('target/${{ matrix.target }}/release/herdr')
-          data = path.read_bytes()
-          header = struct.unpack_from('<8I', data)
-          assert header[0] == 0xfeedfacf and header[1] == 0x0100000c, 'expected ARM64 Mach-O'
-          offset = 32
-          versions = []
-          for _ in range(header[4]):
-              command, size = struct.unpack_from('<II', data, offset)
-              if command == 0x32:
-                  platform, minimum, sdk = struct.unpack_from('<III', data, offset + 8)
-                  versions.append({'platform': platform, 'minimum': minimum, 'sdk': sdk})
-              elif command == 0x24:
-                  minimum, sdk = struct.unpack_from('<II', data, offset + 8)
-                  versions.append({'platform': 1, 'minimum': minimum, 'sdk': sdk})
-              offset += size
-          assert len(versions) == 1 and versions[0]['minimum'] == 11 << 16, versions
-          record = {'sourceCommit': os.environ['SOURCE_COMMIT'], 'workflowCommit': os.environ['GITHUB_SHA'],
-                    'runId': os.environ['GITHUB_RUN_ID'], 'runner': '${{ matrix.os }}',
-                    'target': '${{ matrix.target }}', 'deployment': versions[0],
-                    'binarySha256': hashlib.sha256(data).hexdigest(),
-                    'baselineArm64Minimum': '11.0.0', 'baselineArm64Commit': '4ffdf974bb2bb16ade632ccd9601da7e4338d70b',
-                    'crossCompiled': True, 'nativeArm64Smoke': False, 'nativeOlderMacOSSmoke': False}
-          pathlib.Path('CI_PROVENANCE.json').write_text(json.dumps(record, indent=2) + '\n')
+          import hashlib, json, pathlib
+          record = json.loads(pathlib.Path("CI_PROVENANCE.json").read_text())
+          assert record["sourceCommit"] == "253263bfe38f04af02d5f4c3963177c3c5adfddc"
+          assert record["runId"] == "44344197817"
+          digest = hashlib.sha256(pathlib.Path("herdr-macos-aarch64").read_bytes()).hexdigest()
+          assert digest == record["binarySha256"]
+          print("SHA-256", digest)
           PYTHON
-          xcrun otool -L target/${{ matrix.target }}/release/herdr > MACOS_DYLIBS.txt
-
-      - name: Package original Rust and toolchain license notices
-        run: |
-          cargo install cargo-about --version 0.9.3 --locked --features cli
-          python scripts/package_rust_licenses.py --target ${{ matrix.target }} --output RUST-LICENSES.zip
-          python scripts/package_toolchain_licenses.py --target ${{ matrix.target }} --output TOOLCHAIN-LICENSES.zip
-
-      - name: Package artifact
-        run: |
-          cp target/${{ matrix.target }}/release/herdr ${{ matrix.name }}
-          file ${{ matrix.name }} > BUILD_INFO.txt
-          {
-            echo "commit=$(git rev-parse HEAD)"
-            echo "workflow_commit=$GITHUB_SHA"
-            echo "macos_deployment_target=$MACOSX_DEPLOYMENT_TARGET"
-            echo "target=${{ matrix.target }}"
-            echo "libghostty_vt_optimize=$LIBGHOSTTY_VT_OPTIMIZE"
-            echo "libghostty_vt_simd=$LIBGHOSTTY_VT_SIMD"
-          } >> BUILD_INFO.txt
-          python3 -c "import hashlib, pathlib; artifact = pathlib.Path('${{ matrix.name }}'); print(f'sha256={hashlib.sha256(artifact.read_bytes()).hexdigest()}  {artifact.name}')" >> BUILD_INFO.txt
-
-      - name: Record notices integrity
-        run: python -c "import hashlib, pathlib; f = pathlib.Path('BUILD_INFO.txt').open('a', encoding='utf-8'); f.writelines('sha256=' + hashlib.sha256(pathlib.Path(n).read_bytes()).hexdigest() + '  ' + n + '\n' for n in ('RUST-LICENSES.zip', 'TOOLCHAIN-LICENSES.zip')); f.close()"
-
-      - name: Package Pretorian candidate
-        if: matrix.target == 'aarch64-apple-darwin'
-        run: python scripts/package_pretorian_candidate.py --platform macos-arm64 --source ${{ matrix.name }} --rust-notices RUST-LICENSES.zip --toolchain-notices TOOLCHAIN-LICENSES.zip --build-info BUILD_INFO.txt --output pretorian-candidato
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: ${{ matrix.name }}-${{ inputs.libghostty_optimize }}-simd-${{ inputs.libghostty_simd }}
-          path: |
-            ${{ matrix.name }}
-            BUILD_INFO.txt
-            CI_PROVENANCE.json
-            MACOS_DYLIBS.txt
-            RUST-LICENSES.zip
-            TOOLCHAIN-LICENSES.zip
-            pretorian-candidato/
-            LICENSE
-            vendor/libghostty-vt/LICENSE
-            vendor/portable-pty/LICENSE.md
-            packaging/licenses/
-          retention-days: 7
+          chmod +x herdr-macos-aarch64
+          ./herdr-macos-aarch64 --version
+          ./herdr-macos-aarch64 --help >/dev/null
