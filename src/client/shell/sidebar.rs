@@ -147,9 +147,9 @@ pub(in crate::client::shell) fn render_sidebar_actions(
     let menu_label = if width < 8 {
         "≡"
     } else if attention {
-        "● Menu"
+        "● Menu<<"
     } else {
-        "Menu"
+        "Menu<<"
     };
     let menu_width = if width < 8 {
         1
@@ -159,27 +159,29 @@ pub(in crate::client::shell) fn render_sidebar_actions(
         6
     };
     let compact = width < 11 + menu_width;
-    let new_label = if compact { "+" } else { " Nova Pasta" };
+    let new_label = if compact { "+" } else { "+Nova Pasta" };
     hits.new_workspace = Rect::new(area.x, area.y, if compact { 1 } else { 11 }, 1);
     hits.global_launcher = Rect::new(area.x + width - menu_width, area.y, menu_width, 1);
+    let button_style = Style::default()
+        .fg(palette.accent)
+        .bg(palette.surface0)
+        .remove_modifier(Modifier::BOLD);
+    buffer.set_style(hits.new_workspace, button_style);
+    buffer.set_style(hits.global_launcher, button_style);
     put_text(
         buffer,
         hits.new_workspace.x,
         area.y,
         hits.new_workspace.width,
         new_label,
-        Style::default().fg(palette.text),
+        button_style,
     );
     put_right_text(
         buffer,
         hits.global_launcher,
         area.y,
         menu_label,
-        Style::default().fg(if attention {
-            palette.accent
-        } else {
-            palette.text
-        }),
+        button_style,
     );
     Rect::new(area.x, area.y + 1, area.width, area.height - 1)
 }
