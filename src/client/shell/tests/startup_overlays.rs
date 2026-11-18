@@ -669,7 +669,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     state.set_snapshot(Box::new(endpoint_snapshot.clone()));
     state.set_pane_surface(surface());
     let shell = state.compose(106, 30).expect("shell frame");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
     let launcher = state.hits.global_launcher;
     let shell_buffer = shell.to_ratatui_buffer().expect("shell buffer");
     let badge_x = launcher.right().saturating_sub(6);
@@ -885,7 +885,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     installed_surface.projection_revision = 2;
     state.set_pane_surface(installed_surface);
     state.compose(106, 30).expect("installed shell");
-    assert_eq!(state.hits.global_launcher.width, 6);
+    assert_eq!(state.hits.global_launcher.width, 7);
     state.toggle_global_menu();
     let installed = state.compose(106, 30).expect("installed menu");
     let installed_text = installed
@@ -1041,7 +1041,7 @@ fn outdated_integration_badges_launcher_settings_and_settings_tab() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     let shell = state.compose(106, 30).expect("integration attention shell");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
     let shell_text = shell
         .cells
         .iter()
@@ -1085,7 +1085,7 @@ fn combined_update_and_integration_attention_preserves_both_badges() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("combined attention shell");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
 
     state.toggle_global_menu();
     let menu = state.compose(106, 30).expect("combined attention menu");
@@ -1122,7 +1122,7 @@ fn current_release_notes_use_whats_new_without_attention_badge() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("shell frame");
-    assert_eq!(state.hits.global_launcher.width, 6);
+    assert_eq!(state.hits.global_launcher.width, 7);
     state.toggle_global_menu();
     let menu = state.compose(106, 30).expect("what's new menu");
     let text = menu
