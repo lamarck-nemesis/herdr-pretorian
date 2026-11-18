@@ -9,6 +9,12 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.9.0] - 2026-11-18
+
+### Adicionado
+- O terminal apresenta o centauro autenticado, oferece edição de Sobre Você e aplica o tema pessoal fornecido pelo lançador.
+- Configurações reúne Centauro e Alertas. Nova Pasta e Nova Aba pedem o nome antes da criação.
+
 ## [0.8.0] - 2026-11-17
 
 - Atualiza os três perfis de raciocínio e as rotas do gateway de modelos.
