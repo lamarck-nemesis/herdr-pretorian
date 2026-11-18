@@ -39,7 +39,9 @@ impl NivelRaciocinio {
 
     pub fn descricao(self) -> &'static str {
         match self {
-            Self::Graduado => "Estagiário · agilidade para tarefas simples e rotinas bem definidas.",
+            Self::Graduado => {
+                "Estagiário · agilidade para tarefas simples e rotinas bem definidas."
+            }
             Self::Especialista => {
                 "Especialista (padrão) · equilíbrio entre rapidez e precisão. Use no dia a dia."
             }
