@@ -317,6 +317,7 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
             selected: 0,
             nome: TextEditor::default(),
             nome_somente_leitura: false,
+            sobre: super::super::sobre_voce::SobreVoce::default(),
             integrations: Vec::new(),
             integration_messages: Vec::new(),
             loading_integrations: false,

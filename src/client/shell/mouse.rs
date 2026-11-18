@@ -1553,7 +1553,15 @@ impl ClientShellState {
                             ..
                         }))
                     );
-                    if immediate {
+                    let about_action = index > 0
+                        && matches!(
+                            self.overlay,
+                            Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+                                section: ClientSettingsSection::SobreVoce,
+                                ..
+                            }))
+                        );
+                    if immediate || about_action {
                         self.apply_settings_choice(outcome);
                     }
                     outcome.repaint = true;

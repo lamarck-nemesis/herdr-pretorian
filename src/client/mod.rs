@@ -2387,7 +2387,8 @@ async fn run_client_loop(
                             | shell.tick_copy_feedback(now)
                             | shell.tick_workspace_highlight(now)
                             | shell.tick_endpoint_error(now)
-                            | shell.tick_autorizacao();
+                            | shell.tick_autorizacao()
+                            | shell.tick_sobre_voce(now);
                         shell.tick_arranjo(&mut outcome);
                         let frame = outcome
                             .repaint

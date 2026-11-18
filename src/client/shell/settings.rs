@@ -26,6 +26,7 @@ impl ClientShellState {
             selected: 0,
             nome: TextEditor::new(self.config.nome_usuario.as_deref().unwrap_or(""), false),
             nome_somente_leitura: std::env::var_os("PRETORIAN_NOME_CENTAURO").is_some(),
+            sobre: super::sobre_voce::SobreVoce::new(),
             integrations: Vec::new(),
             integration_messages: Vec::new(),
             loading_integrations: false,
@@ -35,7 +36,7 @@ impl ClientShellState {
 
     fn selected_index_for_settings_section(&self, section: ClientSettingsSection) -> usize {
         match section {
-            ClientSettingsSection::Usuario => 0,
+            ClientSettingsSection::Usuario | ClientSettingsSection::SobreVoce => 0,
             ClientSettingsSection::Indicators => indicator_index(self.config.status_indicators),
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
@@ -61,6 +62,9 @@ impl ClientShellState {
         if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
             settings.section = section;
             settings.selected = selected;
+            if section == ClientSettingsSection::SobreVoce {
+                settings.sobre.open();
+            }
         }
         if request_integrations {
             self.queue_integration_list(outcome, true);
@@ -86,6 +90,7 @@ impl ClientShellState {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
                 // Posição 0 é o campo do nome; as seguintes, as dependências da estação.
                 ClientSettingsSection::Usuario => 1 + super::pretorian_dependencias::itens().len(),
+                ClientSettingsSection::SobreVoce => 5,
                 ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
@@ -151,6 +156,22 @@ impl ClientShellState {
         let section = settings.section;
         let selected = settings.selected;
         match section {
+            ClientSettingsSection::SobreVoce => {
+                if selected == 4 {
+                    self.cancel_settings_overlay();
+                } else if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                    match selected {
+                        1 => settings.sobre.request(true),
+                        2 if settings.sobre.can_save() => {
+                            settings.sobre.editor.clear();
+                            settings.sobre.request(true);
+                        }
+                        3 => settings.sobre.request(false),
+                        _ => {}
+                    }
+                }
+                outcome.repaint = true;
+            }
             ClientSettingsSection::Usuario if selected > 0 => {
                 let itens = super::pretorian_dependencias::itens();
                 if let Some(item) = itens.get(selected - 1).filter(|item| item.aceita_pedido()) {
@@ -339,6 +360,9 @@ impl ClientShellState {
             }
             return true;
         }
+        if self.route_settings_sobre_key(key, code, modifiers, outcome) {
+            return true;
+        }
         if self.route_settings_nome_key(key, code, modifiers, outcome) {
             return true;
         }
@@ -368,6 +392,59 @@ impl ClientShellState {
             self.apply_settings_choice(outcome);
             return true;
         }
+        true
+    }
+
+    fn route_settings_sobre_key(
+        &mut self,
+        key: &crate::input::TerminalKey,
+        code: KeyCode,
+        modifiers: KeyModifiers,
+        outcome: &mut ClientShellInput,
+    ) -> bool {
+        let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_ref() else {
+            return false;
+        };
+        if settings.section != ClientSettingsSection::SobreVoce {
+            return false;
+        }
+        if code == KeyCode::Tab && modifiers.contains(KeyModifiers::CONTROL) {
+            self.move_settings_section(
+                if modifiers.contains(KeyModifiers::SHIFT) {
+                    -1
+                } else {
+                    1
+                },
+                outcome,
+            );
+        } else if code == KeyCode::Tab || code == KeyCode::BackTab {
+            if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                settings.selected = (settings.selected
+                    + if code == KeyCode::BackTab || modifiers.contains(KeyModifiers::SHIFT) {
+                        4
+                    } else {
+                        1
+                    })
+                    % 5;
+            }
+        } else if modifiers == KeyModifiers::CONTROL
+            && matches!(code, KeyCode::Char('s') | KeyCode::Char('r'))
+        {
+            if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                settings.sobre.request(code == KeyCode::Char('s'));
+            }
+        } else if settings.selected == 0 {
+            if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                settings.sobre.key(key);
+            }
+        } else if code == KeyCode::Enter {
+            self.apply_settings_choice(outcome);
+        } else if code == KeyCode::Left {
+            self.move_settings_selection(-1);
+        } else if code == KeyCode::Right {
+            self.move_settings_selection(1);
+        }
+        outcome.repaint = true;
         true
     }
 

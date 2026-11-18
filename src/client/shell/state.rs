@@ -411,6 +411,7 @@ pub(super) struct ClientGlobalMenuOverlay {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientSettingsSection {
     Usuario,
+    SobreVoce,
     Indicators,
     Sound,
     Toast,
@@ -424,11 +425,13 @@ impl ClientSettingsSection {
         Self::Sound,
         Self::Toast,
         Self::Integrations,
+        Self::SobreVoce,
     ];
 
     pub(super) fn label(self) -> &'static str {
         match self {
             Self::Usuario => "usuário",
+            Self::SobreVoce => "Sobre você",
             Self::Indicators => "indicadores",
             Self::Sound => "som",
             Self::Toast => "avisos",
@@ -443,6 +446,7 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) selected: usize,
     pub(super) nome: TextEditor,
     pub(super) nome_somente_leitura: bool,
+    pub(super) sobre: super::sobre_voce::SobreVoce,
     pub(super) integrations: Vec<crate::api::schema::IntegrationInfo>,
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,

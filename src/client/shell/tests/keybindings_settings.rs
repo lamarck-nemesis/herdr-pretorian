@@ -1155,3 +1155,58 @@ fn nome_centauro_somente_leitura_nao_edita_cola_nem_oferece_salvar() {
     };
     assert_eq!(settings.nome.as_str(), "Pessoa sintética");
 }
+
+#[test]
+fn sobre_voce_editor_multiline_foco_botoes_e_indisponivel_sem_ponte() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.select_settings_section(
+        ClientSettingsSection::SobreVoce,
+        &mut ClientShellInput::default(),
+    );
+    state.insert_overlay_text("Trajetória\nGostos 😀");
+    state.handle_input_bytes(b"\r");
+    state.handle_input_bytes(b"Preferencias");
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("configurações");
+    };
+    assert_eq!(
+        settings.sobre.editor.as_str(),
+        "Trajetória\nGostos 😀\nPreferencias"
+    );
+    assert_eq!(settings.sobre.status, "unavailable");
+    let texto = texto_do_quadro(&mut state);
+    assert!(texto.contains("O que você gostaria"));
+    assert!(texto.contains("Indisponível"));
+    assert!(texto.contains("Salvar") && texto.contains("Apagar") && texto.contains("Recarregar"));
+    state.handle_input_bytes(b"\t");
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("configurações");
+    };
+    assert_eq!(settings.selected, 1);
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("configurações");
+    };
+    assert_eq!(
+        settings.sobre.editor.as_str(),
+        "Trajetória\nGostos 😀\nPreferencias"
+    );
+}
+
+#[test]
+fn sobre_voce_janela_baixa_nao_desenha_fora_da_tela() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_settings_overlay();
+    state.select_settings_section(
+        ClientSettingsSection::SobreVoce,
+        &mut ClientShellInput::default(),
+    );
+    for height in [10, 12, 16, 20, 24, 30] {
+        let _ = state.compose(80, height);
+    }
+}

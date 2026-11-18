@@ -42,7 +42,9 @@ pub(super) fn render_settings_overlay(
     let integration_height = 14u16
         .saturating_add(settings.integrations.len().max(1) as u16)
         .saturating_add(settings.integration_messages.len().min(6) as u16);
-    let height = if settings.section == ClientSettingsSection::Integrations {
+    let height = if settings.section == ClientSettingsSection::SobreVoce {
+        30
+    } else if settings.section == ClientSettingsSection::Integrations {
         integration_height.max(22)
     } else {
         22
@@ -131,6 +133,9 @@ pub(super) fn render_settings_overlay(
     let mut choice_hits = Vec::new();
     let mut cursor = None;
     match settings.section {
+        ClientSettingsSection::SobreVoce => {
+            cursor = render_sobre_section(buffer, content, settings, palette, &mut choice_hits);
+        }
         ClientSettingsSection::Usuario => {
             cursor = render_usuario_section(buffer, content, settings, palette, &mut choice_hits);
         }
@@ -176,6 +181,42 @@ pub(super) fn render_settings_overlay(
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }
+    }
+
+    if settings.section == ClientSettingsSection::SobreVoce {
+        let buttons = row(inner, &[12, 12, 16, 12], 1, inner.height.saturating_sub(1));
+        for (index, (rect, label)) in buttons
+            .iter()
+            .zip(["Salvar", "Apagar", "Recarregar", "Fechar"])
+            .enumerate()
+        {
+            button(
+                buffer,
+                *rect,
+                label,
+                choice_style(settings.selected == index + 1, palette),
+            );
+            choice_hits.push((*rect, index + 1));
+        }
+        put_text(
+            buffer,
+            inner.x,
+            inner.bottom().saturating_sub(2),
+            inner.width,
+            "Tab foco · Ctrl+Tab seção · Ctrl+S salvar · Ctrl+R recarregar",
+            Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+        );
+        return Some(OverlayRender {
+            area: popup,
+            primary: buttons[0],
+            clear: buttons[1],
+            cancel: buttons[3],
+            settings_popup: popup,
+            settings_tabs: tab_hits,
+            settings_choices: choice_hits,
+            cursor: cursor.filter(|_| settings.selected == 0),
+            ..OverlayRender::default()
+        });
     }
 
     let installable = settings
@@ -603,4 +644,74 @@ fn render_integrations(
             Style::default().fg(palette.overlay1).bg(palette.panel_bg),
         );
     }
+}
+
+fn render_sobre_section(
+    buffer: &mut Buffer,
+    area: Rect,
+    settings: &ClientSettingsOverlay,
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) -> Option<crate::protocol::CursorState> {
+    use ratatui::widgets::{Paragraph, Widget, Wrap};
+    if area.height < 10 {
+        put_text(
+            buffer,
+            area.x,
+            area.y,
+            area.width,
+            "Amplie a janela para editar Sobre você.",
+            Style::default().fg(palette.text).bg(palette.panel_bg),
+        );
+        return None;
+    }
+    let text = Style::default().fg(palette.text).bg(palette.panel_bg);
+    let detail = Style::default().fg(palette.subtext0).bg(palette.panel_bg);
+    Paragraph::new("O que você gostaria que seu agente soubesse sobre você?")
+        .style(text.add_modifier(Modifier::BOLD))
+        .wrap(Wrap { trim: false })
+        .render(Rect::new(area.x, area.y, area.width, 2), buffer);
+    Paragraph::new(
+        "Conte sobre sua trajetória, gostos, comunicação, apelidos e o que prefere evitar.",
+    )
+    .style(detail)
+    .wrap(Wrap { trim: false })
+    .render(Rect::new(area.x, area.y + 2, area.width, 2), buffer);
+    Paragraph::new("Seu agente usará essas informações para personalizar as conversas. Você pode editar ou apagar quando quiser.").style(detail).wrap(Wrap { trim: false }).render(Rect::new(area.x, area.y + 4, area.width, 3), buffer);
+    if area.height < 10 {
+        return None;
+    }
+    let input = Rect::new(
+        area.x,
+        area.y + 7,
+        area.width,
+        area.height.saturating_sub(10).max(1),
+    );
+    hits.push((input, 0));
+    let cursor = text_editor::render_multiline(
+        buffer,
+        input,
+        &settings.sobre.editor,
+        Style::default().fg(palette.text).bg(palette.surface0),
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.bottom() - 2,
+        area.width,
+        settings.sobre.feedback(),
+        detail,
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.bottom() - 1,
+        area.width,
+        &format!(
+            "{} / 4.000 caracteres",
+            settings.sobre.editor.chars().count()
+        ),
+        detail,
+    );
+    cursor
 }

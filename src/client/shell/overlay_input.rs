@@ -466,6 +466,14 @@ impl ClientShellState {
                 true
             }
             Some(ClientShellOverlay::Settings(settings))
+                if settings.section == ClientSettingsSection::SobreVoce =>
+            {
+                if settings.selected == 0 {
+                    settings.sobre.insert(text);
+                }
+                true
+            }
+            Some(ClientShellOverlay::Settings(settings))
                 if settings.section == ClientSettingsSection::Usuario =>
             {
                 if settings.selected == 0 && !settings.nome_somente_leitura {
