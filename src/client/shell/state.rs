@@ -943,6 +943,7 @@ pub(crate) struct ClientShellState {
     pub(super) overlay: Option<ClientShellOverlay>,
     pub(super) previous_pane_id: Option<String>,
     pub(super) pane_mouse_gesture: Option<ClientPaneMouseGesture>,
+    pub(super) sidebar_action_hover: Option<super::sidebar::SidebarAction>,
     pub(super) link_hover: Option<super::link_hover::LinkHover>,
     pub(super) url_click_consumes_until_up: bool,
     /// The host terminal reports key releases (Kitty event types), so text
@@ -1119,6 +1120,7 @@ impl ClientShellState {
             overlay,
             previous_pane_id: None,
             pane_mouse_gesture: None,
+            sidebar_action_hover: None,
             link_hover: None,
             url_click_consumes_until_up: false,
             host_reports_key_releases: false,

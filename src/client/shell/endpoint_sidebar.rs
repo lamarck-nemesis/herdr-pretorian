@@ -27,7 +27,14 @@ pub(super) fn render_collapsed(
             .iter()
             .filter_map(|endpoint| endpoint.snapshot.as_deref())
             .any(super::global_menu::global_menu_attention);
-        super::sidebar::render_sidebar_actions(buffer, area, attention, palette, hits)
+        super::sidebar::render_sidebar_actions(
+            buffer,
+            area,
+            attention,
+            palette,
+            state.sidebar_action,
+            hits,
+        )
     } else {
         area
     };
@@ -289,6 +296,7 @@ pub(super) fn render_expanded(
             workspace_area,
             active_snapshot.is_some_and(super::global_menu::global_menu_attention),
             palette,
+            state.sidebar_action,
             hits,
         )
     } else {

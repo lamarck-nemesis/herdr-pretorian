@@ -80,14 +80,14 @@ use terminal_setup::{
     TerminalGuard,
 };
 
-/// Os temas Pretorian e Pink são claros e fixos: impõem fundo e texto ao terminal hospedeiro para os
+/// Os temas Pretorian, Pink e ZenDataOps são claros e fixos: impõem fundo e texto ao terminal hospedeiro para os
 /// painéis não herdarem o fundo escuro do terminal. Outros temas seguem o hospedeiro.
 fn host_default_colors_for_theme(config: &crate::config::Config) -> Option<HostDefaultColors> {
     let runtime = crate::app::client_theme_runtime_from_config(config);
     if runtime.auto_switch
         || !matches!(
             crate::config::canonical_theme_name(&runtime.manual_name),
-            Some("pretorian" | "pink")
+            Some("pretorian" | "pink" | "zendataops")
         )
     {
         return None;

@@ -133,55 +133,78 @@ fn render_janela_secundaria(
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::client::shell) enum SidebarAction {
+    NewWorkspace,
+    Menu,
+}
+
 pub(in crate::client::shell) fn render_sidebar_actions(
     buffer: &mut Buffer,
     area: Rect,
     attention: bool,
     palette: &Palette,
+    active: Option<SidebarAction>,
     hits: &mut ShellHitMap,
 ) -> Rect {
     let width = area.width.saturating_sub(1);
     if width < 3 || area.height == 0 {
         return area;
     }
-    let menu_label = if width < 8 {
-        "≡"
-    } else if attention {
-        "● Menu<<"
-    } else {
-        "Menu<<"
-    };
-    let menu_width = if width < 8 {
+    let menu_width = if width < 11 {
         1
     } else if attention {
-        8.min(width.saturating_sub(11).max(6))
+        9
     } else {
-        6
+        7
     };
-    let compact = width < 11 + menu_width;
-    let new_label = if compact { "+" } else { "+Nova Pasta" };
-    hits.new_workspace = Rect::new(area.x, area.y, if compact { 1 } else { 11 }, 1);
+    let compact = width < 14 + menu_width;
+    let new_width = if compact { 1 } else { 13 };
+    hits.new_workspace = Rect::new(area.x, area.y, new_width, 1);
     hits.global_launcher = Rect::new(area.x + width - menu_width, area.y, menu_width, 1);
-    let button_style = Style::default()
+    let new_style = Style::default()
         .fg(palette.accent)
-        .bg(palette.surface0)
+        .bg(if active == Some(SidebarAction::NewWorkspace) {
+            palette.selection_bg
+        } else {
+            palette.surface0
+        })
         .remove_modifier(Modifier::BOLD);
-    buffer.set_style(hits.new_workspace, button_style);
-    buffer.set_style(hits.global_launcher, button_style);
+    let menu_style = Style::default()
+        .fg(if attention {
+            palette.accent
+        } else {
+            palette.subtext0
+        })
+        .bg(if active == Some(SidebarAction::Menu) {
+            palette.surface1
+        } else {
+            palette.sidebar_bg
+        })
+        .remove_modifier(Modifier::BOLD);
+    buffer.set_style(hits.new_workspace, new_style);
+    buffer.set_style(hits.global_launcher, menu_style);
     put_text(
         buffer,
         hits.new_workspace.x,
         area.y,
-        hits.new_workspace.width,
-        new_label,
-        button_style,
+        new_width,
+        if compact { "+" } else { " + Nova Pasta" },
+        new_style,
     );
-    put_right_text(
+    put_text(
         buffer,
-        hits.global_launcher,
+        hits.global_launcher.x,
         area.y,
-        menu_label,
-        button_style,
+        menu_width,
+        if menu_width == 1 {
+            "▾"
+        } else if attention {
+            "● Menu ▾"
+        } else {
+            "Menu ▾"
+        },
+        menu_style,
     );
     Rect::new(area.x, area.y + 1, area.width, area.height - 1)
 }
@@ -192,6 +215,7 @@ pub(crate) fn render_collapsed_sidebar(
     snapshot: &ClientShellSnapshot,
     config: &ClientShellConfig,
     selected_workspace_id: Option<&str>,
+    active_action: Option<SidebarAction>,
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
@@ -204,6 +228,7 @@ pub(crate) fn render_collapsed_sidebar(
             area,
             super::super::global_menu::global_menu_attention(snapshot),
             palette,
+            active_action,
             hits,
         )
     } else {
@@ -422,6 +447,7 @@ pub(crate) fn render_sidebar(
             workspace_area,
             super::super::global_menu::global_menu_attention(snapshot),
             palette,
+            state.sidebar_action,
             hits,
         )
     } else {

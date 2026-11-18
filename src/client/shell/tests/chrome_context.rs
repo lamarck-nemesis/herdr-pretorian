@@ -1060,3 +1060,93 @@ fn dialogo_nome_mantem_salvar_cancelar_e_limpeza_pelo_teclado() {
     state.handle_input_bytes(b"\x03");
     assert!(state.handle_input_bytes(b"\r").actions.is_empty());
 }
+
+#[test]
+fn botoes_das_pastas_tem_hierarquia_hover_foco_e_clique() {
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    for theme in ["pretorian", "pink", "zendataops"] {
+        let mut config = Config::default();
+        config.theme.name = Some(theme.into());
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(surface());
+        let frame = state.compose(140, 30).unwrap();
+        let new = state.hits.new_workspace;
+        let menu = state.hits.global_launcher;
+        let palette = &state.config.palette;
+        let buffer = frame.to_ratatui_buffer().unwrap();
+        assert_eq!(buffer[(new.x, new.y)].bg, palette.surface0);
+        assert_eq!(buffer[(menu.x, menu.y)].bg, palette.sidebar_bg);
+        let text = frame_rows(&frame.frame).join("\n");
+        assert!(text.contains("+ Nova Pasta") && text.contains("Menu ▾"));
+        for (target, expected, is_menu) in [
+            (new, state.config.palette.selection_bg, false),
+            (menu, state.config.palette.surface1, true),
+        ] {
+            let event = MouseEvent {
+                kind: MouseEventKind::Moved,
+                column: target.x,
+                row: target.y,
+                modifiers: KeyModifiers::NONE,
+            };
+            assert!(
+                state
+                    .handle_raw_events(vec![RawInputEvent::Mouse(event)])
+                    .repaint
+            );
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(target.x, target.y)].bg,
+                expected
+            );
+            state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                ..event
+            })]);
+            assert!(if is_menu {
+                matches!(state.overlay, Some(ClientShellOverlay::GlobalMenu(_)))
+            } else {
+                matches!(state.overlay, Some(ClientShellOverlay::Rename(_)))
+            });
+            state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+                column: 139,
+                row: 29,
+                ..event
+            })]);
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(target.x, target.y)].bg,
+                expected
+            );
+            state.handle_input_bytes(b"\x1b");
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(menu.x, menu.y)].bg,
+                state.config.palette.sidebar_bg
+            );
+        }
+    }
+}
+
+#[test]
+fn botoes_compactos_preservam_alvos_separados_com_alerta() {
+    for width in 4..42 {
+        for attention in [false, true] {
+            let area = Rect::new(0, 0, width, 4);
+            let mut buffer = ratatui::buffer::Buffer::empty(area);
+            let mut hits = ShellHitMap::default();
+            super::super::sidebar::render_sidebar_actions(
+                &mut buffer,
+                area,
+                attention,
+                &Palette::pretorian(),
+                None,
+                &mut hits,
+            );
+            assert!(hits.new_workspace.right() < hits.global_launcher.x);
+            assert!(hits.global_launcher.right() < area.right());
+            assert_eq!(hits.new_workspace.height, 1);
+            assert_eq!(hits.global_launcher.height, 1);
+        }
+    }
+}

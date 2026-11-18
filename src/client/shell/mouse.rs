@@ -685,6 +685,19 @@ impl ClientShellState {
     pub(super) fn handle_mouse(&mut self, mouse: MouseEvent, outcome: &mut ClientShellInput) {
         self.update_link_hover(mouse, outcome);
         let point = (mouse.column, mouse.row);
+        let hovered = if self.overlay.is_some() {
+            None
+        } else if super::contains(self.hits.new_workspace, point) {
+            Some(super::sidebar::SidebarAction::NewWorkspace)
+        } else if super::contains(self.hits.global_launcher, point) {
+            Some(super::sidebar::SidebarAction::Menu)
+        } else {
+            None
+        };
+        if self.sidebar_action_hover != hovered {
+            self.sidebar_action_hover = hovered;
+            outcome.repaint = true;
+        }
         if self.mode == ClientShellMode::Navigate
             && self.workspace_preview_action_blocked()
             && self.overlay.is_none()

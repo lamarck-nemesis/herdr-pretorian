@@ -258,11 +258,11 @@ fn theme_runtime_config_with_selection(
     use_legacy_ui_accent: bool,
     selection: Option<&str>,
 ) -> state::ThemeRuntimeConfig {
-    if selection == Some("pink") {
+    if let Some(name @ ("pink" | "zendataops")) = selection {
         return state::ThemeRuntimeConfig {
-            manual_name: "pink".into(),
-            dark_name: "pink".into(),
-            light_name: "pink".into(),
+            manual_name: name.into(),
+            dark_name: name.into(),
+            light_name: name.into(),
             auto_switch: false,
             custom: None,
             legacy_accent: None,
@@ -1172,6 +1172,35 @@ mod tests {
             assert_eq!(
                 resolve_effective_theme(&runtime, appearance),
                 (state::Palette::pink(), "pink".into())
+            );
+        }
+        for selection in [None, Some(""), Some("desconhecido")] {
+            let runtime = theme_runtime_config_with_selection(&Config::default(), true, selection);
+            assert_eq!(
+                resolve_effective_theme(&runtime, None),
+                (state::Palette::pretorian(), "pretorian".into())
+            );
+        }
+    }
+    #[test]
+    fn zendataops_selecionado_ignora_overrides_e_aparencia_do_hospedeiro() {
+        let mut config = Config::default();
+        config.theme.auto_switch = true;
+        config.theme.custom = Some(crate::config::CustomThemeColors {
+            panel_bg: Some("#ffffff".into()),
+            accent: Some("#464c65".into()),
+            ..Default::default()
+        });
+        config.ui.accent = "blue".into();
+        let runtime = theme_runtime_config_with_selection(&config, true, Some("zendataops"));
+        for appearance in [
+            None,
+            Some(crate::terminal_theme::HostAppearance::Dark),
+            Some(crate::terminal_theme::HostAppearance::Light),
+        ] {
+            assert_eq!(
+                resolve_effective_theme(&runtime, appearance),
+                (state::Palette::zendataops(), "zendataops".into())
             );
         }
         for selection in [None, Some(""), Some("desconhecido")] {
