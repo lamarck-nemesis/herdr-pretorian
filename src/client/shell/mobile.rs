@@ -582,6 +582,25 @@ fn mobile_items(
 ) -> Vec<MobileItem> {
     let palette = &config.palette;
     let mut items = Vec::new();
+    items.push(MobileItem::action(
+        "  + Nova Pasta",
+        ClientMobileTarget::NewWorkspace,
+        palette,
+    ));
+    items.push(MobileItem::section("Menu", palette));
+    for (index, (label, _)) in super::global_menu::global_menu_items(snapshot)
+        .into_iter()
+        .enumerate()
+    {
+        items.push(MobileItem {
+            lines: vec![Line::from(Span::styled(
+                format!("  {label}"),
+                Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+            ))],
+            background: palette.panel_bg,
+            target: Some(ClientMobileTarget::Menu(index)),
+        });
+    }
     if endpoints.len() > 1 {
         items.push(MobileItem::section("máquinas", palette));
         for endpoint in endpoints {
@@ -751,11 +770,6 @@ fn mobile_items(
     }
 
     items.push(MobileItem::section("Espaços", palette));
-    items.push(MobileItem::action(
-        "  + Nova Pasta",
-        ClientMobileTarget::NewWorkspace,
-        palette,
-    ));
     for endpoint in super::aggregate_navigation::cached_endpoint_snapshots(endpoints) {
         for entry in super::render::workspace_entries(endpoint.snapshot, &HashSet::new()) {
             let Some(workspace) = endpoint.snapshot.workspaces.get(entry.index) else {
@@ -926,20 +940,6 @@ fn mobile_items(
         }
     }
 
-    items.push(MobileItem::section("Menu", palette));
-    for (index, (label, _)) in super::global_menu::global_menu_items(snapshot)
-        .into_iter()
-        .enumerate()
-    {
-        items.push(MobileItem {
-            lines: vec![Line::from(Span::styled(
-                format!("  {label}"),
-                Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-            ))],
-            background: palette.panel_bg,
-            target: Some(ClientMobileTarget::Menu(index)),
-        });
-    }
     items
 }
 

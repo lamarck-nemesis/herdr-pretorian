@@ -83,7 +83,7 @@ fn render_janela_secundaria(
         area.x,
         area.y,
         area.width,
-        " Janela secundária",
+        " Janela Secundária",
         Style::default()
             .fg(palette.text)
             .add_modifier(Modifier::BOLD),
@@ -133,6 +133,57 @@ fn render_janela_secundaria(
     }
 }
 
+pub(in crate::client::shell) fn render_sidebar_actions(
+    buffer: &mut Buffer,
+    area: Rect,
+    attention: bool,
+    palette: &Palette,
+    hits: &mut ShellHitMap,
+) -> Rect {
+    let width = area.width.saturating_sub(1);
+    if width < 3 || area.height == 0 {
+        return area;
+    }
+    let menu_label = if width < 8 {
+        "≡"
+    } else if attention {
+        "● Menu"
+    } else {
+        "Menu"
+    };
+    let menu_width = if width < 8 {
+        1
+    } else if attention {
+        8.min(width.saturating_sub(11).max(6))
+    } else {
+        6
+    };
+    let compact = width < 11 + menu_width;
+    let new_label = if compact { "+" } else { " Nova Pasta" };
+    hits.new_workspace = Rect::new(area.x, area.y, if compact { 1 } else { 11 }, 1);
+    hits.global_launcher = Rect::new(area.x + width - menu_width, area.y, menu_width, 1);
+    put_text(
+        buffer,
+        hits.new_workspace.x,
+        area.y,
+        hits.new_workspace.width,
+        new_label,
+        Style::default().fg(palette.text),
+    );
+    put_right_text(
+        buffer,
+        hits.global_launcher,
+        area.y,
+        menu_label,
+        Style::default().fg(if attention {
+            palette.accent
+        } else {
+            palette.text
+        }),
+    );
+    Rect::new(area.x, area.y + 1, area.width, area.height - 1)
+}
+
 pub(crate) fn render_collapsed_sidebar(
     buffer: &mut Buffer,
     area: Rect,
@@ -145,8 +196,25 @@ pub(crate) fn render_collapsed_sidebar(
     let selection_background = workspace_selection_background(palette);
     let active_background = workspace_active_background(palette, selected_workspace_id.is_some());
     render_sidebar_background(buffer, area, palette);
+    let content = if config.mouse_capture {
+        render_sidebar_actions(
+            buffer,
+            area,
+            super::super::global_menu::global_menu_attention(snapshot),
+            palette,
+            hits,
+        )
+    } else {
+        area
+    };
+    let content = Rect {
+        height: content
+            .height
+            .saturating_sub(u16::from(!config.show_agent_panel)),
+        ..content
+    };
     let (workspace_area, divider_y, detail_area) =
-        collapsed_sidebar_sections(area, config.show_agent_panel);
+        collapsed_sidebar_sections(content, config.show_agent_panel);
     for (index, workspace) in snapshot
         .workspaces
         .iter()
@@ -338,13 +406,32 @@ pub(crate) fn render_sidebar(
         expanded_sidebar_sections(area, state.sidebar_section_split, dividir);
     hits.sidebar_section_divider = section_divider;
     let header_rows = render_centauro_header(buffer, workspace_area, config);
+    let workspace_area = Rect::new(
+        workspace_area.x,
+        workspace_area
+            .y
+            .saturating_add(header_rows.min(workspace_area.height)),
+        workspace_area.width,
+        workspace_area.height.saturating_sub(header_rows),
+    );
+    let workspace_area = if config.mouse_capture {
+        render_sidebar_actions(
+            buffer,
+            workspace_area,
+            super::super::global_menu::global_menu_attention(snapshot),
+            palette,
+            hits,
+        )
+    } else {
+        workspace_area
+    };
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(header_rows),
+        workspace_area.y,
         workspace_area.width,
-        workspace_area.height.saturating_sub(header_rows + 1),
+        workspace_area.height.saturating_sub(1),
     );
     hits.workspace_body = body;
     let row_heights = entries
@@ -484,66 +571,6 @@ pub(crate) fn render_sidebar(
             &"─".repeat(body.width as usize),
             Style::default().fg(palette.accent),
         );
-    }
-
-    let footer_y = workspace_area.bottom().saturating_sub(1);
-    // As duas últimas colunas da linha são do botão de recolher a barra.
-    let footer_area = Rect {
-        width: workspace_area.width.saturating_sub(2),
-        ..workspace_area
-    };
-    if config.mouse_capture {
-        hits.new_workspace = Rect::new(
-            workspace_area.x,
-            footer_y,
-            11.min(workspace_area.width),
-            u16::from(workspace_area.height > 0),
-        );
-        put_text(
-            buffer,
-            workspace_area.x,
-            footer_y,
-            workspace_area.width,
-            " Nova Pasta",
-            Style::default().fg(palette.overlay0),
-        );
-        let attention = super::super::global_menu::global_menu_attention(snapshot);
-        let launcher_width = if attention { 8 } else { 6 }.min(workspace_area.width);
-        hits.global_launcher = Rect::new(
-            footer_area.right().saturating_sub(launcher_width),
-            footer_y,
-            launcher_width,
-            1,
-        );
-        if attention {
-            let start_x = footer_area.right().saturating_sub(6);
-            put_text(
-                buffer,
-                start_x,
-                footer_y,
-                2,
-                "● ",
-                Style::default()
-                    .fg(palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            );
-            put_text(
-                buffer,
-                start_x.saturating_add(2),
-                footer_y,
-                4,
-                "Menu",
-                Style::default().fg(palette.overlay0),
-            );
-        } else {
-            put_right_text(
-                buffer,
-                footer_area,
-                footer_y,
-                "Menu",
-                Style::default().fg(palette.overlay0),
-            );
-        }
     }
 
     hits.janela_secundaria = Rect::default();

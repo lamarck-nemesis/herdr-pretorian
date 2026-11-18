@@ -44,16 +44,13 @@ impl ClientGlobalMenuOverlay {
                 items.push(("Fechar / Cancelar Autorização", A::Pagina(P::Raciocinio)));
                 items
             }
-            P::NovaAba => std::iter::once((
-                "Nível Técnico da Nova Aba · tecle 1 a 3 · Esc cancela",
-                A::Nada,
-            ))
-            .chain(
-                crate::config::NivelRaciocinio::TODOS
-                    .into_iter()
-                    .map(|n| (n.rotulo_numerado(), A::NovaAba(n))),
-            )
-            .collect(),
+            P::NovaAba => std::iter::once(("Nível da Nova Aba", A::Nada))
+                .chain(
+                    crate::config::NivelRaciocinio::TODOS
+                        .into_iter()
+                        .map(|n| (n.rotulo_numerado(), A::NovaAba(n))),
+                )
+                .collect(),
             P::Principal => global_menu_items(snapshot),
             P::Layout(atual) => super::arranjo::Arranjo::TODOS
                 .into_iter()
@@ -67,14 +64,8 @@ impl ClientGlobalMenuOverlay {
                 ("Voltar", A::Pagina(P::Principal)),
             ],
             P::LoginPje => vec![
-                (
-                    "Modo Headless: Ligado (Login sem Janela)",
-                    A::PjeSemJanela(true),
-                ),
-                (
-                    "Modo Headless: Desligado (Acompanhar na Janela)",
-                    A::PjeSemJanela(false),
-                ),
+                ("Login sem Janela", A::PjeSemJanela(true)),
+                ("Login com Janela", A::PjeSemJanela(false)),
                 ("Voltar", A::Pagina(P::Principal)),
             ],
             P::Trocar => self

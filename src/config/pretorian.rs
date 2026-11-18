@@ -11,10 +11,7 @@ pub const MARCA: &str = "LSA • prεtοrιαn";
 pub const SEPARADOR: &str = " │ ";
 /// Assinatura do Lamarck Hub, mostrada à direita da barra de abas.
 pub fn assinatura() -> String {
-    format!(
-        "⌘ nεαd.tεch │ v. {}",
-        crate::build_info::pretorian_version()
-    )
+    format!("nεαd.tεch │ v. {}", crate::build_info::pretorian_version())
 }
 
 /// Seção `[pretorian]` própria deste fork; fica fora de `[ui]` para não colidir com chaves do

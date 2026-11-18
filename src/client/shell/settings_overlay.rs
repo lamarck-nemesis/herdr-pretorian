@@ -223,14 +223,6 @@ pub(super) fn render_settings_overlay(
                 choice_hits.push((rect, *index));
             }
         }
-        put_text(
-            buffer,
-            inner.x,
-            inner.bottom().saturating_sub(2),
-            inner.width,
-            "Ctrl+S Salvar · Ctrl+R Recarregar",
-            Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-        );
         return Some(OverlayRender {
             area: popup,
             cancel: close,
@@ -246,7 +238,8 @@ pub(super) fn render_settings_overlay(
         .integrations
         .iter()
         .any(super::super::settings::integration_needs_install);
-    let show_primary = (settings.section != ClientSettingsSection::Integrations || installable)
+    let show_primary = settings.section != ClientSettingsSection::Sound
+        && (settings.section != ClientSettingsSection::Integrations || installable)
         && !(settings.section == ClientSettingsSection::Usuario
             && settings.selected == 0
             && settings.nome_somente_leitura);
@@ -258,11 +251,11 @@ pub(super) fn render_settings_overlay(
             buffer,
             primary,
             if settings.section == ClientSettingsSection::Integrations {
-                " ↵ instalar "
+                "instalar"
             } else if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
-                " ↵ executar "
+                "executar"
             } else {
-                " ↵ Aplicar "
+                "Aplicar"
             },
             Style::default()
                 .fg(contrast(palette))
@@ -276,31 +269,12 @@ pub(super) fn render_settings_overlay(
     button(
         buffer,
         close,
-        " esc Fechar ",
+        "Fechar",
         Style::default()
             .fg(palette.text)
             .bg(palette.surface0)
             .add_modifier(Modifier::BOLD),
     );
-    put_text(
-        buffer,
-        inner.x,
-        inner.bottom().saturating_sub(2),
-        inner.width,
-        if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
-            " ↑↓ selecionar  ↵ executar  tab seção"
-        } else if settings.section == ClientSettingsSection::Usuario
-            && settings.nome_somente_leitura
-        {
-            " ↓ dependências  tab seção"
-        } else if settings.section == ClientSettingsSection::Usuario {
-            " digite o nome  ↓ dependências  ^c limpar  tab seção"
-        } else {
-            " ↑↓ selecionar  tab seção"
-        },
-        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-    );
-
     Some(OverlayRender {
         area: popup,
         primary,

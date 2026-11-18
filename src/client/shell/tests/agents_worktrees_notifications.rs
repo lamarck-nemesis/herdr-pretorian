@@ -8,11 +8,12 @@ fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
     state.set_pane_surface(surface());
     state.compose(106, 20).expect("composed frame");
 
+    let workspace_y = state.hits.workspaces[0].rect.y;
     let workspace_down =
         state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: 2,
-            row: 2,
+            row: workspace_y,
             modifiers: KeyModifiers::empty(),
         })]);
     assert!(workspace_down.actions.is_empty());
@@ -20,7 +21,7 @@ fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
         state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
             kind: MouseEventKind::Up(MouseButton::Left),
             column: 2,
-            row: 2,
+            row: workspace_y,
             modifiers: KeyModifiers::empty(),
         })]);
     assert!(workspace.requests.is_empty());

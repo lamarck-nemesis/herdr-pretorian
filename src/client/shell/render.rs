@@ -305,7 +305,6 @@ pub(super) fn render_shell(
                 &mut hits,
             );
         } else {
-            // A última linha da barra leva a assinatura; "nova pasta · menu" fica logo acima.
             let assinatura = (layout.sidebar.height > 6).then(|| Rect {
                 y: layout.sidebar.bottom() - 1,
                 height: 1,
@@ -322,7 +321,10 @@ pub(super) fn render_shell(
                     buffer,
                     linha.x + 1,
                     linha.y,
-                    &crate::config::assinatura(),
+                    &crate::ui::truncate_end(
+                        &crate::config::assinatura(),
+                        usize::from(linha.width.saturating_sub(2)),
+                    ),
                     &config.palette,
                     config.palette.sidebar_bg,
                 );

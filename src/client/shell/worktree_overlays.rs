@@ -76,7 +76,7 @@ pub(super) fn render_worktree_create_overlay(
     button(
         b,
         *primary,
-        " ↵ Criar e Abrir ",
+        "Criar e Abrir",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -85,7 +85,7 @@ pub(super) fn render_worktree_create_overlay(
     button(
         b,
         *cancel,
-        " esc Cancelar ",
+        "Cancelar",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -275,7 +275,7 @@ pub(super) fn render_worktree_open_overlay(
     button(
         b,
         *primary,
-        " ↵ Abrir ",
+        "Abrir",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -284,7 +284,7 @@ pub(super) fn render_worktree_open_overlay(
     button(
         b,
         *cancel,
-        " esc Cancelar ",
+        "Cancelar",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -384,9 +384,9 @@ pub(super) fn render_worktree_remove_overlay(
         b,
         *primary,
         if remove.force_confirmation {
-            " ↵ Apagar Mesmo Assim "
+            "Apagar Mesmo Assim"
         } else {
-            " ↵ Remover "
+            "Remover"
         },
         Style::default()
             .fg(contrast(p))
@@ -396,7 +396,7 @@ pub(super) fn render_worktree_remove_overlay(
     button(
         b,
         *cancel,
-        " esc Cancelar ",
+        "Cancelar",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)

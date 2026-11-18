@@ -21,8 +21,24 @@ pub(super) fn render_collapsed(
 ) {
     let palette = &config.palette;
     super::render::render_sidebar_background(buffer, area, palette);
+    let content = if config.mouse_capture {
+        let attention = state
+            .endpoints
+            .iter()
+            .filter_map(|endpoint| endpoint.snapshot.as_deref())
+            .any(super::global_menu::global_menu_attention);
+        super::sidebar::render_sidebar_actions(buffer, area, attention, palette, hits)
+    } else {
+        area
+    };
+    let content = Rect {
+        height: content
+            .height
+            .saturating_sub(u16::from(!config.show_agent_panel)),
+        ..content
+    };
     let (workspace_area, divider_y, detail_area) =
-        super::sidebar::collapsed_sidebar_sections(area, config.show_agent_panel);
+        super::sidebar::collapsed_sidebar_sections(content, config.show_agent_panel);
     let mut total_rows = 0usize;
     let mut selected_row = None;
     let reveal = std::mem::take(state.reveal_navigation_workspace);
@@ -259,6 +275,25 @@ pub(super) fn render_expanded(
     );
     hits.sidebar_section_divider = section_divider;
     let header_rows = super::sidebar::render_centauro_header(buffer, workspace_area, config);
+    let workspace_area = Rect::new(
+        workspace_area.x,
+        workspace_area
+            .y
+            .saturating_add(header_rows.min(workspace_area.height)),
+        workspace_area.width,
+        workspace_area.height.saturating_sub(header_rows),
+    );
+    let workspace_area = if config.mouse_capture {
+        super::sidebar::render_sidebar_actions(
+            buffer,
+            workspace_area,
+            active_snapshot.is_some_and(super::global_menu::global_menu_attention),
+            palette,
+            hits,
+        )
+    } else {
+        workspace_area
+    };
 
     let empty_collapsed_groups = HashSet::new();
 
@@ -290,9 +325,9 @@ pub(super) fn render_expanded(
     }
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(header_rows),
+        workspace_area.y,
         workspace_area.width,
-        workspace_area.height.saturating_sub(header_rows + 1),
+        workspace_area.height.saturating_sub(1),
     );
     hits.workspace_body = body;
     let row_heights = rows
@@ -510,43 +545,6 @@ pub(super) fn render_expanded(
         super::scroll::render_list_scrollbar(buffer, track, metrics, palette);
     }
 
-    let footer_y = workspace_area.bottom().saturating_sub(1);
-    if config.mouse_capture {
-        let label = format!(" novo · {}", active_endpoint_label(state));
-        hits.new_workspace = Rect::new(
-            workspace_area.x,
-            footer_y,
-            display_width(&label).min(workspace_area.width),
-            u16::from(workspace_area.height > 0),
-        );
-        put_text(
-            buffer,
-            workspace_area.x,
-            footer_y,
-            workspace_area.width,
-            &label,
-            Style::default().fg(palette.overlay0),
-        );
-        let attention = active_snapshot.is_some_and(super::global_menu::global_menu_attention);
-        let width = if attention { 8 } else { 6 }.min(workspace_area.width);
-        hits.global_launcher = Rect::new(
-            workspace_area.right().saturating_sub(width),
-            footer_y,
-            width,
-            1,
-        );
-        put_right_text(
-            buffer,
-            workspace_area,
-            footer_y,
-            if attention { "● Menu" } else { "Menu" },
-            Style::default().fg(if attention {
-                palette.accent
-            } else {
-                palette.overlay0
-            }),
-        );
-    }
     if config.show_agent_panel {
         super::endpoint_agents::render_expanded(
             buffer,
@@ -573,14 +571,6 @@ pub(super) fn render_expanded(
         "«",
         Style::default().fg(palette.overlay0),
     );
-}
-
-fn active_endpoint_label<'a>(state: &'a ShellRenderState<'_>) -> &'a str {
-    state
-        .endpoints
-        .iter()
-        .find(|endpoint| &endpoint.endpoint_id == state.active_endpoint_id)
-        .map_or("Local", |endpoint| endpoint.label.as_str())
 }
 
 fn render_endpoint_row(

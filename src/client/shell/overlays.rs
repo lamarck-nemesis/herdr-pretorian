@@ -120,7 +120,11 @@ pub(crate) fn render_global_menu(
         .right()
         .saturating_sub(width)
         .min(screen.right().saturating_sub(width));
-    let y = launcher.y.saturating_sub(height).max(screen.y);
+    let y = if launcher.bottom().saturating_add(height) <= screen.bottom() {
+        launcher.bottom()
+    } else {
+        launcher.y.saturating_sub(height).max(screen.y)
+    };
     let rect = Rect::new(x, y, width, height);
     let inner = panel(buffer, rect, palette.accent, palette.panel_bg)?;
     let mut rows = Vec::new();
@@ -378,7 +382,7 @@ fn render_release_notes_overlay(
     button(
         b,
         close,
-        " esc Fechar ",
+        "Fechar",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -403,21 +407,6 @@ fn render_release_notes_overlay(
     ratatui::widgets::Widget::render(paragraph, text_area, b);
     if let Some(track) = track {
         crate::ui::render_scrollbar_buffer(b, metrics, track, p.overlay0, p.overlay1, "▐");
-    }
-
-    if let Some(footer_area) = stack.footer {
-        let footer_line = ratatui::text::Line::from(vec![
-            ratatui::text::Span::styled(" rolar ", base.fg(p.overlay0)),
-            ratatui::text::Span::styled("roda ↑↓", base.fg(p.text)),
-            ratatui::text::Span::styled("  ·  ", base.fg(p.overlay0)),
-            ratatui::text::Span::styled("fechar", base.fg(p.overlay0)),
-            ratatui::text::Span::styled(" esc / enter ", base.fg(p.text)),
-        ]);
-        ratatui::widgets::Widget::render(
-            ratatui::widgets::Paragraph::new(footer_line),
-            footer_area,
-            b,
-        );
     }
 
     Some(OverlayRender {
@@ -494,7 +483,7 @@ fn render_product_announcement_overlay(
     button(
         b,
         close,
-        " esc Fechar ",
+        "Fechar",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -521,21 +510,6 @@ fn render_product_announcement_overlay(
         crate::ui::render_scrollbar_buffer(b, metrics, track, p.overlay0, p.overlay1, "▐");
     }
 
-    if let Some(footer_area) = stack.footer {
-        let footer_line = ratatui::text::Line::from(vec![
-            ratatui::text::Span::styled(" rolar ", base.fg(p.overlay0)),
-            ratatui::text::Span::styled("roda ↑↓", base.fg(p.text)),
-            ratatui::text::Span::styled("  ·  ", base.fg(p.overlay0)),
-            ratatui::text::Span::styled("fechar", base.fg(p.overlay0)),
-            ratatui::text::Span::styled(" esc / enter ", base.fg(p.text)),
-        ]);
-        ratatui::widgets::Widget::render(
-            ratatui::widgets::Paragraph::new(footer_line),
-            footer_area,
-            b,
-        );
-    }
-
     Some(OverlayRender {
         area: outer,
         primary: close,
@@ -551,98 +525,53 @@ fn render_onboarding_overlay(
     k: &LiveKeybindConfig,
     p: &Palette,
 ) -> Option<OverlayRender> {
-    let prefix = k.primary_prefix_label();
-    let hint_width = display_width("  ")
-        + display_width(&prefix)
-        + display_width(crate::ui::ONBOARDING_PREFIX_SUFFIX)
-        + display_width(crate::ui::ONBOARDING_HELP_LABEL)
-        + display_width(crate::ui::ONBOARDING_HELP_SUFFIX);
-    let outer = popup_with_width_cap(b.area, (hint_width + 5).max(64), 16, 3)?;
+    let outer = popup_with_width_cap(b.area, 76, 8, 3)?;
     let inner = panel(b, outer, p.accent, p.panel_bg)?;
-    if inner.height < 11 {
+    if inner.height < 5 {
         return Some(OverlayRender {
             area: outer,
             ..OverlayRender::default()
         });
     }
-    let stack = crate::ui::modal_stack_areas(inner, 2, 0, 1, 1);
-    let base = Style::default()
-        .bg(p.panel_bg)
-        .remove_modifier(Modifier::DIM);
-    let title = base.fg(p.text).add_modifier(Modifier::BOLD);
-    let muted = base.fg(p.overlay0);
-    let text = base.fg(p.overlay1);
-    let accent = base.fg(p.accent).add_modifier(Modifier::BOLD);
-
+    let style = Style::default().fg(p.text).bg(p.panel_bg);
     put_text(
         b,
-        stack.header.x,
-        stack.header.y,
-        stack.header.width,
+        inner.x,
+        inner.y,
+        inner.width,
         crate::ui::ONBOARDING_TITLE,
-        title,
+        style.add_modifier(Modifier::BOLD),
     );
     put_text(
         b,
-        stack.header.x,
-        stack.header.y.saturating_add(1),
-        stack.header.width,
-        crate::ui::ONBOARDING_SUBTITLE,
-        muted,
+        inner.x,
+        inner.y + 1,
+        inner.width,
+        crate::ui::ONBOARDING_DESCRIPTION,
+        style,
     );
-
-    let content = stack.content;
-    for (offset, line) in crate::ui::ONBOARDING_DESCRIPTION.iter().enumerate() {
-        put_text(
-            b,
-            content.x,
-            content.y.saturating_add(offset as u16),
-            content.width,
-            line,
-            text,
-        );
-    }
-
-    let key_y = content.y.saturating_add(4);
-    let mut key_x = content.x;
-    for (value, style) in [
-        ("  ", base),
-        (prefix.as_str(), accent),
-        (crate::ui::ONBOARDING_PREFIX_SUFFIX, text),
-        (crate::ui::ONBOARDING_HELP_LABEL, accent),
-        (crate::ui::ONBOARDING_HELP_SUFFIX, text),
-    ] {
-        let width = display_width(value);
-        put_text(
-            b,
-            key_x,
-            key_y,
-            content.right().saturating_sub(key_x),
-            value,
-            style,
-        );
-        key_x = key_x.saturating_add(width);
-    }
+    let help = format!(
+        "{}{}{}{}",
+        k.primary_prefix_label(),
+        crate::ui::ONBOARDING_PREFIX_SUFFIX,
+        crate::ui::ONBOARDING_HELP_LABEL,
+        crate::ui::ONBOARDING_HELP_SUFFIX
+    );
     put_text(
         b,
-        content.x,
-        content.y.saturating_add(5),
-        content.width,
-        crate::ui::ONBOARDING_NEXT,
-        text,
+        inner.x,
+        inner.y + 2,
+        inner.width,
+        &help,
+        style.fg(p.subtext0),
     );
-
-    let primary = crate::ui::onboarding_welcome_continue_rect(stack.actions.unwrap_or_default());
-    button(
-        b,
-        primary,
-        " ↵ Continuar ",
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.accent)
-            .add_modifier(Modifier::BOLD)
-            .remove_modifier(Modifier::DIM),
-    );
+    let primary = crate::ui::onboarding_welcome_continue_rect(Rect::new(
+        inner.x,
+        inner.bottom() - 1,
+        inner.width,
+        1,
+    ));
+    button(b, primary, "Continuar", style.fg(contrast(p)).bg(p.accent));
     Some(OverlayRender {
         area: outer,
         primary,
@@ -676,14 +605,14 @@ fn render_rename_overlay(
         &v.input,
         Style::default().fg(p.text).bg(p.surface0),
     );
-    let rs = row(i, &[10, 12, 14], 2, 3);
-    let [save, clear, cancel] = rs.as_slice() else {
+    let rs = row(i, &[12, 12], 2, 3);
+    let [save, cancel] = rs.as_slice() else {
         return None;
     };
     button(
         b,
         *save,
-        " ↵ Salvar ",
+        "Salvar",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -693,12 +622,11 @@ fn render_rename_overlay(
         .fg(p.text)
         .bg(p.surface0)
         .add_modifier(Modifier::BOLD);
-    button(b, *clear, " ^c Limpar ", n);
-    button(b, *cancel, " esc Cancelar ", n);
+    button(b, *cancel, "Cancelar", n);
     Some(OverlayRender {
         area: q,
         primary: *save,
-        clear: *clear,
+        clear: Rect::default(),
         cancel: *cancel,
         navigator_popup: Rect::default(),
         navigator_search: Rect::default(),
@@ -1036,9 +964,9 @@ fn render_navigator_overlay(
         i.bottom() - 1,
         i.width,
         if n.search_focused {
-            " digite para buscar · mover ↑↓/ctrl+n/p · abrir enter · voltar esc"
+            " ↑↓ Selecionar · Enter Abrir"
         } else {
-            " ↑↓/j/k linhas · ←→ espaço · / buscar · a/b/w/i/d filtro · enter abrir · esc fechar"
+            " / Buscar · Enter Abrir"
         },
         Style::default().fg(p.overlay0).bg(p.panel_bg),
     );
@@ -1151,11 +1079,7 @@ fn render_help_overlay(
     button(
         b,
         close,
-        if h.search_focused {
-            " esc Voltar "
-        } else {
-            " esc Fechar "
-        },
+        if h.search_focused { "Voltar" } else { "Fechar" },
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -1245,9 +1169,9 @@ fn render_help_overlay(
         i.bottom() - 1,
         i.width,
         if h.search_focused {
-            " editar ←→/home/end · cortar ^u/^k · colar ^y · rolar ↑↓ · voltar esc"
+            " Esc Voltar"
         } else {
-            " buscar / · rolar j/k/↑↓/pgup/pgdn · fechar esc/enter"
+            " / Buscar"
         },
         Style::default().fg(p.overlay0).bg(p.panel_bg),
     );
@@ -1295,7 +1219,7 @@ fn render_confirm_close_overlay(
     button(
         b,
         *ok,
-        " ↵ Confirmar ",
+        "Confirmar",
         Style::default()
             .fg(contrast(p))
             .bg(p.red)
@@ -1304,7 +1228,7 @@ fn render_confirm_close_overlay(
     button(
         b,
         *cancel,
-        " esc Cancelar ",
+        "Cancelar",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -1362,7 +1286,7 @@ fn render_pretorian_update(
     button(
         b,
         fechar,
-        " esc Fechar / Continuar ",
+        "Fechar",
         Style::default().fg(p.text).bg(p.surface0),
     );
     Some(OverlayRender {
@@ -1696,7 +1620,7 @@ fn render_lembrete_novo(
         " Salvar ",
         Style::default().fg(p.panel_bg).bg(p.accent),
     );
-    button(b, cancelar, " esc Cancelar ", base.bg(p.surface0));
+    button(b, cancelar, "Cancelar", base.bg(p.surface0));
     desenho.primary = salvar;
     desenho.cancel = cancelar;
     Some(desenho)
@@ -1753,7 +1677,7 @@ fn render_lembrete_aberto(
         " Excluir ",
         Style::default().fg(p.panel_bg).bg(p.accent),
     );
-    button(b, fechar, " esc Fechar ", base.bg(p.surface0));
+    button(b, fechar, "Fechar", base.bg(p.surface0));
     Some(OverlayRender {
         area: q,
         primary: excluir,

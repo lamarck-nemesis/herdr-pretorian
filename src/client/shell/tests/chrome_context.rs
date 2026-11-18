@@ -627,15 +627,15 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
     };
     assert_eq!(menu.highlighted, 1);
     let itens = menu.items(state.snapshot.as_deref().unwrap());
-    assert!(itens[1].0.contains("Especialista (padrão)"));
-    assert!(itens[2].0.contains("casos desafiadores"));
+    assert!(itens[1].0.contains("Especialista (Padrão)"));
+    assert!(itens[2].0.contains("Casos complexos"));
     let frame = state.compose(120, 30).unwrap();
     let texto = frame
         .cells
         .iter()
         .map(|celula| celula.symbol.as_str())
         .collect::<String>();
-    assert!(texto.contains("Especialista (padrão)"));
+    assert!(texto.contains("Especialista (Padrão)"));
 }
 
 #[test]
@@ -993,6 +993,9 @@ fn cabecalho_centauro_mostra_dados_explicitos_e_so_nome_negrito() {
     );
     let buffer = frame.to_ratatui_buffer().expect("buffer");
     let area = state.layout(140, 30).sidebar;
+    assert_eq!(state.hits.new_workspace.y, area.y + 4);
+    assert_eq!(state.hits.global_launcher.y, area.y + 4);
+    assert_eq!(buffer[(area.x + 1, area.y + 3)].symbol(), " ");
     assert!(buffer[(area.x + 1, area.y)]
         .modifier
         .contains(Modifier::BOLD));
@@ -1002,4 +1005,58 @@ fn cabecalho_centauro_mostra_dados_explicitos_e_so_nome_negrito() {
     assert!(!buffer[(area.x + 1, area.y + 2)]
         .modifier
         .contains(Modifier::BOLD));
+}
+
+#[test]
+fn acoes_no_topo_nao_sobrepoem_lista_menu_ou_assinatura() {
+    for collapsed in [false, true] {
+        for width in [18, 20, 24, 36] {
+            for rows in [8, 12, 30] {
+                let mut config = Config::default();
+                config.ui.sidebar_width = width;
+                let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+                state.sidebar_collapsed = collapsed;
+                state.set_snapshot(Box::new(snapshot()));
+                state.set_pane_surface(surface());
+                let frame = state.compose(140, rows).expect("barra");
+                let sidebar = state.layout(140, rows).sidebar;
+                let new = state.hits.new_workspace;
+                let menu = state.hits.global_launcher;
+                assert_eq!(new.y, sidebar.y + if collapsed { 0 } else { 2 });
+                assert_eq!(menu.y, new.y);
+                assert!(!new.is_empty() && !menu.is_empty());
+                assert!(new.right() <= menu.x && menu.right() < sidebar.right());
+                assert!(state.hits.workspaces.iter().all(|hit| hit.rect.y > new.y));
+                if !collapsed {
+                    let footer = frame_rows(&frame.frame).pop().unwrap();
+                    assert!(footer.contains("nεαd.tεch") && !footer.contains('⌘'));
+                    assert!(state.hits.workspace_body.bottom() < rows - 1);
+                }
+                state.toggle_global_menu();
+                state.compose(140, rows).expect("menu no topo");
+                assert!(!state.hits.global_menu_rows.is_empty());
+                assert!(state
+                    .hits
+                    .global_menu_rows
+                    .iter()
+                    .all(|(rect, _)| rect.bottom() <= rows));
+            }
+        }
+    }
+}
+
+#[test]
+fn dialogo_nome_mantem_salvar_cancelar_e_limpeza_pelo_teclado() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_new_tab_overlay();
+    state.insert_overlay_text("Nome provisório");
+    let frame = state.compose(100, 20).expect("nome");
+    let text = frame_rows(&frame.frame).join("\n");
+    assert!(text.contains("Salvar") && text.contains("Cancelar"));
+    assert!(!text.contains("Limpar"));
+    assert!(state.hits.overlay_clear.is_empty());
+    state.handle_input_bytes(b"\x03");
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
 }

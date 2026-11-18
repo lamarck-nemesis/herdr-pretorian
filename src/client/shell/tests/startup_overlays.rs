@@ -312,10 +312,10 @@ fn startup_onboarding_is_client_rendered_and_modal() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("ambiente de trabalho para agentes"));
-    assert!(text.contains("use o mouse ou o teclado"));
+    assert!(text.contains("Use Nova Pasta para começar."));
+    assert!(!text.contains("use o mouse ou o teclado"));
     assert!(text.contains("ctrl+b abre atalhos"));
-    assert!(text.contains("configure as integrações opcionais"));
+    assert!(!text.contains("configure as integrações opcionais"));
     assert_eq!(state.hits.overlay_primary.width, 13);
 
     let ignored = state.handle_input_bytes(b"x");
@@ -679,7 +679,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     );
     assert_eq!(
         shell_buffer[(badge_x + 2, launcher.y)].fg,
-        state.config.palette.overlay0
+        state.config.palette.accent
     );
 
     state.sidebar_collapsed = true;
