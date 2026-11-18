@@ -106,13 +106,13 @@ impl SobreVoce {
         }
         match self.status.as_str() {
             "loading" => "Carregando…",
-            "saving" => "Salvando… Você pode continuar escrevendo.",
+            "saving" => "Salvando…",
             "saved" if !self.dirty() => "Salvo.",
-            "conflict" => "Alterado em outra conversa. Recarregue antes de salvar novamente.",
-            "unavailable" => "Indisponível nesta sessão. Reabra pelo Pretorian autenticado.",
-            "error" => "Não foi possível concluir. Tente novamente quando quiser.",
-            _ if self.dirty() => "Alterações ainda não salvas.",
-            _ => "Opcional. Edite ou apague quando quiser.",
+            "conflict" => "Alterado em outra conversa. Recarregue.",
+            "unavailable" => "Indisponível nesta sessão.",
+            "error" => "Falha ao salvar. Tente novamente.",
+            _ if self.dirty() => "Alterações não salvas.",
+            _ => "Opcional. Usado em novas conversas.",
         }
     }
 

@@ -1547,20 +1547,13 @@ impl ClientShellState {
                     let immediate = matches!(
                         self.overlay,
                         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-                            section: ClientSettingsSection::Indicators
-                                | ClientSettingsSection::Sound
-                                | ClientSettingsSection::Toast,
+                            section: ClientSettingsSection::Sound,
                             ..
                         }))
                     );
-                    let about_action = index > 0
-                        && matches!(
-                            self.overlay,
-                            Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-                                section: ClientSettingsSection::SobreVoce,
-                                ..
-                            }))
-                        );
+                    let about_action = matches!(&self.overlay,
+                        Some(ClientShellOverlay::Settings(settings)) if settings.section == ClientSettingsSection::Usuario
+                            && (settings.dependencias || !matches!(index, 0 | 2)));
                     if immediate || about_action {
                         self.apply_settings_choice(outcome);
                     }

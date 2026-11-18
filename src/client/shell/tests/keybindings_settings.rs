@@ -80,13 +80,10 @@ fn shell_new_controls_use_the_same_client_action_routes_as_keybinds() {
             row: new_workspace.y,
             modifiers: KeyModifiers::empty(),
         })]);
-    let [ClientShellAction::Endpoint { request, .. }] = &create_workspace.actions[..] else {
-        panic!("new workspace click should use the endpoint API");
-    };
-    assert!(matches!(
-        request.method,
-        crate::api::schema::Method::WorkspaceCreate(_)
-    ));
+    assert!(create_workspace.actions.is_empty());
+    assert!(matches!(state.overlay, Some(ClientShellOverlay::Rename(_))));
+    state.handle_input_bytes(b"\x1b");
+    state.compose(106, 20).expect("closed dialog");
 
     let new_tab = state.hits.new_tab;
     let open_new_tab =
@@ -387,7 +384,9 @@ fn prefix_endpoint_action_uses_public_api_with_stable_ids() {
     state.set_snapshot(Box::new(snapshot()));
 
     assert!(state.handle_input_bytes(&[0x02]).actions.is_empty());
-    let create = state.handle_input_bytes(b"c");
+    assert!(state.handle_input_bytes(b"c").actions.is_empty());
+    state.handle_input_bytes("Nova sessão".as_bytes());
+    let create = state.handle_input_bytes(b"\r");
     let [ClientShellAction::Endpoint {
         boot_id, request, ..
     }] = &create.actions[..]
@@ -981,7 +980,7 @@ fn texto_do_quadro(state: &mut ClientShellState) -> String {
 }
 
 #[test]
-fn secao_usuario_recebe_texto_e_mostra_previa() {
+fn centauro_recebe_nome_sem_previa_com_duas_secoes() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
@@ -1003,14 +1002,35 @@ fn secao_usuario_recebe_texto_e_mostra_previa() {
     assert_eq!(settings.section, ClientSettingsSection::Usuario);
 
     let texto = texto_do_quadro(&mut state);
-    assert!(texto.contains("prévia: Ana jk Zé"), "{texto}");
-    assert!(state.hits.settings_choices.is_empty());
+    assert!(!texto.contains("prévia:"), "{texto}");
+    assert!(texto.contains("Ana jk Zé"));
+    assert_eq!(state.hits.settings_tabs.len(), 2);
 
-    state.handle_input_bytes(b"\t");
+    state.select_settings_section(
+        ClientSettingsSection::Sound,
+        &mut ClientShellInput::default(),
+    );
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Indicators,
+            section: ClientSettingsSection::Sound,
+            ..
+        }))
+    ));
+    let ctrl_tab = crate::input::TerminalKey::new(KeyCode::Tab, KeyModifiers::CONTROL);
+    state.route_settings_key(&ctrl_tab, &mut ClientShellInput::default());
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            section: ClientSettingsSection::Usuario,
+            ..
+        }))
+    ));
+    state.route_settings_key(&ctrl_tab, &mut ClientShellInput::default());
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            section: ClientSettingsSection::Sound,
             ..
         }))
     ));
@@ -1045,6 +1065,8 @@ fn secao_usuario_lista_dependencias_e_pede_a_acao() {
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.open_settings_overlay();
+    state.select_settings_choice(6);
+    state.apply_settings_choice(&mut ClientShellInput::default());
     let inicial = texto_do_quadro(&mut state);
 
     state.handle_input_bytes(b"\x1b[B");
@@ -1064,8 +1086,8 @@ fn secao_usuario_lista_dependencias_e_pede_a_acao() {
     std::env::remove_var("PRETORIAN_DEPENDENCIAS_ESTADO");
     let _ = std::fs::remove_dir_all(&dir);
 
-    assert!(inicial.contains("● usuário"), "{inicial}");
-    assert!(inicial.contains("dependências"), "{inicial}");
+    assert!(inicial.contains("● Centauro"), "{inicial}");
+    assert!(inicial.contains("Dependências"), "{inicial}");
     assert!(inicial.contains("Conta Google no navegador"), "{inicial}");
     assert!(inicial.contains("entrar no Google"), "{inicial}");
     assert!(!inicial.contains("Entre uma vez"), "{inicial}");
@@ -1073,7 +1095,7 @@ fn secao_usuario_lista_dependencias_e_pede_a_acao() {
         selecionado.contains("Entre uma vez numa conta Google."),
         "{selecionado}"
     );
-    assert!(selecionado.contains("↵ executar"), "{selecionado}");
+    assert!(selecionado.contains("Voltar"), "{selecionado}");
     assert_eq!(nome, "", "fora do campo do nome as teclas não digitam");
     assert_eq!(pedido_google.as_deref(), Some("google\n"));
     assert_eq!(selecionada, 2);
@@ -1100,6 +1122,33 @@ fn secao_usuario_grava_nome_e_pede_recarga() {
     state.open_settings_overlay();
     state.handle_input_bytes(b" Ana ");
     let aplicado = state.handle_input_bytes(b"\r");
+
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            nome_somente_leitura: true,
+            ..
+        }))
+    ));
+    state.cancel_settings_overlay();
+    state.open_settings_overlay();
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            nome_somente_leitura: true,
+            ..
+        }))
+    ));
+    let restored: Config = toml::from_str(&std::fs::read_to_string(&caminho).unwrap()).unwrap();
+    let mut reopened = ClientShellState::new(ClientShellConfig::from_config(&restored));
+    reopened.open_settings_overlay();
+    assert!(matches!(
+        reopened.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            nome_somente_leitura: true,
+            ..
+        }))
+    ));
 
     let gravado = std::fs::read_to_string(&caminho).expect("config gravado");
     std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
@@ -1135,7 +1184,7 @@ fn nome_centauro_somente_leitura_nao_edita_cola_nem_oferece_salvar() {
     state.set_pane_surface(surface());
     state.open_settings_overlay();
     let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_mut() else {
-        panic!("configurações");
+        panic!("Configurações");
     };
     settings.nome_somente_leitura = true;
     state.handle_input_bytes(b"Outro nome\x03");
@@ -1143,7 +1192,7 @@ fn nome_centauro_somente_leitura_nao_edita_cola_nem_oferece_salvar() {
     assert!(state.handle_input_bytes(b"\r").actions.is_empty());
     let texto = texto_do_quadro(&mut state);
     assert!(texto.contains("Pessoa sintética"));
-    assert!(texto.contains("identificado pela sua conta"));
+    assert!(!texto.contains("identificado pela sua conta"));
     assert!(
         !texto.contains("prévia:")
             && !texto.contains("aplicar")
@@ -1151,7 +1200,7 @@ fn nome_centauro_somente_leitura_nao_edita_cola_nem_oferece_salvar() {
     );
     assert_eq!(state.hits.overlay_primary, Rect::default());
     let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
-        panic!("configurações");
+        panic!("Configurações");
     };
     assert_eq!(settings.nome.as_str(), "Pessoa sintética");
 }
@@ -1163,14 +1212,15 @@ fn sobre_voce_editor_multiline_foco_botoes_e_indisponivel_sem_ponte() {
     state.set_pane_surface(surface());
     state.open_settings_overlay();
     state.select_settings_section(
-        ClientSettingsSection::SobreVoce,
+        ClientSettingsSection::Usuario,
         &mut ClientShellInput::default(),
     );
+    state.select_settings_choice(2);
     state.insert_overlay_text("Trajetória\nGostos 😀");
     state.handle_input_bytes(b"\r");
     state.handle_input_bytes(b"Preferencias");
     let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
-        panic!("configurações");
+        panic!("Configurações");
     };
     assert_eq!(
         settings.sobre.editor.as_str(),
@@ -1178,17 +1228,18 @@ fn sobre_voce_editor_multiline_foco_botoes_e_indisponivel_sem_ponte() {
     );
     assert_eq!(settings.sobre.status, "unavailable");
     let texto = texto_do_quadro(&mut state);
-    assert!(texto.contains("O que você gostaria"));
+    assert!(texto.contains("Sobre Você"));
+    assert!(!texto.contains("O que você gostaria"));
     assert!(texto.contains("Indisponível"));
     assert!(texto.contains("Salvar") && texto.contains("Apagar") && texto.contains("Recarregar"));
     state.handle_input_bytes(b"\t");
     let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
-        panic!("configurações");
+        panic!("Configurações");
     };
-    assert_eq!(settings.selected, 1);
+    assert_eq!(settings.selected, 3);
     assert!(state.handle_input_bytes(b"\r").actions.is_empty());
     let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
-        panic!("configurações");
+        panic!("Configurações");
     };
     assert_eq!(
         settings.sobre.editor.as_str(),
@@ -1203,10 +1254,58 @@ fn sobre_voce_janela_baixa_nao_desenha_fora_da_tela() {
     state.set_pane_surface(surface());
     state.open_settings_overlay();
     state.select_settings_section(
-        ClientSettingsSection::SobreVoce,
+        ClientSettingsSection::Usuario,
         &mut ClientShellInput::default(),
     );
     for height in [10, 12, 16, 20, 24, 30] {
         let _ = state.compose(80, height);
     }
+}
+
+#[test]
+fn alertas_persistem_som_e_avisos_juntos_e_nome_so_bloqueia_apos_sucesso() {
+    let dir = std::env::temp_dir().join(format!(
+        "pretorian-alertas-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.open_settings_overlay();
+    state.select_settings_section(
+        ClientSettingsSection::Sound,
+        &mut ClientShellInput::default(),
+    );
+    state.select_settings_choice(1);
+    state.apply_settings_choice(&mut ClientShellInput::default());
+    state.select_settings_choice(5);
+    state.apply_settings_choice(&mut ClientShellInput::default());
+    let persisted: Config = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(!persisted.ui.sound.enabled);
+    assert_eq!(
+        persisted.ui.toast.delivery,
+        crate::config::ToastDelivery::System
+    );
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &dir);
+    state.select_settings_section(
+        ClientSettingsSection::Usuario,
+        &mut ClientShellInput::default(),
+    );
+    state.insert_overlay_text("Nome sintético");
+    state.apply_settings_choice(&mut ClientShellInput::default());
+    std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
+    std::fs::remove_dir_all(dir).unwrap();
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            nome_somente_leitura: false,
+            ..
+        }))
+    ));
 }

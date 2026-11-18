@@ -286,6 +286,38 @@ pub(crate) fn render_collapsed_sidebar(
     );
 }
 
+pub(in crate::client::shell) fn render_centauro_header(
+    buffer: &mut Buffer,
+    area: Rect,
+    config: &ClientShellConfig,
+) -> u16 {
+    let lines = [
+        config.nome_usuario.as_deref().unwrap_or("Área de Trabalho"),
+        config.profissao_centauro.as_deref().unwrap_or(""),
+        config.rotulo_centauro.as_deref().unwrap_or(""),
+    ];
+    let count = if config.nome_usuario.is_some() { 3 } else { 1 };
+    for (index, line) in lines.iter().take(count).enumerate() {
+        if index as u16 >= area.height {
+            break;
+        }
+        let style = Style::default().fg(config.palette.text);
+        put_text(
+            buffer,
+            area.x.saturating_add(1),
+            area.y + index as u16,
+            area.width.saturating_sub(1),
+            line,
+            if index == 0 {
+                style.add_modifier(Modifier::BOLD)
+            } else {
+                style
+            },
+        );
+    }
+    count as u16 + 1
+}
+
 pub(crate) fn render_sidebar(
     buffer: &mut Buffer,
     area: Rect,
@@ -305,33 +337,7 @@ pub(crate) fn render_sidebar(
     let (workspace_area, detail_area, section_divider) =
         expanded_sidebar_sections(area, state.sidebar_section_split, dividir);
     hits.sidebar_section_divider = section_divider;
-    put_text(
-        buffer,
-        workspace_area.x,
-        workspace_area.y,
-        workspace_area.width,
-        " Área de Trabalho",
-        Style::default()
-            .fg(palette.text)
-            .add_modifier(Modifier::BOLD),
-    );
-    // O nome do usuário entra como subtítulo e empurra a lista uma linha para baixo.
-    let header_rows = match config.nome_usuario.as_deref() {
-        Some(nome) => {
-            put_text(
-                buffer,
-                workspace_area.x.saturating_add(1),
-                workspace_area.y.saturating_add(1),
-                workspace_area.width.saturating_sub(1),
-                nome,
-                Style::default()
-                    .fg(palette.subtext0)
-                    .add_modifier(Modifier::ITALIC),
-            );
-            WORKSPACE_HEADER_ROWS + 1
-        }
-        None => WORKSPACE_HEADER_ROWS,
-    };
+    let header_rows = render_centauro_header(buffer, workspace_area, config);
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
     let body = Rect::new(
@@ -498,7 +504,7 @@ pub(crate) fn render_sidebar(
             workspace_area.x,
             footer_y,
             workspace_area.width,
-            " nova pasta",
+            " Nova Pasta",
             Style::default().fg(palette.overlay0),
         );
         let attention = super::super::global_menu::global_menu_attention(snapshot);
@@ -526,7 +532,7 @@ pub(crate) fn render_sidebar(
                 start_x.saturating_add(2),
                 footer_y,
                 4,
-                "menu",
+                "Menu",
                 Style::default().fg(palette.overlay0),
             );
         } else {
@@ -534,7 +540,7 @@ pub(crate) fn render_sidebar(
                 buffer,
                 footer_area,
                 footer_y,
-                "menu",
+                "Menu",
                 Style::default().fg(palette.overlay0),
             );
         }

@@ -12,7 +12,7 @@ pub(super) fn render_worktree_create_overlay(
         inner.x,
         inner.y,
         inner.width,
-        "nova cópia de trabalho",
+        "Nova Cópia de Trabalho",
         Style::default()
             .fg(p.text)
             .bg(p.panel_bg)
@@ -76,7 +76,7 @@ pub(super) fn render_worktree_create_overlay(
     button(
         b,
         *primary,
-        " ↵ criar e abrir ",
+        " ↵ Criar e Abrir ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -85,7 +85,7 @@ pub(super) fn render_worktree_create_overlay(
     button(
         b,
         *cancel,
-        " esc cancelar ",
+        " esc Cancelar ",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -119,7 +119,7 @@ pub(super) fn render_worktree_open_overlay(
         inner.x,
         inner.y,
         inner.width,
-        "abrir cópia de trabalho",
+        "Abrir Cópia de Trabalho",
         Style::default()
             .fg(p.text)
             .bg(p.panel_bg)
@@ -275,7 +275,7 @@ pub(super) fn render_worktree_open_overlay(
     button(
         b,
         *primary,
-        " ↵ abrir ",
+        " ↵ Abrir ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -284,7 +284,7 @@ pub(super) fn render_worktree_open_overlay(
     button(
         b,
         *cancel,
-        " esc cancelar ",
+        " esc Cancelar ",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -317,7 +317,7 @@ pub(super) fn render_worktree_remove_overlay(
         inner.x,
         inner.y,
         inner.width,
-        " remover cópia de trabalho?",
+        " Remover Cópia de Trabalho?",
         Style::default()
             .fg(p.red)
             .bg(p.panel_bg)
@@ -384,9 +384,9 @@ pub(super) fn render_worktree_remove_overlay(
         b,
         *primary,
         if remove.force_confirmation {
-            " ↵ apagar mesmo assim "
+            " ↵ Apagar Mesmo Assim "
         } else {
-            " ↵ remover "
+            " ↵ Remover "
         },
         Style::default()
             .fg(contrast(p))
@@ -396,7 +396,7 @@ pub(super) fn render_worktree_remove_overlay(
     button(
         b,
         *cancel,
-        " esc cancelar ",
+        " esc Cancelar ",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)

@@ -258,16 +258,7 @@ pub(super) fn render_expanded(
         config.show_agent_panel,
     );
     hits.sidebar_section_divider = section_divider;
-    put_text(
-        buffer,
-        workspace_area.x,
-        workspace_area.y,
-        workspace_area.width,
-        " máquinas",
-        Style::default()
-            .fg(palette.overlay0)
-            .add_modifier(Modifier::BOLD),
-    );
+    let header_rows = super::sidebar::render_centauro_header(buffer, workspace_area, config);
 
     let empty_collapsed_groups = HashSet::new();
 
@@ -299,11 +290,9 @@ pub(super) fn render_expanded(
     }
     let body = Rect::new(
         workspace_area.x,
-        workspace_area.y.saturating_add(WORKSPACE_HEADER_ROWS),
+        workspace_area.y.saturating_add(header_rows),
         workspace_area.width,
-        workspace_area
-            .height
-            .saturating_sub(WORKSPACE_HEADER_ROWS + 1),
+        workspace_area.height.saturating_sub(header_rows + 1),
     );
     hits.workspace_body = body;
     let row_heights = rows
@@ -550,7 +539,7 @@ pub(super) fn render_expanded(
             buffer,
             workspace_area,
             footer_y,
-            if attention { "● menu" } else { "menu" },
+            if attention { "● Menu" } else { "Menu" },
             Style::default().fg(if attention {
                 palette.accent
             } else {

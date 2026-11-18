@@ -33,7 +33,7 @@ impl ClientGlobalMenuOverlay {
                     }
                     if auth.aceita_codigo() {
                         items.push((
-                            "Colar código do navegador e enviar ao Claude",
+                            "Colar Código do Navegador e Enviar ao Claude",
                             A::EnviarCodigoAutorizacao,
                         ));
                     }
@@ -41,11 +41,11 @@ impl ClientGlobalMenuOverlay {
                         items.push((url.as_str(), A::AbrirAutorizacao));
                     }
                 }
-                items.push(("Fechar / cancelar autorização", A::Pagina(P::Raciocinio)));
+                items.push(("Fechar / Cancelar Autorização", A::Pagina(P::Raciocinio)));
                 items
             }
             P::NovaAba => std::iter::once((
-                "Nível técnico da nova aba · tecle 1 a 3 · Esc cancela",
+                "Nível Técnico da Nova Aba · tecle 1 a 3 · Esc cancela",
                 A::Nada,
             ))
             .chain(
@@ -68,11 +68,11 @@ impl ClientGlobalMenuOverlay {
             ],
             P::LoginPje => vec![
                 (
-                    "Modo headless: ligado (login sem janela)",
+                    "Modo Headless: Ligado (Login sem Janela)",
                     A::PjeSemJanela(true),
                 ),
                 (
-                    "Modo headless: desligado (acompanhar na janela)",
+                    "Modo Headless: Desligado (Acompanhar na Janela)",
                     A::PjeSemJanela(false),
                 ),
                 ("Voltar", A::Pagina(P::Principal)),
@@ -158,18 +158,18 @@ pub(super) fn global_menu_items_for(
     launcher_updates: bool,
 ) -> Vec<(&'static str, ClientGlobalMenuAction)> {
     let mut items = vec![(
-        "configurações",
+        "Configurações",
         ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Settings),
     )];
     if super::lembretes::disponivel() {
-        items.push(("ver lembretes", ClientGlobalMenuAction::Lembretes));
+        items.push(("Ver Lembretes", ClientGlobalMenuAction::Lembretes));
     }
     if snapshot.update_available.is_some() || snapshot.latest_release_notes_available {
         items.push((
             if snapshot.update_available.is_some() {
-                "atualização pronta"
+                "Atualização Pronta"
             } else {
-                "novidades"
+                "Novidades"
             },
             ClientGlobalMenuAction::WhatsNew,
         ));
@@ -178,22 +178,22 @@ pub(super) fn global_menu_items_for(
         items.push((rotulo, ClientGlobalMenuAction::PretorianUpdate));
     }
     items.push((
-        "mudar layout",
+        "Mudar Layout",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Layout(Default::default())),
     ));
     items.push((
-        "raciocínio",
+        "Raciocínio",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::Raciocinio),
     ));
     items.push((
-        "login pje",
+        "Login PJe",
         ClientGlobalMenuAction::Pagina(PaginaRaciocinio::LoginPje),
     ));
     if launcher_updates && super::pretorian_update::rotulo_menu().is_none() {
-        items.push(("atualizar o Pretorian", ClientGlobalMenuAction::Atualizar));
+        items.push(("Atualizar o Pretorian", ClientGlobalMenuAction::Atualizar));
     }
     items.push((
-        "desconectar",
+        "Desconectar",
         ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Detach),
     ));
     items
@@ -209,6 +209,7 @@ impl ClientShellState {
                 pagina: PaginaRaciocinio::Principal,
                 especialista_doutor_iguais: false,
                 autorizacao: None,
+                nova_aba: None,
                 provedores: crate::config::provedores_disponiveis(
                     std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
                 ),
@@ -217,7 +218,12 @@ impl ClientShellState {
     }
 
     /// Na janela gerenciada toda aba nova abre um agente; o nível técnico dele é escolhido antes.
-    pub(super) fn open_new_tab_level_menu(&mut self) {
+    pub(super) fn open_new_tab_level_menu(
+        &mut self,
+        workspace_id: String,
+        label: String,
+        focus: bool,
+    ) {
         let padrao = crate::config::NivelRaciocinio::TODOS
             .iter()
             .position(|n| *n == self.config.nivel_raciocinio)
@@ -228,6 +234,7 @@ impl ClientShellState {
             pagina: PaginaRaciocinio::NovaAba,
             especialista_doutor_iguais: false,
             autorizacao: None,
+            nova_aba: Some((workspace_id, label, focus)),
             provedores: crate::config::provedores_disponiveis(
                 std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
             ),
@@ -237,15 +244,15 @@ impl ClientShellState {
     fn criar_aba_com_nivel(
         &mut self,
         nivel: crate::config::NivelRaciocinio,
+        nova_aba: Option<(String, String, bool)>,
         outcome: &mut ClientShellInput,
     ) {
-        let Some(workspace_id) = self
-            .snapshot
-            .as_deref()
-            .and_then(|snapshot| snapshot.focused_workspace_id.clone())
-        else {
+        let Some((workspace_id, label, focus)) = nova_aba else {
             return;
         };
+        if !focus {
+            self.marcar_nova_aba_secundaria(&workspace_id);
+        }
         // O lançador lê esta variável ao abrir o agente do painel e grava o nível na conversa da aba.
         let env = [("PRETORIAN_NIVEL_ABA".to_owned(), nivel.chave().to_owned())]
             .into_iter()
@@ -254,8 +261,8 @@ impl ClientShellState {
             crate::api::schema::Method::TabCreate(crate::api::schema::TabCreateParams {
                 workspace_id: Some(workspace_id),
                 cwd: None,
-                focus: true,
-                label: None,
+                focus,
+                label: Some(label),
                 env,
             }),
             outcome,
@@ -345,6 +352,10 @@ impl ClientShellState {
                 std::env::var("PRETORIAN_PROVEDORES").ok().as_deref(),
             ),
         };
+        let nova_aba = match &mut self.overlay {
+            Some(ClientShellOverlay::GlobalMenu(menu)) => menu.nova_aba.take(),
+            _ => None,
+        };
         self.overlay = None;
         match action {
             ClientGlobalMenuAction::Nada
@@ -361,6 +372,7 @@ impl ClientShellState {
                                 especialista_doutor_iguais: false,
                                 provedores,
                                 autorizacao: Some(autorizacao),
+                                nova_aba: None,
                             }))
                     }
                     Err(erro) => self.set_endpoint_error(erro),
@@ -403,6 +415,7 @@ impl ClientShellState {
                         ),
                     provedores,
                     autorizacao: None,
+                    nova_aba: None,
                 }));
             }
             ClientGlobalMenuAction::Provedor(provedor) => {
@@ -421,7 +434,9 @@ impl ClientShellState {
             ClientGlobalMenuAction::PjeSemJanela(ligado) => {
                 self.save_settings_edit(crate::config::ConfigEdit::PjeSemJanela(ligado), outcome);
             }
-            ClientGlobalMenuAction::NovaAba(nivel) => self.criar_aba_com_nivel(nivel, outcome),
+            ClientGlobalMenuAction::NovaAba(nivel) => {
+                self.criar_aba_com_nivel(nivel, nova_aba, outcome)
+            }
             ClientGlobalMenuAction::Arranjo(arranjo) => self.escolher_arranjo(arranjo, outcome),
             ClientGlobalMenuAction::Binding(binding) => {
                 self.record_binding(crate::input::KeybindMatch::Action(binding), outcome)

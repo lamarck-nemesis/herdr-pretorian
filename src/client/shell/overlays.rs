@@ -363,7 +363,7 @@ fn render_release_notes_overlay(
         subtitle_area.y,
         subtitle_area.width,
         if notes.preview {
-            "atualização pronta"
+            "Atualização Pronta"
         } else {
             "novidades desta versão"
         },
@@ -378,7 +378,7 @@ fn render_release_notes_overlay(
     button(
         b,
         close,
-        " esc fechar ",
+        " esc Fechar ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -475,7 +475,7 @@ fn render_product_announcement_overlay(
     let subtitle = if announcement.preview {
         "prévia de novidades"
     } else {
-        "novidades"
+        "Novidades"
     };
     put_text(
         b,
@@ -494,7 +494,7 @@ fn render_product_announcement_overlay(
     button(
         b,
         close,
-        " esc fechar ",
+        " esc Fechar ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -636,7 +636,7 @@ fn render_onboarding_overlay(
     button(
         b,
         primary,
-        " ↵ continuar ",
+        " ↵ Continuar ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -683,7 +683,7 @@ fn render_rename_overlay(
     button(
         b,
         *save,
-        " ↵ salvar ",
+        " ↵ Salvar ",
         Style::default()
             .fg(contrast(p))
             .bg(p.accent)
@@ -694,7 +694,7 @@ fn render_rename_overlay(
         .bg(p.surface0)
         .add_modifier(Modifier::BOLD);
     button(b, *clear, " ^c limpar ", n);
-    button(b, *cancel, " esc cancelar ", n);
+    button(b, *cancel, " esc Cancelar ", n);
     Some(OverlayRender {
         area: q,
         primary: *save,
@@ -1152,9 +1152,9 @@ fn render_help_overlay(
         b,
         close,
         if h.search_focused {
-            " esc voltar "
+            " esc Voltar "
         } else {
-            " esc fechar "
+            " esc Fechar "
         },
         Style::default()
             .fg(contrast(p))
@@ -1295,7 +1295,7 @@ fn render_confirm_close_overlay(
     button(
         b,
         *ok,
-        " ↵ confirmar ",
+        " ↵ Confirmar ",
         Style::default()
             .fg(contrast(p))
             .bg(p.red)
@@ -1304,7 +1304,7 @@ fn render_confirm_close_overlay(
     button(
         b,
         *cancel,
-        " esc cancelar ",
+        " esc Cancelar ",
         Style::default()
             .fg(p.text)
             .bg(p.surface0)
@@ -1362,7 +1362,7 @@ fn render_pretorian_update(
     button(
         b,
         fechar,
-        " esc fechar / continuar ",
+        " esc Fechar / Continuar ",
         Style::default().fg(p.text).bg(p.surface0),
     );
     Some(OverlayRender {
@@ -1693,10 +1693,10 @@ fn render_lembrete_novo(
     button(
         b,
         salvar,
-        " salvar ",
+        " Salvar ",
         Style::default().fg(p.panel_bg).bg(p.accent),
     );
-    button(b, cancelar, " esc cancelar ", base.bg(p.surface0));
+    button(b, cancelar, " esc Cancelar ", base.bg(p.surface0));
     desenho.primary = salvar;
     desenho.cancel = cancelar;
     Some(desenho)
@@ -1750,10 +1750,10 @@ fn render_lembrete_aberto(
     button(
         b,
         excluir,
-        " excluir ",
+        " Excluir ",
         Style::default().fg(p.panel_bg).bg(p.accent),
     );
-    button(b, fechar, " esc fechar ", base.bg(p.surface0));
+    button(b, fechar, " esc Fechar ", base.bg(p.surface0));
     Some(OverlayRender {
         area: q,
         primary: excluir,
@@ -1881,7 +1881,7 @@ mod lembretes_tests {
         let tela = texto(&buffer);
         assert!(tela.contains("Verificar em 16 de nov. 09:00"));
         assert!(tela.contains("Analisar a qualidade de segurado."));
-        assert!(tela.contains("excluir"));
+        assert!(tela.contains("Excluir"));
         assert!(desenho.primary.width > 0 && desenho.cancel.width > 0);
         let linha = desenho.area.y + 5;
         assert!((desenho.area.x..desenho.area.right())
@@ -1905,7 +1905,7 @@ mod lembretes_tests {
             "Data e hora (DD/MM/AAAA HH:MM)",
             "17/11/2026 05:10",
             "Escreva o lembrete.",
-            "salvar",
+            "Salvar",
         ] {
             assert!(tela.contains(esperado), "{esperado}");
         }
