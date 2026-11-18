@@ -11,10 +11,7 @@ pub const MARCA: &str = "LSA • prεtοrιαn";
 pub const SEPARADOR: &str = " │ ";
 /// Assinatura do Lamarck Hub, mostrada à direita da barra de abas.
 pub fn assinatura() -> String {
-    format!(
-        "⌘ nεαd.tεch │ v. {}",
-        crate::build_info::pretorian_version()
-    )
+    format!("nεαd.tεch │ v. {}", crate::build_info::pretorian_version())
 }
 
 /// Seção `[pretorian]` própria deste fork; fica fora de `[ui]` para não colidir com chaves do
@@ -28,6 +25,16 @@ pub struct PretorianConfig {
     pub nivel: super::NivelRaciocinio,
     /// Login do PJe sem janela (headless). O Pretorian CLI lê esta chave; `PRETORIAN_PJE_SEM_JANELA` a sobrepõe.
     pub pje_sem_janela: bool,
+}
+
+impl PretorianConfig {
+    pub(crate) fn nome_efetivo(&self) -> Option<String> {
+        self.nome_com_identidade(std::env::var("PRETORIAN_NOME_CENTAURO").ok().as_deref())
+    }
+
+    fn nome_com_identidade(&self, identidade: Option<&str>) -> Option<String> {
+        identidade.or(self.nome.as_deref()).and_then(sanitizar_nome)
+    }
 }
 
 pub fn comando_agente(agente: Option<&str>, perfil: &Path) -> Result<Option<Vec<String>>, String> {
@@ -76,6 +83,26 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nome_centauro_sanitizado_prevalece_sem_alterar_nome_local() {
+        let config = PretorianConfig {
+            nome: Some("Nome local".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            config
+                .nome_com_identidade(Some("  Pessoa sintética\n  "))
+                .as_deref(),
+            Some("Pessoa sintética")
+        );
+        assert_eq!(
+            config.nome_com_identidade(None).as_deref(),
+            Some("Nome local")
+        );
+        assert_eq!(config.nome_com_identidade(Some("\u{7}")), None);
+        assert_eq!(config.nome.as_deref(), Some("Nome local"));
+    }
 
     #[test]
     fn nova_aba_preserva_agente_e_conexoes_do_perfil() {

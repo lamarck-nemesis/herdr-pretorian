@@ -25,27 +25,17 @@ impl NivelRaciocinio {
     /// Rótulo do diálogo de nível ao abrir uma aba; o número é a tecla que escolhe o nível.
     pub fn rotulo_numerado(self) -> &'static str {
         match self {
-            Self::Graduado => {
-                "1 · Estagiário · agilidade para tarefas simples e rotinas bem definidas."
-            }
-            Self::Especialista => {
-                "2 · Especialista (padrão) · equilíbrio entre rapidez e precisão. Use no dia a dia."
-            }
-            Self::Doutor => {
-                "3 · Doutor · análise aprofundada para casos desafiadores. Use excepcionalmente."
-            }
+            Self::Graduado => "1 · Estagiário · Rotinas simples",
+            Self::Especialista => "2 · Especialista (Padrão) · Uso diário",
+            Self::Doutor => "3 · Doutor · Casos complexos",
         }
     }
 
     pub fn descricao(self) -> &'static str {
         match self {
-            Self::Graduado => "Estagiário · agilidade para tarefas simples e rotinas bem definidas.",
-            Self::Especialista => {
-                "Especialista (padrão) · equilíbrio entre rapidez e precisão. Use no dia a dia."
-            }
-            Self::Doutor => {
-                "Doutor · análise aprofundada para casos desafiadores. Use excepcionalmente."
-            }
+            Self::Graduado => "Estagiário · Rotinas simples",
+            Self::Especialista => "Especialista (Padrão) · Uso diário",
+            Self::Doutor => "Doutor · Casos complexos",
         }
     }
 

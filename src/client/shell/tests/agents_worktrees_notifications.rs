@@ -8,11 +8,12 @@ fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
     state.set_pane_surface(surface());
     state.compose(106, 20).expect("composed frame");
 
+    let workspace_y = state.hits.workspaces[0].rect.y;
     let workspace_down =
         state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: 2,
-            row: 2,
+            row: workspace_y,
             modifiers: KeyModifiers::empty(),
         })]);
     assert!(workspace_down.actions.is_empty());
@@ -20,7 +21,7 @@ fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
         state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
             kind: MouseEventKind::Up(MouseButton::Left),
             column: 2,
-            row: 2,
+            row: workspace_y,
             modifiers: KeyModifiers::empty(),
         })]);
     assert!(workspace.requests.is_empty());
@@ -1141,8 +1142,9 @@ fn named_workspace_overlay_targets_projected_source_workspace() {
                 ..
             },
             ..
-        })) if value.as_str() == "repo" && source_workspace_id.as_deref() == Some("ws_1")
+        })) if value.as_str().is_empty() && source_workspace_id.as_deref() == Some("ws_1")
     ));
+    state.insert_overlay_text("repo");
     let create = state.handle_input_bytes(b"\r");
     let [ClientShellAction::Endpoint { request, .. }] = &create.actions[..] else {
         panic!("named workspace should use endpoint API");
@@ -1152,7 +1154,7 @@ fn named_workspace_overlay_targets_projected_source_workspace() {
         crate::api::schema::Method::WorkspaceCreate(params)
             if params.source_workspace_id.as_deref() == Some("ws_1")
                 && params.cwd.as_deref() == Some("/repo")
-                && params.label.is_none()
+                && params.label.as_deref() == Some("repo")
     ));
 }
 
@@ -1253,8 +1255,8 @@ fn worktree_create_previews_the_endpoint_owned_checkout_path() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("nova cópia de trabalho"));
-    assert!(text.contains("criar e abrir"));
+    assert!(text.contains("Nova Cópia de Trabalho"));
+    assert!(text.contains("Criar e Abrir"));
     assert!(frame.cursor.as_ref().is_some_and(|cursor| cursor.visible));
 
     assert!(state
@@ -1497,7 +1499,7 @@ fn worktree_remove_escalates_recoverable_failure_to_force_confirmation() {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(text.contains("apagar mesmo assim"));
+        assert!(text.contains("Apagar Mesmo Assim"));
         assert!(text.contains("serão apagados"));
         let force = state.handle_input_bytes(b"\r");
         let [ClientShellAction::Endpoint { request, .. }] = &force.actions[..] else {
@@ -1693,8 +1695,8 @@ fn empty_workspace_name_suggestion_is_localized() {
     state.open_new_workspace_overlay();
     assert!(
         matches!(state.overlay.as_ref(), Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-        input, target: ClientRenameTarget::NewWorkspace { cwd: None, suggested_name, .. }, ..
-    })) if input.as_str() == "espaço" && suggested_name == "espaço")
+        input, target: ClientRenameTarget::NewWorkspace { cwd: None, .. }, ..
+    })) if input.as_str().is_empty())
     );
 }
 

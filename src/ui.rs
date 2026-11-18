@@ -12,8 +12,7 @@ mod widgets;
 
 pub(crate) use self::onboarding::{
     onboarding_welcome_continue_rect, ONBOARDING_DESCRIPTION, ONBOARDING_HELP_LABEL,
-    ONBOARDING_HELP_SUFFIX, ONBOARDING_NEXT, ONBOARDING_PREFIX_SUFFIX, ONBOARDING_SUBTITLE,
-    ONBOARDING_TITLE,
+    ONBOARDING_HELP_SUFFIX, ONBOARDING_PREFIX_SUFFIX, ONBOARDING_TITLE,
 };
 #[cfg(all(test, unix))]
 pub(crate) use self::panes::popup_pane_rects;

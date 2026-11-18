@@ -37,6 +37,7 @@ mod pretorian_update;
 mod render;
 mod scroll;
 mod settings;
+mod sobre_voce;
 mod state;
 mod surface_patch;
 mod text_editor;

@@ -256,12 +256,14 @@ fn foreign_preview_blocks_keyboard_actions_but_keeps_active_action_context() {
     preview_key(&mut state, b"\x1b[B");
     assert_selected(&state, &remote, "ws_2");
     assert_eq!(state.workspace_action_id().as_deref(), Some("ws_1"));
-    state.config.prompt_new_workspace_name = false;
     let mut create = ClientShellInput::default();
     state.record_binding(
         crate::input::KeybindMatch::Action(crate::input::KeybindAction::NewWorkspace),
         &mut create,
     );
+    assert!(create.actions.is_empty());
+    state.insert_overlay_text("Pasta nova");
+    state.save_rename_overlay(&mut create);
     assert!(
         matches!(create.actions.as_slice(), [ClientShellAction::Endpoint { endpoint_id: ClientEndpointId::Local, request, .. }]
         if matches!(&request.method, crate::api::schema::Method::WorkspaceCreate(params) if params.source_workspace_id.as_deref() == Some("ws_1")))

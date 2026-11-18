@@ -240,7 +240,7 @@ mod tests {
                 (
                     SemanticNotificationKind::UpdateInstalled,
                     "update ready",
-                    "atualização pronta",
+                    "Atualização Pronta",
                 ),
             ] {
                 let mut config = ClientShellConfig::from_config(&Config::default());

@@ -21,12 +21,6 @@ pub struct GitWorktreeInfo {
     pub is_linked_worktree: bool,
 }
 
-pub fn derive_label_from_cwd(cwd: &Path) -> String {
-    git_repo_root(cwd)
-        .map(|repo_root| automatic_workspace_label(cwd, &repo_root))
-        .unwrap_or_else(|| fallback_label_from_cwd(cwd))
-}
-
 pub fn fallback_label_from_cwd(cwd: &Path) -> String {
     if let Ok(home) = std::env::var("HOME") {
         let home = Path::new(&home);
@@ -366,7 +360,7 @@ pub(super) fn read_ref_oid(common_dir: &Path, full_ref: &str) -> Option<String> 
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
@@ -770,32 +764,6 @@ mod tests {
             canonicalize_best_effort_path(&metadata.repo_root),
             canonicalize_best_effort_path(&root)
         );
-
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn derive_label_prefers_repo_root_name() {
-        let root = temp_test_dir("label-repo");
-        let nested = root.join("nested");
-        std::fs::create_dir_all(root.join(".git")).unwrap();
-        std::fs::write(root.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
-        std::fs::create_dir_all(&nested).unwrap();
-
-        assert_eq!(
-            derive_label_from_cwd(&nested),
-            root.file_name().and_then(|name| name.to_str()).unwrap()
-        );
-
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn derive_label_uses_path_name_outside_git() {
-        let root = temp_test_dir("label-plain");
-        let label = root.file_name().and_then(|name| name.to_str()).unwrap();
-
-        assert_eq!(derive_label_from_cwd(Path::new(&root)), label);
 
         std::fs::remove_dir_all(root).unwrap();
     }

@@ -168,7 +168,7 @@ fn render_header_button(
         );
     }
     let label_y = if area.height > 1 { area.y + 1 } else { area.y };
-    let label = "alternar";
+    let label = "Alternar";
     let label_width = display_width(label);
     put_text(
         buffer,
@@ -407,7 +407,7 @@ pub(super) fn render_mobile_switcher(
         area.x,
         area.y,
         close.x.saturating_sub(area.x),
-        " alternar",
+        " Alternar",
         Style::default()
             .fg(palette.text)
             .bg(palette.panel_bg)
@@ -551,7 +551,7 @@ fn render_close_button(buffer: &mut Buffer, area: Rect, palette: &Palette) {
         label_x,
         area.y,
         area.width.saturating_sub(1),
-        "fechar",
+        "Fechar",
         Style::default()
             .fg(palette.overlay1)
             .bg(palette.surface0)
@@ -582,6 +582,25 @@ fn mobile_items(
 ) -> Vec<MobileItem> {
     let palette = &config.palette;
     let mut items = Vec::new();
+    items.push(MobileItem::action(
+        "  + Nova Pasta",
+        ClientMobileTarget::NewWorkspace,
+        palette,
+    ));
+    items.push(MobileItem::section("Menu", palette));
+    for (index, (label, _)) in super::global_menu::global_menu_items(snapshot)
+        .into_iter()
+        .enumerate()
+    {
+        items.push(MobileItem {
+            lines: vec![Line::from(Span::styled(
+                format!("  {label}"),
+                Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+            ))],
+            background: palette.panel_bg,
+            target: Some(ClientMobileTarget::Menu(index)),
+        });
+    }
     if endpoints.len() > 1 {
         items.push(MobileItem::section("máquinas", palette));
         for endpoint in endpoints {
@@ -750,12 +769,7 @@ fn mobile_items(
         }
     }
 
-    items.push(MobileItem::section("espaços", palette));
-    items.push(MobileItem::action(
-        "  + novo espaço",
-        ClientMobileTarget::NewWorkspace,
-        palette,
-    ));
+    items.push(MobileItem::section("Espaços", palette));
     for endpoint in super::aggregate_navigation::cached_endpoint_snapshots(endpoints) {
         for entry in super::render::workspace_entries(endpoint.snapshot, &HashSet::new()) {
             let Some(workspace) = endpoint.snapshot.workspaces.get(entry.index) else {
@@ -883,9 +897,9 @@ fn mobile_items(
     }
 
     if let Some(workspace_id) = snapshot.focused_workspace_id.as_deref() {
-        items.push(MobileItem::section("abas", palette));
+        items.push(MobileItem::section("Abas", palette));
         items.push(MobileItem::action(
-            "  + nova aba",
+            "  + Nova Aba",
             ClientMobileTarget::NewTab,
             palette,
         ));
@@ -926,20 +940,6 @@ fn mobile_items(
         }
     }
 
-    items.push(MobileItem::section("menu", palette));
-    for (index, (label, _)) in super::global_menu::global_menu_items(snapshot)
-        .into_iter()
-        .enumerate()
-    {
-        items.push(MobileItem {
-            lines: vec![Line::from(Span::styled(
-                format!("  {label}"),
-                Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-            ))],
-            background: palette.panel_bg,
-            target: Some(ClientMobileTarget::Menu(index)),
-        });
-    }
     items
 }
 
