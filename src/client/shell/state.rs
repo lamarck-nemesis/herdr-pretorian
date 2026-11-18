@@ -2,7 +2,6 @@ use super::*;
 
 pub(super) const MIN_TAB_WIDTH: u16 = 8;
 pub(super) const NEW_TAB_WIDTH: u16 = 3;
-pub(super) const WORKSPACE_HEADER_ROWS: u16 = 2;
 const ENDPOINT_ERROR_TIMEOUT_SECS: u64 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +34,8 @@ pub(crate) struct ClientShellConfig {
     pub(super) clipboard_toast_enabled: bool,
     pub(super) clipboard_toast_position: crate::config::ToastClipboardPosition,
     pub(super) nome_usuario: Option<String>,
+    pub(super) profissao_centauro: Option<String>,
+    pub(super) rotulo_centauro: Option<String>,
     pub(super) provedor_raciocinio: Option<String>,
     pub(super) nivel_raciocinio: crate::config::NivelRaciocinio,
     pub(super) pje_sem_janela: bool,
@@ -44,8 +45,6 @@ pub(crate) struct ClientShellConfig {
     pub(super) keybinds: LiveKeybindConfig,
     pub(super) local_keys: crate::config::KeysConfig,
     pub(super) keybinding_source: ClientShellKeybindingSource,
-    pub(super) prompt_new_tab_name: bool,
-    pub(super) prompt_new_workspace_name: bool,
     pub(super) confirm_close: bool,
     pub(super) mouse_capture: bool,
     pub(super) mouse_scroll_lines: usize,
@@ -149,6 +148,9 @@ pub(super) struct ShellHitMap {
     pub(super) lembretes_rows: Vec<(Rect, usize)>,
     pub(super) apoio_area: Rect,
     pub(super) janela_secundaria: Rect,
+    pub(super) abas_secundaria: Vec<(Rect, String)>,
+    pub(super) nova_aba_secundaria: Rect,
+    pub(super) fechar_secundaria: Rect,
     pub(super) apoio_abas: Vec<(Rect, usize)>,
     pub(super) apoio_rolar: (Rect, Rect),
     pub(super) apoio_rows: Vec<(Rect, usize)>,
@@ -318,14 +320,13 @@ pub(super) enum ClientRenameTarget {
     NewWorkspace {
         source_workspace_id: Option<String>,
         cwd: Option<String>,
-        suggested_name: String,
     },
     Workspace {
         workspace_id: String,
     },
     NewTab {
         workspace_id: String,
-        default_name: String,
+        focus: bool,
     },
     Tab {
         tab_id: String,
@@ -403,32 +404,23 @@ pub(super) struct ClientGlobalMenuOverlay {
     pub(super) especialista_doutor_iguais: bool,
     pub(super) provedores: Vec<&'static str>,
     pub(super) autorizacao: Option<super::authorization::Autorizacao>,
+    pub(super) nova_aba: Option<(String, String, bool)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientSettingsSection {
     Usuario,
-    Indicators,
     Sound,
-    Toast,
     Integrations,
 }
 
 impl ClientSettingsSection {
-    pub(super) const ALL: &[Self] = &[
-        Self::Usuario,
-        Self::Indicators,
-        Self::Sound,
-        Self::Toast,
-        Self::Integrations,
-    ];
+    pub(super) const ALL: &[Self] = &[Self::Usuario, Self::Sound];
 
     pub(super) fn label(self) -> &'static str {
         match self {
-            Self::Usuario => "usuário",
-            Self::Indicators => "indicadores",
-            Self::Sound => "som",
-            Self::Toast => "avisos",
+            Self::Usuario => "Centauro",
+            Self::Sound => "Alertas",
             Self::Integrations => "integrações",
         }
     }
@@ -439,6 +431,11 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) section: ClientSettingsSection,
     pub(super) selected: usize,
     pub(super) nome: TextEditor,
+    pub(super) nome_somente_leitura: bool,
+    pub(super) dependencias: bool,
+    pub(super) sound_enabled: bool,
+    pub(super) toast_delivery: crate::config::ToastDelivery,
+    pub(super) sobre: super::sobre_voce::SobreVoce,
     pub(super) integrations: Vec<crate::api::schema::IntegrationInfo>,
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,
@@ -895,6 +892,7 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) atualizacao: super::atualizacao::Atualizacao,
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
@@ -945,6 +943,7 @@ pub(crate) struct ClientShellState {
     pub(super) overlay: Option<ClientShellOverlay>,
     pub(super) previous_pane_id: Option<String>,
     pub(super) pane_mouse_gesture: Option<ClientPaneMouseGesture>,
+    pub(super) sidebar_action_hover: Option<super::sidebar::SidebarAction>,
     pub(super) link_hover: Option<super::link_hover::LinkHover>,
     pub(super) url_click_consumes_until_up: bool,
     /// The host terminal reports key releases (Kitty event types), so text
@@ -1070,6 +1069,7 @@ impl ClientShellState {
         }
         Self {
             machine_diagnostics: Default::default(),
+            atualizacao: Default::default(),
             config,
             snapshot: None,
             active_snapshot_generation: None,
@@ -1120,6 +1120,7 @@ impl ClientShellState {
             overlay,
             previous_pane_id: None,
             pane_mouse_gesture: None,
+            sidebar_action_hover: None,
             link_hover: None,
             url_click_consumes_until_up: false,
             host_reports_key_releases: false,
@@ -1259,14 +1260,22 @@ impl ClientShellState {
     }
 
     pub(super) fn layout(&self, cols: u16, rows: u16) -> ClientShellLayout {
-        self.config.layout(
+        let mut layout = self.config.layout(
             cols,
             rows,
             self.sidebar_collapsed,
             self.focused_tab_count(),
             self.sidebar_width,
             self.arranjo.largura_apoio(),
-        )
+        );
+        // Lado a lado, as abas da pasta principal ficam só sobre a metade dela.
+        if self.arranjo.lado_a_lado() == Some(true) && layout.mobile_header.is_empty() {
+            let (principal, outra, _) = crate::ui::dividir_superficie(layout.pane_surface, true);
+            if !outra.is_empty() {
+                layout.tab_bar.width = principal.width;
+            }
+        }
+        layout
     }
 
     pub(crate) fn surface_size(&self, cols: u16, rows: u16) -> ClientSurfaceSize {

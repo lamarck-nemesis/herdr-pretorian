@@ -12,8 +12,7 @@ mod widgets;
 
 pub(crate) use self::onboarding::{
     onboarding_welcome_continue_rect, ONBOARDING_DESCRIPTION, ONBOARDING_HELP_LABEL,
-    ONBOARDING_HELP_SUFFIX, ONBOARDING_NEXT, ONBOARDING_PREFIX_SUFFIX, ONBOARDING_SUBTITLE,
-    ONBOARDING_TITLE,
+    ONBOARDING_HELP_SUFFIX, ONBOARDING_PREFIX_SUFFIX, ONBOARDING_TITLE,
 };
 #[cfg(all(test, unix))]
 pub(crate) use self::panes::popup_pane_rects;
@@ -40,8 +39,9 @@ pub(crate) use self::sidebar::{
 use self::status::copy_feedback_rect;
 pub(crate) use self::status::{render_config_diagnostic_buffer, render_copy_feedback_buffer};
 pub(crate) use self::tab_surface::{
-    compute_tab_surface, compute_tab_surface_for, render_tab_surface, resize_tab_surface,
-    tab_surface_cursor, tab_surface_hyperlinks, TabSurfaceLayout, TabSurfaceTarget, TabSurfaceView,
+    compute_tab_surface, compute_tab_surface_for, dividir_superficie, render_tab_surface,
+    resize_tab_surface, tab_surface_cursor, tab_surface_hyperlinks, TabSurfaceLayout,
+    TabSurfaceTarget, TabSurfaceView,
 };
 pub(crate) use self::text::truncate_end;
 pub(crate) use self::widgets::{centered_popup_rect, modal_stack_areas};

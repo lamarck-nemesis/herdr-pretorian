@@ -405,11 +405,11 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("configurações"));
+    assert!(text.contains("Configurações"));
     assert!(!text.contains("atalhos"));
     assert!(!text.contains("recarregar configuração"));
-    assert!(text.contains("login pje"));
-    assert!(text.contains("desconectar"));
+    assert!(text.contains("Login PJe"));
+    assert!(text.contains("Desconectar"));
 
     let settings_row = state.hits.global_menu_rows[0].0;
     let settings =
@@ -457,8 +457,8 @@ fn new_tab_overlay_owns_text_cursor_and_submits_public_api_request() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("nova aba"));
-    assert!(text.contains("salvar"));
+    assert!(text.contains("Nova Aba"));
+    assert!(text.contains("Salvar"));
     let restored = frame.to_ratatui_buffer().expect("overlay frame");
     assert!(!restored
         .cell((26, 7))
@@ -545,7 +545,7 @@ fn menu_tem_login_pje_com_modo_headless_ligado_e_desligado() {
     let itens = global_menu_items_for(&snapshot(), false);
     let posicao = itens
         .iter()
-        .position(|(label, _)| *label == "login pje")
+        .position(|(label, _)| *label == "Login PJe")
         .expect("item login pje");
     assert_eq!(
         itens[posicao].1,
@@ -558,6 +558,7 @@ fn menu_tem_login_pje_com_modo_headless_ligado_e_desligado() {
         especialista_doutor_iguais: false,
         provedores: vec![],
         autorizacao: None,
+        nova_aba: None,
     };
     let acoes: Vec<_> = pagina
         .items(&snapshot())
@@ -587,12 +588,12 @@ fn menu_oferece_atualizar_so_com_lancador_e_pede_a_saida_de_atualizacao() {
     let com_lancador = global_menu_items_for(&projected, true);
     let posicao = com_lancador
         .iter()
-        .position(|(label, _)| *label == "atualizar o Pretorian")
+        .position(|(label, _)| *label == "Atualizar o Pretorian")
         .expect("item de atualização");
     assert_eq!(com_lancador[posicao].1, ClientGlobalMenuAction::Atualizar);
     assert_eq!(
         com_lancador.last().map(|(label, _)| *label),
-        Some("desconectar")
+        Some("Desconectar")
     );
 }
 
@@ -626,15 +627,15 @@ fn raciocinio_abre_submenus_com_perfis_e_provedores_disponiveis() {
     };
     assert_eq!(menu.highlighted, 1);
     let itens = menu.items(state.snapshot.as_deref().unwrap());
-    assert!(itens[1].0.contains("Especialista (padrão)"));
-    assert!(itens[2].0.contains("casos desafiadores"));
+    assert!(itens[1].0.contains("Especialista (Padrão)"));
+    assert!(itens[2].0.contains("Casos complexos"));
     let frame = state.compose(120, 30).unwrap();
     let texto = frame
         .cells
         .iter()
         .map(|celula| celula.symbol.as_str())
         .collect::<String>();
-    assert!(texto.contains("Especialista (padrão)"));
+    assert!(texto.contains("Especialista (Padrão)"));
 }
 
 #[test]
@@ -678,16 +679,29 @@ fn raciocinio_mostra_configuracao_repetida_sem_ocultar_os_niveis() {
     assert_eq!(itens[4].1, A::Pagina(P::Raciocinio));
 }
 
+fn secundarias(saida: &ClientShellInput) -> Vec<crate::api::schema::ClientShellSecondarySetParams> {
+    saida
+        .actions
+        .iter()
+        .filter_map(|acao| match acao {
+            ClientShellAction::Endpoint { request, .. } => match &request.method {
+                crate::api::schema::Method::ClientShellSecondarySet(params) => Some(params.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
+fn menu_layout_escolhe_os_quatro_arranjos_pedindo_a_divisao_ao_servidor() {
     use super::super::arranjo::{Arranjo, LARGURA_APOIO};
-    use crate::api::schema::{Method, PaneMoveDestination, SplitDirection};
+    use crate::api::schema::SplitDirection;
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("frame inicial");
     let inicial = state.layout(140, 30);
-    assert_eq!(inicial.pane_surface.y, inicial.tab_bar.bottom());
     let posicao = |state: &ClientShellState, rotulo: &str| {
         let Some(ClientShellOverlay::GlobalMenu(menu)) = &state.overlay else {
             panic!("menu aberto");
@@ -697,75 +711,57 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
             .position(|(texto, _)| texto.ends_with(rotulo))
             .unwrap_or_else(|| panic!("item {rotulo}"))
     };
-    // menu > layout > arranjo; a página marca o arranjo em uso.
     let escolher = |state: &mut ClientShellState, rotulo: &str| {
         let mut saida = ClientShellInput::default();
         state.toggle_global_menu();
-        let layout = posicao(state, "layout");
+        let layout = posicao(state, "Layout");
         state.activate_global_menu_item(layout, &mut saida);
         let item = posicao(state, rotulo);
         state.activate_global_menu_item(item, &mut saida);
         saida
     };
-    let metodos = |saida: &ClientShellInput| -> Vec<Method> {
-        saida
-            .actions
-            .iter()
-            .filter_map(|acao| match acao {
-                ClientShellAction::Endpoint { request, .. } => Some(request.method.clone()),
-                _ => None,
-            })
-            .collect()
-    };
 
-    let com_apoio = escolher(&mut state, "2  barras à esquerda e à direita");
+    let com_apoio = escolher(&mut state, "2  Barras à Esquerda e à Direita");
     assert_eq!(state.arranjo.atual, Arranjo::ComApoio);
     assert!(com_apoio.resize, "o servidor precisa saber da nova largura");
-    // A imagem antiga da conversa é descartada até o servidor mandar a da nova largura.
-    state.set_pane_surface(surface());
-    state.compose(140, 30).expect("com apoio");
+    assert_eq!(secundarias(&com_apoio)[0].direction, None);
     let layout = state.layout(140, 30);
     assert_eq!(layout.apoio.width, LARGURA_APOIO);
     assert_eq!(
         layout.pane_surface.width,
         inicial.pane_surface.width - LARGURA_APOIO
     );
-    assert_eq!(state.hits.apoio_area, layout.apoio);
 
-    let lado = escolher(&mut state, "3  barras e divisão vertical central");
-    assert!(!lado.resize);
-    assert!(matches!(
-        &metodos(&lado)[..],
-        [Method::PaneSplit(params)] if params.direction == SplitDirection::Right
-    ));
+    let lado = escolher(&mut state, "3  Barras e Divisão Vertical Central");
+    let [pedido] = &secundarias(&lado)[..] else {
+        panic!("um pedido de divisão");
+    };
+    assert_eq!(
+        (pedido.direction.clone(), pedido.workspace_id.clone()),
+        (Some(SplitDirection::Right), None)
+    );
+    // Lado a lado, as abas da principal ficam só sobre a metade dela.
+    let layout = state.layout(140, 30);
+    let (metade, _, _) = crate::ui::dividir_superficie(layout.pane_surface, true);
+    assert_eq!(layout.tab_bar.width, metade.width);
+    state.set_pane_surface(surface());
+    let tela = frame_rows(&state.compose(140, 30).expect("dividido").frame).join("\n");
+    assert!(tela.contains("Arraste uma pasta para cá"));
+    assert_ne!(state.hits.fechar_secundaria, Rect::default());
 
-    let mut dois_paineis = snapshot();
-    let mut segundo = dois_paineis.panes[0].clone();
-    segundo.pane_id = "pane_2".into();
-    segundo.focused = false;
-    dois_paineis.panes.push(segundo);
-    state.set_snapshot(Box::new(dois_paineis));
-    let embaixo = escolher(&mut state, "4  barras e divisão horizontal central");
-    assert_eq!(state.arranjo.atual, Arranjo::EmCimaEmbaixo);
-    // O servidor recusa mover dentro da mesma aba: o painel passa por uma aba temporária.
-    assert!(matches!(
-        &metodos(&embaixo)[..],
-        [Method::PaneMove(saida), Method::PaneMove(volta)]
-            if saida.pane_id == "pane_2" && volta.pane_id == "pane_2"
-            && matches!(&saida.destination, PaneMoveDestination::NewTab { .. })
-            && matches!(&volta.destination, PaneMoveDestination::Tab {
-                tab_id, target_pane_id: Some(alvo), split: SplitDirection::Down, ..
-            } if tab_id == "tab_1" && alvo == "pane_1")
-    ));
+    let embaixo = escolher(&mut state, "4  Barras e Divisão Horizontal Central");
+    assert_eq!(
+        secundarias(&embaixo)[0].direction,
+        Some(SplitDirection::Down)
+    );
+    assert_eq!(
+        state.layout(140, 30).tab_bar.width,
+        layout.pane_surface.width
+    );
 
-    let volta = escolher(&mut state, "1  barra à esquerda");
-    assert_eq!(state.arranjo.atual, Arranjo::Conversa);
+    let volta = escolher(&mut state, "1  Barra à Esquerda");
     assert!(volta.resize);
-    let metodos_volta = metodos(&volta);
-    assert!(!metodos_volta
-        .iter()
-        .any(|m| matches!(m, Method::PaneClose(_))));
-    assert!(matches!(&metodos_volta[..], [Method::PaneZoom(_)]));
+    assert_eq!(secundarias(&volta)[0].direction, None);
     assert_eq!(state.layout(140, 30).apoio.width, 0);
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("apoio oculto");
@@ -787,9 +783,9 @@ fn menu_layout_escolhe_os_quatro_arranjos_sem_fechar_painel() {
 }
 
 #[test]
-fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
+fn pasta_na_janela_secundaria_tem_abas_mais_fechar_e_teclado_proprios() {
     use super::super::arranjo::Arranjo;
-    use crate::api::schema::{Method, PaneMoveDestination, SplitDirection};
+    use crate::api::schema::{Method, SplitDirection};
     let mut duas_pastas = snapshot();
     let mut pasta = duas_pastas.workspaces[0].clone();
     pasta.workspace_id = "ws_2".into();
@@ -809,10 +805,17 @@ fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
     duas_pastas.tabs.push(aba);
     duas_pastas.panes.push(painel);
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(duas_pastas));
+    state.set_snapshot(Box::new(duas_pastas.clone()));
     state.set_pane_surface(surface());
     state.compose(140, 30).expect("frame inicial");
-    assert_eq!(state.hits.janela_secundaria, Rect::default());
+    let clicar = |state: &mut ClientShellState, alvo: Rect| {
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: alvo.x + 1,
+            row: alvo.y,
+            modifiers: KeyModifiers::empty(),
+        })])
+    };
 
     state.open_workspace_context_menu("ws_2".into(), 2, 4);
     let Some(ClientShellOverlay::ContextMenu(menu)) = &state.overlay else {
@@ -821,41 +824,329 @@ fn menu_da_pasta_puxa_a_sessao_para_a_janela_secundaria() {
     let indice = menu
         .items()
         .iter()
-        .position(|item| item.label == "Abrir na janela secundária")
+        .position(|item| item.label == "Abrir na Janela Secundária")
         .expect("item no menu da pasta");
-    state.compose(140, 30).expect("menu");
+    state.compose(140, 30).expect("Menu");
     let linha = state.hits.context_menu_rows[indice].0;
-    let saida = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: linha.x + 1,
-        row: linha.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
+    let puxar = clicar(&mut state, linha);
     assert_eq!(state.arranjo.atual, Arranjo::LadoALado);
-    assert!(saida.resize);
-    let movimentos: Vec<_> = saida
-        .actions
-        .iter()
-        .filter_map(|acao| match acao {
-            ClientShellAction::Endpoint { request, .. } => match &request.method {
-                Method::PaneMove(params) => Some(params.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
-    assert!(matches!(
-        &movimentos[..],
-        [params] if params.pane_id == "pane_9"
-            && matches!(&params.destination, PaneMoveDestination::Tab {
-                tab_id, target_pane_id: Some(alvo), split: SplitDirection::Right, ..
-            } if tab_id == "tab_1" && alvo == "pane_1")
-    ));
+    assert!(puxar.resize);
+    let [pedido] = &secundarias(&puxar)[..] else {
+        panic!("um pedido de secundária");
+    };
+    assert_eq!(
+        (
+            pedido.direction.clone(),
+            pedido.workspace_id.as_deref(),
+            pedido.focus
+        ),
+        (Some(SplitDirection::Right), Some("ws_2"), false)
+    );
 
     state.set_pane_surface(surface());
-    let frame = state.compose(140, 30).expect("com janela secundária");
-    let texto = frame_rows(&frame.frame).join("\n");
-    assert!(texto.contains("Janela secundária"));
-    assert!(texto.contains("● lsa-pje"));
-    assert_ne!(state.hits.janela_secundaria, Rect::default());
+    let tela = frame_rows(&state.compose(140, 30).expect("secundária").frame).join("\n");
+    assert!(tela.contains("● lsa-pje"), "{tela}");
+    let abas = state.hits.abas_secundaria.clone();
+    let [(aba, tab_id)] = &abas[..] else {
+        panic!("uma aba na barra da secundária");
+    };
+    let aba = *aba;
+    assert_eq!(tab_id, "tab_2");
+    let trocar = clicar(&mut state, aba);
+    assert_eq!(secundarias(&trocar)[0].tab_id.as_deref(), Some("tab_2"));
+
+    let alvo = state.hits.nova_aba_secundaria;
+    assert!(clicar(&mut state, alvo).actions.is_empty());
+    state.insert_overlay_text("Revisão");
+    let nova = state.handle_input_bytes(b"\r");
+    assert!(matches!(
+        &nova.actions[..],
+        [ClientShellAction::Endpoint { request, .. }] if matches!(&request.method,
+            Method::TabCreate(params) if params.workspace_id.as_deref() == Some("ws_2") && !params.focus)
+    ));
+    // A aba criada vira a ativa da secundária quando chega no snapshot.
+    let mut com_nova = duas_pastas.clone();
+    let mut nova_aba = com_nova.tabs[1].clone();
+    nova_aba.tab_id = "tab_3".into();
+    com_nova.tabs.push(nova_aba);
+    state.set_snapshot(Box::new(com_nova));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert_eq!(secundarias(&tique)[0].tab_id.as_deref(), Some("tab_3"));
+
+    // Teclado: painel da secundária recebe sem trocar a pasta principal.
+    let mut saida = ClientShellInput::default();
+    assert!(state.foco_por_clique("pane_9", &mut saida));
+    assert!(secundarias(&saida)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_9"));
+    // O painel da secundária fecha: o teclado volta à principal.
+    let mut sem_painel = duas_pastas.clone();
+    sem_painel.panes.retain(|pane| pane.pane_id != "pane_9");
+    state.set_snapshot(Box::new(sem_painel));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert!(!secundarias(&tique)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_1"));
+    // A principal muda de foco por atalho ou aba: o teclado também volta.
+    state.set_snapshot(Box::new(duas_pastas.clone()));
+    assert!(state.foco_por_clique("pane_9", &mut ClientShellInput::default()));
+    let mut outro_foco = duas_pastas.clone();
+    outro_foco.focused_pane_id = Some("pane_7".into());
+    state.set_snapshot(Box::new(outro_foco));
+    let mut tique = ClientShellInput::default();
+    state.tick_arranjo(&mut tique);
+    assert!(!secundarias(&tique)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_7"));
+    state.set_snapshot(Box::new(duas_pastas.clone()));
+    assert!(state.foco_por_clique("pane_9", &mut ClientShellInput::default()));
+    let mut saida = ClientShellInput::default();
+    assert!(!state.foco_por_clique("pane_1", &mut saida));
+    assert!(!secundarias(&saida)[0].focus);
+    assert_eq!(state.focused_pane_id().as_deref(), Some("pane_1"));
+
+    // Em tela estreita o apoio some, mas a barra da secundária continua com o ×.
+    assert_eq!(state.layout(80, 30).apoio.width, 0);
+    state.compose(80, 30).expect("secundária sem apoio");
+    assert!(state.hits.apoio_area.is_empty());
+    assert!(!state.hits.fechar_secundaria.is_empty());
+
+    state.compose(140, 30).expect("antes de fechar");
+    let alvo = state.hits.fechar_secundaria;
+    let fechar = clicar(&mut state, alvo);
+    assert_eq!(state.arranjo.atual, Arranjo::ComApoio);
+    assert_eq!(secundarias(&fechar)[0].direction, None);
+}
+
+#[test]
+fn criacao_nome_cancelamento_e_nivel_preservam_destino() {
+    std::env::set_var("PRETORIAN_PAINEL_GERENCIADO", "1");
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    for workspace in [false, true] {
+        for cancel in [b"\x1b".as_slice(), b"\r".as_slice()] {
+            if workspace {
+                state.open_new_workspace_overlay();
+            } else {
+                state.open_new_tab_for_workspace("destino".into());
+            }
+            assert!(state.handle_input_bytes(cancel).actions.is_empty());
+            assert!(state.overlay.is_none());
+        }
+    }
+    state.open_new_tab_for_workspace("destino".into());
+    state.insert_overlay_text("Análise 😀");
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::GlobalMenu(_))
+    ));
+    let mut changed = snapshot();
+    changed.focused_workspace_id = Some("outra-pasta".into());
+    state.set_snapshot(Box::new(changed));
+    let mut outcome = ClientShellInput::default();
+    state.activate_global_menu_item(1, &mut outcome);
+    std::env::remove_var("PRETORIAN_PAINEL_GERENCIADO");
+    let [ClientShellAction::Endpoint { request, .. }] = outcome.actions.as_slice() else {
+        panic!("uma criação");
+    };
+    assert!(
+        matches!(&request.method, crate::api::schema::Method::TabCreate(params)
+        if params.workspace_id.as_deref() == Some("destino")
+            && params.label.as_deref() == Some("Análise 😀")
+            && params.env.contains_key("PRETORIAN_NIVEL_ABA"))
+    );
+}
+
+#[test]
+fn contexto_nova_aba_nao_foca_nem_cria_antes_do_nome() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.open_tab_context_menu("tab_1".into(), 0, 0);
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(0, &mut outcome);
+    assert!(outcome.actions.is_empty());
+    assert!(matches!(state.overlay, Some(ClientShellOverlay::Rename(_))));
+    state.insert_overlay_text("Nome escolhido");
+    state.save_rename_overlay(&mut outcome);
+    assert!(
+        matches!(outcome.actions.as_slice(), [ClientShellAction::Endpoint { request, .. }]
+        if matches!(&request.method, crate::api::schema::Method::TabCreate(params)
+            if params.label.as_deref() == Some("Nome escolhido")))
+    );
+}
+
+#[test]
+fn cabecalho_centauro_mostra_dados_explicitos_e_so_nome_negrito() {
+    let mut config = ClientShellConfig::from_config(&Config::default());
+    config.nome_usuario = Some("Pessoa Sintética".into());
+    config.profissao_centauro = Some("Profissão Explícita".into());
+    config.rotulo_centauro = Some("Centaura Admin".into());
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(140, 30).expect("cabeçalho");
+    let text = frame_rows(&frame.frame).join("\n");
+    assert!(
+        text.contains("Pessoa Sintética")
+            && text.contains("Profissão Explícita")
+            && text.contains("Centaura Admin")
+    );
+    let buffer = frame.to_ratatui_buffer().expect("buffer");
+    let area = state.layout(140, 30).sidebar;
+    assert_eq!(state.hits.new_workspace.y, area.y + 4);
+    assert_eq!(state.hits.global_launcher.y, area.y + 4);
+    assert_eq!(buffer[(area.x + 1, area.y + 3)].symbol(), " ");
+    assert!(buffer[(area.x + 1, area.y)]
+        .modifier
+        .contains(Modifier::BOLD));
+    assert!(!buffer[(area.x + 1, area.y + 1)]
+        .modifier
+        .contains(Modifier::BOLD));
+    assert!(!buffer[(area.x + 1, area.y + 2)]
+        .modifier
+        .contains(Modifier::BOLD));
+}
+
+#[test]
+fn acoes_no_topo_nao_sobrepoem_lista_menu_ou_assinatura() {
+    for collapsed in [false, true] {
+        for width in [18, 20, 24, 36] {
+            for rows in [8, 12, 30] {
+                let mut config = Config::default();
+                config.ui.sidebar_width = width;
+                let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+                state.sidebar_collapsed = collapsed;
+                state.set_snapshot(Box::new(snapshot()));
+                state.set_pane_surface(surface());
+                let frame = state.compose(140, rows).expect("barra");
+                let sidebar = state.layout(140, rows).sidebar;
+                let new = state.hits.new_workspace;
+                let menu = state.hits.global_launcher;
+                assert_eq!(new.y, sidebar.y + if collapsed { 0 } else { 2 });
+                assert_eq!(menu.y, new.y);
+                assert!(!new.is_empty() && !menu.is_empty());
+                assert!(new.right() <= menu.x && menu.right() < sidebar.right());
+                assert!(state.hits.workspaces.iter().all(|hit| hit.rect.y > new.y));
+                if !collapsed {
+                    let footer = frame_rows(&frame.frame).pop().unwrap();
+                    assert!(footer.contains("nεαd.tεch") && !footer.contains('⌘'));
+                    assert!(state.hits.workspace_body.bottom() < rows - 1);
+                }
+                state.toggle_global_menu();
+                state.compose(140, rows).expect("menu no topo");
+                assert!(!state.hits.global_menu_rows.is_empty());
+                assert!(state
+                    .hits
+                    .global_menu_rows
+                    .iter()
+                    .all(|(rect, _)| rect.bottom() <= rows));
+            }
+        }
+    }
+}
+
+#[test]
+fn dialogo_nome_mantem_salvar_cancelar_e_limpeza_pelo_teclado() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.open_new_tab_overlay();
+    state.insert_overlay_text("Nome provisório");
+    let frame = state.compose(100, 20).expect("nome");
+    let text = frame_rows(&frame.frame).join("\n");
+    assert!(text.contains("Salvar") && text.contains("Cancelar"));
+    assert!(!text.contains("Limpar"));
+    assert!(state.hits.overlay_clear.is_empty());
+    state.handle_input_bytes(b"\x03");
+    assert!(state.handle_input_bytes(b"\r").actions.is_empty());
+}
+
+#[test]
+fn botoes_das_pastas_tem_hierarquia_hover_foco_e_clique() {
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    for theme in ["pretorian", "pink", "zendataops"] {
+        let mut config = Config::default();
+        config.theme.name = Some(theme.into());
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(surface());
+        let frame = state.compose(140, 30).unwrap();
+        let new = state.hits.new_workspace;
+        let menu = state.hits.global_launcher;
+        let palette = &state.config.palette;
+        let buffer = frame.to_ratatui_buffer().unwrap();
+        assert_eq!(buffer[(new.x, new.y)].bg, palette.surface0);
+        assert_eq!(buffer[(menu.x, menu.y)].bg, palette.sidebar_bg);
+        let text = frame_rows(&frame.frame).join("\n");
+        assert!(text.contains("+ Nova Pasta") && text.contains("Menu ▾"));
+        for (target, expected, is_menu) in [
+            (new, state.config.palette.selection_bg, false),
+            (menu, state.config.palette.surface1, true),
+        ] {
+            let event = MouseEvent {
+                kind: MouseEventKind::Moved,
+                column: target.x,
+                row: target.y,
+                modifiers: KeyModifiers::NONE,
+            };
+            assert!(
+                state
+                    .handle_raw_events(vec![RawInputEvent::Mouse(event)])
+                    .repaint
+            );
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(target.x, target.y)].bg,
+                expected
+            );
+            state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                ..event
+            })]);
+            assert!(if is_menu {
+                matches!(state.overlay, Some(ClientShellOverlay::GlobalMenu(_)))
+            } else {
+                matches!(state.overlay, Some(ClientShellOverlay::Rename(_)))
+            });
+            state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+                column: 139,
+                row: 29,
+                ..event
+            })]);
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(target.x, target.y)].bg,
+                expected
+            );
+            state.handle_input_bytes(b"\x1b");
+            let frame = state.compose(140, 30).unwrap();
+            assert_eq!(
+                frame.to_ratatui_buffer().unwrap()[(menu.x, menu.y)].bg,
+                state.config.palette.sidebar_bg
+            );
+        }
+    }
+}
+
+#[test]
+fn botoes_compactos_preservam_alvos_separados_com_alerta() {
+    for width in 4..42 {
+        for attention in [false, true] {
+            let area = Rect::new(0, 0, width, 4);
+            let mut buffer = ratatui::buffer::Buffer::empty(area);
+            let mut hits = ShellHitMap::default();
+            super::super::sidebar::render_sidebar_actions(
+                &mut buffer,
+                area,
+                attention,
+                &Palette::pretorian(),
+                None,
+                &mut hits,
+            );
+            assert!(hits.new_workspace.right() < hits.global_launcher.x);
+            assert!(hits.global_launcher.right() < area.right());
+            assert_eq!(hits.new_workspace.height, 1);
+            assert_eq!(hits.global_launcher.height, 1);
+        }
+    }
 }

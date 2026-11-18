@@ -21,10 +21,10 @@ pub(super) enum PretorianUpdate {
 impl PretorianUpdate {
     pub(super) fn rotulo(self) -> &'static str {
         match self {
-            Self::Disponivel => "atualizar o Pretorian",
-            Self::Instalando => "atualizando o Pretorian…",
-            Self::Instalada => "atualizado: vale ao reabrir",
-            Self::Falhou => "atualização falhou: tentar de novo",
+            Self::Disponivel => "Atualizar o Pretorian",
+            Self::Instalando => "Atualizando o Pretorian…",
+            Self::Instalada => "Atualizado: Vale ao Reabrir",
+            Self::Falhou => "Atualização Falhou: Tentar de Novo",
         }
     }
 
@@ -75,7 +75,7 @@ pub(super) fn estado() -> Option<PretorianUpdate> {
 /// pede ao lançador que confira o catálogo; fora do lançador do Pretorian o item não existe.
 pub(super) fn rotulo_menu() -> Option<&'static str> {
     arquivo()?;
-    Some(estado().map_or("verificar atualização", PretorianUpdate::rotulo))
+    Some(estado().map_or("Verificar Atualização", PretorianUpdate::rotulo))
 }
 
 /// O item pede algo ao lançador quando há o que conferir ou instalar.

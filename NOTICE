@@ -4,7 +4,7 @@ Copyright 2026 Lamarck Sociedade de Advogados
 This product is a modified version of Herdr (https://github.com/herdrdev/herdr),
 licensed under the Apache License, Version 2.0 (see LICENSE). The modifications
 by Lamarck Sociedade de Advogados include the Portuguese interface, the
-"pretorian" theme, the window title and header, the user section in the
+"pretorian" and Radix Pink themes, the window title and header, the user section in the
 settings, the dedicated configuration and state directories, and the
 "just instalar" recipes, agent selection and automatic startup, reasoning
 profiles, and account authorization from the terminal menu. The files changed from the upstream release are

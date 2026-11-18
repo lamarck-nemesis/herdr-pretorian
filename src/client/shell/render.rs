@@ -13,7 +13,7 @@ pub(super) use overlays::{
     render_apoio, render_client_overlay, render_context_menu, render_global_menu,
 };
 pub(super) use sidebar::{render_collapsed_sidebar, render_sidebar, workspace_entries};
-pub(super) use tabs::{render_tab_bar, tab_bar_status_width};
+pub(super) use tabs::{render_barra_secundaria, render_tab_bar, tab_bar_status_width};
 
 pub(in crate::client::shell) fn render_sidebar_background(
     buffer: &mut Buffer,
@@ -234,6 +234,7 @@ pub(super) fn render_mode_bar(
 }
 
 pub(super) struct ShellRenderState<'a> {
+    pub(super) sidebar_action: Option<super::sidebar::SidebarAction>,
     pub(super) machine_diagnostics: &'a super::machine_diagnostics::MachineDiagnostics,
     pub(super) endpoints: &'a [ClientShellEndpoint],
     pub(super) active_endpoint_id: &'a ClientEndpointId,
@@ -302,10 +303,10 @@ pub(super) fn render_shell(
                 state
                     .selected_workspace_id
                     .map(|target| target.workspace_id.as_str()),
+                state.sidebar_action,
                 &mut hits,
             );
         } else {
-            // A última linha da barra leva a assinatura; "nova pasta · menu" fica logo acima.
             let assinatura = (layout.sidebar.height > 6).then(|| Rect {
                 y: layout.sidebar.bottom() - 1,
                 height: 1,
@@ -322,7 +323,10 @@ pub(super) fn render_shell(
                     buffer,
                     linha.x + 1,
                     linha.y,
-                    &crate::config::assinatura(),
+                    &crate::ui::truncate_end(
+                        &crate::config::assinatura(),
+                        usize::from(linha.width.saturating_sub(2)),
+                    ),
                     &config.palette,
                     config.palette.sidebar_bg,
                 );

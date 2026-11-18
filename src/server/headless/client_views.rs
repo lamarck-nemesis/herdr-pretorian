@@ -154,6 +154,7 @@ impl HeadlessServer {
                 crate::server::clients::ClientShellLocation {
                     focused_workspace_id: topology.focused_workspace_id.clone(),
                     active_tab_ids: topology.active_tab_ids.clone(),
+                    secundaria: None,
                 }
             });
             location.reconcile(&topology);
@@ -496,6 +497,9 @@ impl HeadlessServer {
         workspace_index: usize,
         pane_id: crate::layout::PaneId,
     ) -> bool {
+        if self.shell_secundaria_views_pane(client_id, workspace_index, pane_id) {
+            return true;
+        }
         let Some(target) = self.shell_target_for_client(client_id) else {
             return false;
         };
@@ -576,16 +580,23 @@ impl HeadlessServer {
         } else {
             crate::kitty_graphics::HostCellSize::default()
         };
-        let area = Rect::new(0, 0, cols, rows);
+        // Arranjos divididos do Pretorian: a pasta principal mede a primeira metade e a
+        // secundária, a segunda.
+        let (area, secundaria) = self.areas_shell(client_id);
+        let secundaria = secundaria
+            .and_then(|(alvo, outra)| alvo.map(|alvo| (alvo, super::secundaria::na_origem(outra))));
         if self.app_client_count() == 1 {
             for (workspace_index, workspace) in self.app.state.workspaces.iter().enumerate() {
+                let medida = secundaria
+                    .filter(|(alvo, _)| alvo.workspace_index == workspace_index)
+                    .map_or(area, |(_, outra)| outra);
                 for tab_index in 0..workspace.tabs.len() {
                     crate::ui::resize_tab_surface(
                         &self.app.state,
                         &self.app.terminal_runtimes,
                         workspace_index,
                         tab_index,
-                        area,
+                        medida,
                         cell_size,
                     );
                 }
@@ -599,6 +610,16 @@ impl HeadlessServer {
                 true,
                 cell_size,
             );
+            if let Some((alvo, outra)) = secundaria {
+                crate::ui::compute_tab_surface_for(
+                    &self.app.state,
+                    &self.app.terminal_runtimes,
+                    Some(alvo),
+                    outra,
+                    true,
+                    cell_size,
+                );
+            }
         }
         if self
             .popup_owner_tab_id
