@@ -9,6 +9,10 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.8.0] - 2026-11-17
+
+- Atualiza os três perfis de raciocínio e as rotas do gateway de modelos.
+
 ## [0.7.0] - 2026-11-17
 
 ### Adicionado
