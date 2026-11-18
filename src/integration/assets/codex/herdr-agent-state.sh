@@ -3,7 +3,7 @@
 # managed by herdr; reinstalling or updating the integration overwrites this file.
 # add custom hooks beside this file instead of editing it.
 # HERDR_INTEGRATION_ID=codex
-# HERDR_INTEGRATION_VERSION=11
+# HERDR_INTEGRATION_VERSION=12
 
 set -eu
 
@@ -13,7 +13,7 @@ trap 'rm -f "$hook_input_file"' EXIT HUP INT TERM
 cat >"$hook_input_file" 2>/dev/null || true
 
 case "$action" in
-  session) ;;
+  session|prompt) ;;
   *) exit 0 ;;
 esac
 
@@ -49,18 +49,33 @@ if hook_input_file:
         hook_input = {}
 
 hook_event_name = str(hook_input.get("hook_event_name") or "")
-if hook_event_name and hook_event_name != "SessionStart":
-    raise SystemExit(0)
 
-historico_python = os.environ.get("PRETORIAN_HISTORICOS_PYTHON")
-historico_helper = os.environ.get("PRETORIAN_HISTORICOS_HELPER")
-if historico_python and historico_helper:
+
+def chamar_auxiliar(evento):
+    historico_python = os.environ.get("PRETORIAN_HISTORICOS_PYTHON")
+    historico_helper = os.environ.get("PRETORIAN_HISTORICOS_HELPER")
+    if not (historico_python and historico_helper):
+        return
     import subprocess
     try:
-        subprocess.run([historico_python, historico_helper], input=json.dumps(hook_input).encode(),
+        subprocess.run([historico_python, historico_helper], input=json.dumps(evento).encode(),
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5, check=False)
     except (OSError, subprocess.SubprocessError):
         pass
+
+
+if action == "prompt":
+    # O auxiliar descarta eventos acima de 65.536 bytes; por isso só o início do pedido segue.
+    prompt = hook_input.get("prompt")
+    prompt_session_id = hook_input.get("session_id")
+    if hook_event_name == "UserPromptSubmit" and isinstance(prompt, str) and isinstance(prompt_session_id, str):
+        chamar_auxiliar({"hook_event_name": hook_event_name, "session_id": prompt_session_id, "prompt": prompt[:2000]})
+    raise SystemExit(0)
+
+if hook_event_name and hook_event_name != "SessionStart":
+    raise SystemExit(0)
+
+chamar_auxiliar(hook_input)
 
 request_id = f"{source}:{int(time.time() * 1000)}:{random.randrange(1_000_000):06d}"
 report_seq = time.time_ns()
