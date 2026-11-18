@@ -80,12 +80,15 @@ use terminal_setup::{
     TerminalGuard,
 };
 
-/// O tema Pretorian é claro e fixo: impõe fundo e texto ao terminal hospedeiro para os
+/// Os temas Pretorian, Pink e ZenDataOps são claros e fixos: impõem fundo e texto ao terminal hospedeiro para os
 /// painéis não herdarem o fundo escuro do terminal. Outros temas seguem o hospedeiro.
 fn host_default_colors_for_theme(config: &crate::config::Config) -> Option<HostDefaultColors> {
     let runtime = crate::app::client_theme_runtime_from_config(config);
     if runtime.auto_switch
-        || crate::config::canonical_theme_name(&runtime.manual_name) != Some("pretorian")
+        || !matches!(
+            crate::config::canonical_theme_name(&runtime.manual_name),
+            Some("pretorian" | "pink" | "zendataops")
+        )
     {
         return None;
     }
@@ -2380,11 +2383,13 @@ async fn run_client_loop(
                         }
                         let (effects, notification_repaint) = shell.tick_notifications(now);
                         outcome.repaint |= notification_repaint
+                            | shell.tick_atualizacao(now)
                             | shell.tick_copy_feedback(now)
                             | shell.tick_workspace_highlight(now)
                             | shell.tick_endpoint_error(now)
-                            | shell.tick_autorizacao();
-                        outcome.resize |= shell.tomar_redimensionamento();
+                            | shell.tick_autorizacao()
+                            | shell.tick_sobre_voce(now);
+                        shell.tick_arranjo(&mut outcome);
                         let frame = outcome
                             .repaint
                             .then(|| shell.compose(state.reported_size.0, state.reported_size.1))

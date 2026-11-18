@@ -42,7 +42,9 @@ pub(super) fn render_settings_overlay(
     let integration_height = 14u16
         .saturating_add(settings.integrations.len().max(1) as u16)
         .saturating_add(settings.integration_messages.len().min(6) as u16);
-    let height = if settings.section == ClientSettingsSection::Integrations {
+    let height = if settings.section == ClientSettingsSection::Usuario {
+        34
+    } else if settings.section == ClientSettingsSection::Integrations {
         integration_height.max(22)
     } else {
         22
@@ -58,7 +60,7 @@ pub(super) fn render_settings_overlay(
         inner.x,
         inner.y,
         inner.width,
-        " configurações",
+        " Configurações",
         Style::default()
             .fg(palette.text)
             .bg(palette.panel_bg)
@@ -134,55 +136,113 @@ pub(super) fn render_settings_overlay(
         ClientSettingsSection::Usuario => {
             cursor = render_usuario_section(buffer, content, settings, palette, &mut choice_hits);
         }
-        ClientSettingsSection::Indicators => {
-            render_choice_section(
-                buffer,
-                content,
-                "estado dos agentes",
-                "escolha cores ou símbolos para cada estado",
-                &[
-                    "pontos coloridos  ● ● ● ○ ·",
-                    "símbolos distintos  ▲ ◐ ✓ ○ ·",
-                ],
-                settings.selected,
-                palette,
-                &mut choice_hits,
-            );
-        }
         ClientSettingsSection::Sound => {
-            render_choice_section(
+            put_text(
                 buffer,
-                content,
-                "alertas sonoros",
-                "tocar sons quando agentes mudarem de estado",
-                &["ligado", "desligado"],
-                settings.selected,
-                palette,
-                &mut choice_hits,
+                content.x,
+                content.y,
+                content.width,
+                "Som",
+                Style::default().fg(palette.text).bg(palette.panel_bg),
             );
-        }
-        ClientSettingsSection::Toast => {
-            render_choice_section(
-                buffer,
-                content,
-                "avisos de notificação",
-                "escolha onde mostrar avisos em segundo plano",
-                &["desligado", "no Pretorian", "no terminal", "no sistema"],
-                settings.selected,
-                palette,
-                &mut choice_hits,
-            );
+            for (index, label) in [
+                "Ligado",
+                "Desligado",
+                "Avisos Desligados",
+                "Avisos no Pretorian",
+                "Avisos no Terminal",
+                "Avisos no Sistema",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let y = content.y + 1 + index as u16 + u16::from(index >= 2);
+                if index == 2 {
+                    put_text(
+                        buffer,
+                        content.x,
+                        y - 1,
+                        content.width,
+                        "Avisos",
+                        Style::default().fg(palette.text).bg(palette.panel_bg),
+                    );
+                }
+                let rect = Rect::new(content.x, y, content.width, 1);
+                let current = match index {
+                    0 => settings.sound_enabled,
+                    1 => !settings.sound_enabled,
+                    2 => settings.toast_delivery == crate::config::ToastDelivery::Off,
+                    3 => settings.toast_delivery == crate::config::ToastDelivery::Herdr,
+                    4 => settings.toast_delivery == crate::config::ToastDelivery::Terminal,
+                    _ => settings.toast_delivery == crate::config::ToastDelivery::System,
+                };
+                draw_choice(
+                    buffer,
+                    rect,
+                    label,
+                    settings.selected == index,
+                    current,
+                    palette,
+                );
+                choice_hits.push((rect, index));
+            }
         }
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }
     }
 
+    if settings.section == ClientSettingsSection::Usuario {
+        let entries: &[(usize, &str)] = if settings.dependencias {
+            &[(0, "Voltar"), (7, "Fechar")]
+        } else {
+            &[
+                (3, "Salvar"),
+                (4, "Apagar"),
+                (5, "Recarregar"),
+                (6, "Dependências"),
+                (7, "Fechar"),
+            ]
+        };
+        let widths: Vec<u16> = entries
+            .iter()
+            .map(|(_, label)| display_width(label) + 2)
+            .collect();
+        let buttons = row(inner, &widths, 1, inner.height.saturating_sub(1));
+        let mut close = Rect::default();
+        for ((index, label), rect) in entries.iter().zip(buttons) {
+            button(
+                buffer,
+                rect,
+                label,
+                choice_style(settings.selected == *index, palette),
+            );
+            if *index == 7 {
+                close = rect;
+            } else {
+                choice_hits.push((rect, *index));
+            }
+        }
+        return Some(OverlayRender {
+            area: popup,
+            cancel: close,
+            settings_popup: popup,
+            settings_tabs: tab_hits,
+            settings_choices: choice_hits,
+            cursor,
+            ..OverlayRender::default()
+        });
+    }
+
     let installable = settings
         .integrations
         .iter()
         .any(super::super::settings::integration_needs_install);
-    let show_primary = settings.section != ClientSettingsSection::Integrations || installable;
+    let show_primary = settings.section != ClientSettingsSection::Sound
+        && (settings.section != ClientSettingsSection::Integrations || installable)
+        && !(settings.section == ClientSettingsSection::Usuario
+            && settings.selected == 0
+            && settings.nome_somente_leitura);
     let labels = if show_primary { vec![12, 12] } else { vec![12] };
     let buttons = row(inner, &labels, 2, inner.height.saturating_sub(1));
     let (primary, close) = if show_primary {
@@ -191,11 +251,11 @@ pub(super) fn render_settings_overlay(
             buffer,
             primary,
             if settings.section == ClientSettingsSection::Integrations {
-                " ↵ instalar "
+                "instalar"
             } else if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
-                " ↵ executar "
+                "executar"
             } else {
-                " ↵ aplicar "
+                "Aplicar"
             },
             Style::default()
                 .fg(contrast(palette))
@@ -209,27 +269,12 @@ pub(super) fn render_settings_overlay(
     button(
         buffer,
         close,
-        " esc fechar ",
+        "Fechar",
         Style::default()
             .fg(palette.text)
             .bg(palette.surface0)
             .add_modifier(Modifier::BOLD),
     );
-    put_text(
-        buffer,
-        inner.x,
-        inner.bottom().saturating_sub(2),
-        inner.width,
-        if settings.section == ClientSettingsSection::Usuario && settings.selected > 0 {
-            " ↑↓ selecionar  ↵ executar  tab seção"
-        } else if settings.section == ClientSettingsSection::Usuario {
-            " digite o nome  ↓ dependências  ^c limpar  tab seção"
-        } else {
-            " ↑↓ selecionar  tab seção"
-        },
-        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-    );
-
     Some(OverlayRender {
         area: popup,
         primary,
@@ -249,60 +294,69 @@ fn render_usuario_section(
     palette: &Palette,
     hits: &mut Vec<(Rect, usize)>,
 ) -> Option<crate::protocol::CursorState> {
+    if settings.dependencias {
+        render_dependencias(buffer, area, settings.selected, palette, hits);
+        return None;
+    }
+    let style = Style::default().fg(palette.text).bg(palette.panel_bg);
     put_text(
         buffer,
         area.x,
         area.y,
-        area.width,
-        "seu nome",
-        Style::default()
-            .fg(palette.text)
-            .bg(palette.panel_bg)
-            .add_modifier(Modifier::BOLD),
+        5,
+        "Nome",
+        style.add_modifier(Modifier::BOLD),
     );
+    let input = Rect::new(area.x + 6, area.y, area.width.saturating_sub(17), 1);
+    let mut cursor = if settings.nome_somente_leitura {
+        put_text(
+            buffer,
+            input.x,
+            input.y,
+            input.width,
+            settings.nome.as_str(),
+            style,
+        );
+        None
+    } else {
+        hits.push((input, 0));
+        let apply = Rect::new(area.right().saturating_sub(10), area.y, 10, 1);
+        button(
+            buffer,
+            apply,
+            "Aplicar",
+            choice_style(settings.selected == 1, palette),
+        );
+        hits.push((apply, 1));
+        text_editor::render(buffer, input, &settings.nome, style.bg(palette.surface0))
+            .filter(|_| settings.selected == 0)
+    };
     put_text(
         buffer,
         area.x,
-        area.y + 1,
+        area.y + 2,
         area.width,
-        "aparece na barra lateral, abaixo de Área de Trabalho",
-        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+        "Sobre Você",
+        style.add_modifier(Modifier::BOLD),
     );
-    if area.height < 6 {
-        return None;
-    }
-    let input = Rect::new(area.x, area.y + 3, area.width, 1);
-    let input_style = Style::default().fg(palette.text).bg(palette.surface0);
-    buffer.set_style(input, input_style);
-    let cursor = text_editor::render(
-        buffer,
-        Rect::new(input.x + 1, input.y, input.width.saturating_sub(1), 1),
-        &settings.nome,
-        input_style,
-    );
-    let previa = crate::config::sanitizar_nome(settings.nome.as_str()).unwrap_or_default();
-    put_text(
-        buffer,
-        area.x,
-        area.y + 5,
-        area.width,
-        &format!("prévia: {previa}"),
-        Style::default().fg(palette.subtext0).bg(palette.panel_bg),
-    );
-    render_dependencias(
+    let mut about_hits = Vec::new();
+    let about_cursor = render_sobre_section(
         buffer,
         Rect::new(
             area.x,
-            area.y + 7,
+            area.y + 3,
             area.width,
-            area.height.saturating_sub(7),
+            area.height.saturating_sub(3),
         ),
-        settings.selected,
+        settings,
         palette,
-        hits,
+        &mut about_hits,
     );
-    // Com uma dependência selecionada o campo do nome não recebe teclas: sem cursor nele.
-    cursor.filter(|_| settings.selected == 0)
+    hits.extend(about_hits.into_iter().map(|(rect, _)| (rect, 2)));
+    if settings.selected == 2 {
+        cursor = about_cursor;
+    }
+    cursor
 }
 
 /// Lista das dependências da estação; posição 1 em diante da seleção da seção usuário.
@@ -322,7 +376,7 @@ fn render_dependencias(
         area.x,
         area.y,
         area.width,
-        "dependências",
+        "Dependências",
         Style::default()
             .fg(palette.text)
             .bg(palette.panel_bg)
@@ -415,47 +469,6 @@ fn quebrar(texto: &str, largura: u16) -> Vec<String> {
         linhas.push(atual);
     }
     linhas
-}
-
-fn render_choice_section(
-    buffer: &mut Buffer,
-    area: Rect,
-    title: &str,
-    description: &str,
-    choices: &[&str],
-    selected: usize,
-    palette: &Palette,
-    hits: &mut Vec<(Rect, usize)>,
-) {
-    put_text(
-        buffer,
-        area.x,
-        area.y,
-        area.width,
-        title,
-        Style::default()
-            .fg(palette.text)
-            .bg(palette.panel_bg)
-            .add_modifier(Modifier::BOLD),
-    );
-    put_text(
-        buffer,
-        area.x,
-        area.y + 1,
-        area.width,
-        description,
-        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
-    );
-    let row_gap = u16::from(choices.len() > 2);
-    for (index, choice) in choices.iter().enumerate() {
-        let y = area.y + 3 + index as u16 * (1 + row_gap);
-        if y >= area.bottom() {
-            break;
-        }
-        let rect = Rect::new(area.x, y, area.width, 1);
-        draw_choice(buffer, rect, choice, index == selected, false, palette);
-        hits.push((rect, index));
-    }
 }
 
 fn render_integrations(
@@ -575,4 +588,55 @@ fn render_integrations(
             Style::default().fg(palette.overlay1).bg(palette.panel_bg),
         );
     }
+}
+
+fn render_sobre_section(
+    buffer: &mut Buffer,
+    area: Rect,
+    settings: &ClientSettingsOverlay,
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) -> Option<crate::protocol::CursorState> {
+    let detail = Style::default().fg(palette.subtext0).bg(palette.panel_bg);
+    if area.height < 3 {
+        return None;
+    }
+    let input = Rect::new(area.x, area.y, area.width, area.height - 2);
+    hits.push((input, 0));
+    let cursor = text_editor::render_multiline(
+        buffer,
+        input,
+        &settings.sobre.editor,
+        Style::default().fg(palette.text).bg(palette.surface0),
+    );
+    if settings.sobre.editor.is_empty() {
+        put_text(
+            buffer,
+            input.x,
+            input.y,
+            input.width,
+            "Profissão, gostos e como prefere conversar.",
+            Style::default().fg(palette.overlay1).bg(palette.surface0),
+        );
+    }
+    put_text(
+        buffer,
+        area.x,
+        area.bottom() - 2,
+        area.width,
+        settings.sobre.feedback(),
+        detail,
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.bottom() - 1,
+        area.width,
+        &format!(
+            "{} / 4.000 caracteres",
+            settings.sobre.editor.chars().count()
+        ),
+        detail,
+    );
+    cursor
 }

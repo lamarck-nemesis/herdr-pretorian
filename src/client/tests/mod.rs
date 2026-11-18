@@ -1044,3 +1044,29 @@ fn terminal_control_scroll_command_maps_to_attach_scroll() {
     assert_eq!(direction, AttachScrollDirection::Up);
     assert_eq!(lines, 3);
 }
+
+#[test]
+fn pink_impoe_cores_ao_hospedeiro() {
+    let mut config = crate::config::Config::default();
+    config.theme.name = Some("pink".into());
+    let colors = host_default_colors_for_theme(&config).unwrap();
+    let mut bytes = Vec::new();
+    super::terminal_setup::write_host_default_colors(&mut bytes, colors).unwrap();
+    assert_eq!(
+        bytes,
+        b"\x1b]10;rgb:65/12/49\x1b\\\x1b]11;rgb:ff/fc/fe\x1b\\"
+    );
+}
+
+#[test]
+fn zendataops_impoe_cores_ao_hospedeiro() {
+    let mut config = crate::config::Config::default();
+    config.theme.name = Some("zendataops".into());
+    let colors = host_default_colors_for_theme(&config).unwrap();
+    let mut bytes = Vec::new();
+    super::terminal_setup::write_host_default_colors(&mut bytes, colors).unwrap();
+    assert_eq!(
+        bytes,
+        b"\x1b]10;rgb:3e/33/2e\x1b\\\x1b]11;rgb:fd/fd/fc\x1b\\"
+    );
+}

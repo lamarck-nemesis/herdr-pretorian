@@ -264,6 +264,13 @@ impl HeadlessServer {
         if targets.is_empty() {
             success!("no_active_surface");
         }
+        // Com pasta secundária, o quadro junta duas abas: o remendo incremental conhece uma só.
+        if targets
+            .iter()
+            .any(|(client_id, ..)| self.areas_shell(*client_id).1.is_some())
+        {
+            fallback!("secundaria");
+        }
         if targets
             .iter()
             .any(|target| !matches!(target.4, ClientConnectionMode::ClientShell))

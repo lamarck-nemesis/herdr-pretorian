@@ -1,6 +1,5 @@
 #[derive(Clone, Copy)]
 pub(crate) enum ConfigEdit<'a> {
-    StatusIndicators(super::StatusIndicatorStyle),
     Sound(bool),
     ToastDelivery(super::ToastDelivery),
     Nome(&'a str),
@@ -12,7 +11,6 @@ pub(crate) enum ConfigEdit<'a> {
 impl ConfigEdit<'_> {
     pub(crate) fn description(self) -> &'static str {
         match self {
-            Self::StatusIndicators(_) => "indicadores de estado",
             Self::Sound(_) => "configuração de som",
             Self::ToastDelivery(_) => "configuração de avisos",
             Self::Nome(_) => "nome do usuário",
@@ -24,12 +22,6 @@ impl ConfigEdit<'_> {
 
     pub(crate) fn apply(self, content: &str) -> String {
         match self {
-            Self::StatusIndicators(style) => super::upsert_section_value(
-                content,
-                "ui",
-                "status_indicators",
-                &format!("\"{}\"", style.as_str()),
-            ),
             Self::Sound(enabled) => {
                 super::upsert_section_bool(content, "ui.sound", "enabled", enabled)
             }

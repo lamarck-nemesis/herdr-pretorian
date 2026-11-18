@@ -125,7 +125,7 @@ impl ClientShellConfig {
             agents: config.ui.sidebar.agents.clone(),
             agent_panel_sort: config.ui.agent_panel_sort,
             show_agent_panel: false,
-            status_indicators: config.ui.status_indicators,
+            status_indicators: crate::config::StatusIndicatorStyle::Symbols,
             sound_enabled: config.ui.sound.enabled,
             toast_delivery: config.ui.toast.delivery,
             toast_delay_seconds: config.ui.toast.delay_seconds,
@@ -140,11 +140,13 @@ impl ClientShellConfig {
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok()),
             nivel_raciocinio: config.pretorian.nivel,
             pje_sem_janela: config.pretorian.pje_sem_janela,
-            nome_usuario: config
-                .pretorian
-                .nome
-                .as_deref()
-                .and_then(crate::config::sanitizar_nome),
+            nome_usuario: config.pretorian.nome_efetivo(),
+            profissao_centauro: std::env::var("PRETORIAN_PROFISSAO_CENTAURO")
+                .ok()
+                .and_then(|valor| crate::config::sanitizar_nome(&valor)),
+            rotulo_centauro: std::env::var("PRETORIAN_ROTULO_CENTAURO")
+                .ok()
+                .and_then(|valor| crate::config::sanitizar_nome(&valor)),
             theme_name: theme_runtime.manual_name.clone(),
             theme_runtime,
             palette: crate::app::client_palette_from_config(config),
@@ -157,8 +159,6 @@ impl ClientShellConfig {
                 }),
             local_keys: config.keys.clone(),
             keybinding_source: ClientShellKeybindingSource::Local,
-            prompt_new_tab_name: config.ui.prompt_new_tab_name,
-            prompt_new_workspace_name: config.ui.prompt_new_workspace_name,
             confirm_close: config.ui.confirm_close,
             mouse_capture: config.ui.mouse_capture,
             mouse_scroll_lines: config.ui.mouse_scroll_lines(),
@@ -366,7 +366,7 @@ impl ClientShellConfig {
                 self.spaces = ui.sidebar.spaces.clone();
                 self.agents = ui.sidebar.agents.clone();
                 self.agent_panel_sort = ui.agent_panel_sort;
-                self.status_indicators = ui.status_indicators;
+                self.status_indicators = crate::config::StatusIndicatorStyle::Symbols;
                 self.sound_enabled = ui.sound.enabled;
                 self.toast_delivery = ui.toast.delivery;
                 self.toast_delay_seconds = ui.toast.delay_seconds;
@@ -374,8 +374,6 @@ impl ClientShellConfig {
                 self.copy_on_select = ui.copy_on_select;
                 self.clipboard_toast_enabled = ui.toast.clipboard.enabled;
                 self.clipboard_toast_position = ui.toast.clipboard.position;
-                self.prompt_new_tab_name = ui.prompt_new_tab_name;
-                self.prompt_new_workspace_name = ui.prompt_new_workspace_name;
                 self.confirm_close = ui.confirm_close;
                 self.mouse_capture = ui.mouse_capture;
                 self.mouse_scroll_lines = ui.mouse_scroll_lines();
@@ -401,11 +399,7 @@ impl ClientShellConfig {
                 .or_else(|| std::env::var("PRETORIAN_AGENTE").ok());
             self.nivel_raciocinio = config.pretorian.nivel;
             self.pje_sem_janela = config.pretorian.pje_sem_janela;
-            self.nome_usuario = config
-                .pretorian
-                .nome
-                .as_deref()
-                .and_then(crate::config::sanitizar_nome);
+            self.nome_usuario = config.pretorian.nome_efetivo();
         }
 
         diagnostics
@@ -521,7 +515,7 @@ mod tests {
         next.ui.sidebar_width = 31;
         next.ui.tab_bar_position = TabBarPositionConfig::Bottom;
         next.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Priority;
-        next.ui.status_indicators = crate::config::StatusIndicatorStyle::Symbols;
+        next.ui.status_indicators = crate::config::StatusIndicatorStyle::Dots;
         next.ui.sidebar.agents = toml::from_str("rows = [[{ token = 'machine', rules = [{ equals = 'Local', bold = true }] }]]\nrow_gap = 2").unwrap();
         next.keys.prefix = crate::config::BindingConfig::one("ctrl+a");
         next.pretorian.nome = Some(" Ana ".into());

@@ -30,7 +30,7 @@ fn endpoint_product_announcement_is_client_rendered_modal_and_dismissed_by_ident
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("A client-owned announcement"));
-    assert!(text.contains("novidades · v0.8.2"));
+    assert!(text.contains("Novidades · v0.8.2"));
     assert!(!state.hits.product_announcement_scrollbar.is_empty());
 
     let popup_key = state.handle_input_bytes(b"x");
@@ -312,10 +312,10 @@ fn startup_onboarding_is_client_rendered_and_modal() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("ambiente de trabalho para agentes"));
-    assert!(text.contains("use o mouse ou o teclado"));
+    assert!(text.contains("Use Nova Pasta para começar."));
+    assert!(!text.contains("use o mouse ou o teclado"));
     assert!(text.contains("ctrl+b abre atalhos"));
-    assert!(text.contains("configure as integrações opcionais"));
+    assert!(!text.contains("configure as integrações opcionais"));
     assert_eq!(state.hits.overlay_primary.width, 13);
 
     let ignored = state.handle_input_bytes(b"x");
@@ -397,16 +397,12 @@ fn onboarding_completion_persists_and_opens_endpoint_integrations() {
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Integrations,
-            loading_integrations: true,
+            section: ClientSettingsSection::Usuario,
+            loading_integrations: false,
             ..
         }))
     ));
-    assert!(matches!(
-        &outcome.actions[..],
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(request.method, crate::api::schema::Method::IntegrationList(_))
-    ));
+    assert!(outcome.actions.is_empty());
     let persisted = std::fs::read_to_string(&path).expect("read onboarding config");
     assert!(persisted.contains("onboarding = false"));
     assert!(persisted.contains("default_shell = \"fish\""));
@@ -420,11 +416,11 @@ fn onboarding_completion_persists_and_opens_endpoint_integrations() {
         assert!(matches!(
             state.overlay,
             Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-                section: ClientSettingsSection::Integrations,
+                section: ClientSettingsSection::Usuario,
                 ..
             }))
         ));
-        assert_eq!(outcome.actions.len(), 1);
+        assert!(outcome.actions.is_empty());
     }
 
     let config = onboarding_config();
@@ -442,11 +438,11 @@ fn onboarding_completion_persists_and_opens_endpoint_integrations() {
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Integrations,
+            section: ClientSettingsSection::Usuario,
             ..
         }))
     ));
-    assert_eq!(click.actions.len(), 1);
+    assert!(click.actions.is_empty());
 
     let unreadable_path = path.with_extension("dir");
     std::fs::create_dir(&unreadable_path).expect("create unreadable config path");
@@ -459,11 +455,11 @@ fn onboarding_completion_persists_and_opens_endpoint_integrations() {
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Integrations,
+            section: ClientSettingsSection::Usuario,
             ..
         }))
     ));
-    assert_eq!(failed_write.actions.len(), 1);
+    assert!(failed_write.actions.is_empty());
     assert!(state
         .config_diagnostic
         .as_deref()
@@ -497,15 +493,12 @@ fn unavailable_integration_list_does_not_wedge_settings() {
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Integrations,
+            section: ClientSettingsSection::Usuario,
             loading_integrations: false,
             ..
         }))
     ));
-    assert!(state
-        .visible_endpoint_notice
-        .as_ref()
-        .is_some_and(|notice| notice.key.code == "integration.list"));
+    assert!(state.visible_endpoint_notice.is_none());
     let _ = std::fs::remove_file(&state.config.local_config_path);
 }
 
@@ -676,7 +669,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     state.set_snapshot(Box::new(endpoint_snapshot.clone()));
     state.set_pane_surface(surface());
     let shell = state.compose(106, 30).expect("shell frame");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
     let launcher = state.hits.global_launcher;
     let shell_buffer = shell.to_ratatui_buffer().expect("shell buffer");
     let badge_x = launcher.right().saturating_sub(6);
@@ -686,7 +679,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     );
     assert_eq!(
         shell_buffer[(badge_x + 2, launcher.y)].fg,
-        state.config.palette.overlay0
+        state.config.palette.accent
     );
 
     state.sidebar_collapsed = true;
@@ -714,7 +707,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(!prefix_text.contains("atualização pronta"));
+    assert!(!prefix_text.contains("Atualização Pronta"));
     state.mode = ClientShellMode::Navigate;
 
     state.toggle_global_menu();
@@ -729,9 +722,9 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("● atualização pronta"));
+    assert!(text.contains("● Atualização Pronta"));
     let update_row = state.hits.global_menu_rows[1].0;
-    assert!(usize::from(update_row.width) >= "● atualização pronta".chars().count());
+    assert!(usize::from(update_row.width) >= "● Atualização Pronta".chars().count());
     let menu_buffer = menu.to_ratatui_buffer().expect("menu buffer");
     assert_eq!(
         menu_buffer[(update_row.x + 1, update_row.y)].fg,
@@ -760,7 +753,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         .collect::<Vec<_>>()
         .join("\n");
     assert!(text.contains("v0.8.3"));
-    assert!(text.contains("atualização pronta"));
+    assert!(text.contains("Atualização Pronta"));
     assert!(text.contains("instalador do Pretorian"));
     assert!(!text.contains("herdr update"));
     assert!(!state.hits.release_notes_scrollbar.is_empty());
@@ -892,7 +885,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
     installed_surface.projection_revision = 2;
     state.set_pane_surface(installed_surface);
     state.compose(106, 30).expect("installed shell");
-    assert_eq!(state.hits.global_launcher.width, 6);
+    assert_eq!(state.hits.global_launcher.width, 7);
     state.toggle_global_menu();
     let installed = state.compose(106, 30).expect("installed menu");
     let installed_text = installed
@@ -900,7 +893,7 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(installed_text.contains("novidades"));
+    assert!(installed_text.contains("Novidades"));
     assert!(!installed_text.contains("● novidades"));
 }
 
@@ -1048,13 +1041,13 @@ fn outdated_integration_badges_launcher_settings_and_settings_tab() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     let shell = state.compose(106, 30).expect("integration attention shell");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
     let shell_text = shell
         .cells
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(shell_text.contains("● menu"));
+    assert!(shell_text.contains("● Menu"));
 
     state.toggle_global_menu();
     let menu = state.compose(106, 30).expect("integration attention menu");
@@ -1063,8 +1056,8 @@ fn outdated_integration_badges_launcher_settings_and_settings_tab() {
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(menu_text.contains("● configurações"));
-    assert!(!menu_text.contains("atualização pronta"));
+    assert!(menu_text.contains("● Configurações"));
+    assert!(!menu_text.contains("Atualização Pronta"));
 
     state.activate_global_menu_item(0, &mut ClientShellInput::default());
     let settings = state.compose(106, 30).expect("settings integration badge");
@@ -1073,23 +1066,8 @@ fn outdated_integration_badges_launcher_settings_and_settings_tab() {
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(settings_text.contains("● integrações"));
-    let integrations_tab = state
-        .hits
-        .settings_tabs
-        .iter()
-        .find(|(_, section)| *section == ClientSettingsSection::Integrations)
-        .map(|(rect, _)| *rect)
-        .expect("integrations tab");
-    let settings_buffer = settings.to_ratatui_buffer().expect("settings buffer");
-    assert_eq!(
-        settings_buffer[(integrations_tab.x + 1, integrations_tab.y)].fg,
-        state.config.palette.accent
-    );
-    assert_eq!(
-        settings_buffer[(integrations_tab.x + 3, integrations_tab.y)].fg,
-        state.config.palette.overlay1
-    );
+    assert!(!settings_text.contains("integrações"));
+    assert_eq!(state.hits.settings_tabs.len(), 2);
 }
 
 #[test]
@@ -1107,7 +1085,7 @@ fn combined_update_and_integration_attention_preserves_both_badges() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("combined attention shell");
-    assert_eq!(state.hits.global_launcher.width, 8);
+    assert_eq!(state.hits.global_launcher.width, 9);
 
     state.toggle_global_menu();
     let menu = state.compose(106, 30).expect("combined attention menu");
@@ -1116,8 +1094,8 @@ fn combined_update_and_integration_attention_preserves_both_badges() {
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    let settings = text.find("● configurações").expect("settings badge");
-    let update = text.find("● atualização pronta").expect("update badge");
+    let settings = text.find("● Configurações").expect("settings badge");
+    let update = text.find("● Atualização Pronta").expect("update badge");
     assert!(settings < update);
 
     state.overlay = None;
@@ -1144,7 +1122,7 @@ fn current_release_notes_use_whats_new_without_attention_badge() {
     state.set_snapshot(Box::new(endpoint_snapshot));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("shell frame");
-    assert_eq!(state.hits.global_launcher.width, 6);
+    assert_eq!(state.hits.global_launcher.width, 7);
     state.toggle_global_menu();
     let menu = state.compose(106, 30).expect("what's new menu");
     let text = menu
@@ -1152,7 +1130,7 @@ fn current_release_notes_use_whats_new_without_attention_badge() {
         .iter()
         .map(|cell| cell.symbol.as_str())
         .collect::<String>();
-    assert!(text.contains("novidades"));
+    assert!(text.contains("Novidades"));
 }
 
 #[test]
@@ -1191,121 +1169,12 @@ fn client_settings_close_and_endpoint_integrations_are_owned_by_overlay() {
 
     state.open_settings_overlay();
     state.compose(106, 30).expect("settings overlay");
-    for _ in 0..3 {
-        let next = state.handle_input_bytes(b"\t");
-        assert!(next.actions.is_empty());
+    assert_eq!(state.hits.settings_tabs.len(), 2);
+    for _ in 0..16 {
+        assert!(state.handle_input_bytes(b"\t").actions.is_empty());
     }
-    let integrations = state.handle_input_bytes(b"\t");
-    let [ClientShellAction::Endpoint { request, .. }] = &integrations.actions[..] else {
-        panic!("integration section should request endpoint status");
-    };
-    assert!(matches!(
-        request.method,
-        crate::api::schema::Method::IntegrationList(_)
-    ));
-    let request_id = request.id.clone();
-    assert!(
-        state
-            .handle_endpoint_result(
-                "boot-1",
-                &request_id,
-                Ok(crate::api::schema::ResponseResult::IntegrationList {
-                    integrations: vec![
-                        crate::api::schema::IntegrationInfo {
-                            target: crate::api::schema::IntegrationTarget::Codex,
-                            label: "codex".into(),
-                            command: "codex".into(),
-                            available: true,
-                            state: crate::api::schema::IntegrationState::Outdated,
-                        },
-                        crate::api::schema::IntegrationInfo {
-                            target: crate::api::schema::IntegrationTarget::Claude,
-                            label: "claude".into(),
-                            command: "claude".into(),
-                            available: false,
-                            state: crate::api::schema::IntegrationState::NotInstalled,
-                        },
-                    ],
-                }),
-            )
-            .0
-    );
-    let frame = state.compose(106, 30).expect("loaded integrations");
-    let text = frame
-        .cells
-        .chunks(frame.width as usize)
-        .map(|row| {
-            row.iter()
-                .map(|cell| cell.symbol.as_str())
-                .collect::<String>()
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(text.contains("atualização disponível"));
-    assert!(text.contains("não encontrado"));
-    assert!(!text.contains("pane labels"));
-
-    let popup = state.hits.settings_popup;
-    let blank_click =
-        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
-            column: popup.right().saturating_sub(2),
-            row: popup.y + 3,
-            modifiers: KeyModifiers::empty(),
-        })]);
-    assert!(!blank_click.repaint);
     assert!(matches!(
         state.overlay,
         Some(ClientShellOverlay::Settings(_))
-    ));
-
-    let install = state.handle_input_bytes(b"\r");
-    assert_eq!(install.actions.len(), 1);
-    assert!(matches!(
-        &install.actions[0],
-        ClientShellAction::Endpoint { request, .. }
-            if matches!(
-                request.method,
-                crate::api::schema::Method::IntegrationInstall(
-                    crate::api::schema::IntegrationInstallParams {
-                        target: crate::api::schema::IntegrationTarget::Codex
-                    }
-                )
-            )
-    ));
-    let escape = state.handle_input_bytes(b"\x1b");
-    assert!(!escape.repaint);
-    assert!(matches!(
-        state.overlay,
-        Some(ClientShellOverlay::Settings(_))
-    ));
-    let install_request_id = match &install.actions[0] {
-        ClientShellAction::Endpoint { request, .. } => request.id.clone(),
-        _ => unreachable!("integration install action"),
-    };
-    let (repaint, refresh_actions) = state.handle_endpoint_result(
-        "boot-1",
-        &install_request_id,
-        Ok(crate::api::schema::ResponseResult::IntegrationInstall {
-            target: crate::api::schema::IntegrationTarget::Codex,
-            details: crate::api::schema::IntegrationInstallResult {
-                messages: vec!["installed codex".into()],
-            },
-        }),
-    );
-    assert!(repaint);
-    assert!(matches!(
-        refresh_actions.as_slice(),
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(request.method, crate::api::schema::Method::IntegrationList(_))
-    ));
-    assert!(matches!(
-        state.overlay,
-        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            loading_integrations: true,
-            installing_integrations: false,
-            ref integration_messages,
-            ..
-        })) if integration_messages == &["installed codex"]
     ));
 }

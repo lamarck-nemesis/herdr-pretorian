@@ -3062,5 +3062,8 @@ fn endpoint_sidebar_new_workspace_label_is_localized() {
     state.config.mouse_capture = true;
     let frame = state.compose(106, 30).expect("sidebar");
     let text = frame_rows(&frame).join("\n");
-    assert!(text.contains("novo ·"), "{text}");
+    assert!(text.contains("Nova Pasta"), "{text}");
+    assert_eq!(state.hits.new_workspace.y, 2);
+    assert_eq!(state.hits.global_launcher.y, 2);
+    assert!(state.hits.new_workspace.right() <= state.hits.global_launcher.x);
 }

@@ -10,7 +10,7 @@ impl ClientContextMenuOverlay {
                 vec![
                     item("Renomear", Action::Rename),
                     item("Fechar", Action::Close),
-                    item("Abrir na janela secundária", Action::JanelaSecundaria),
+                    item("Abrir na Janela Secundária", Action::JanelaSecundaria),
                 ]
             }
             ClientContextMenuTarget::Workspace {
@@ -20,9 +20,9 @@ impl ClientContextMenuOverlay {
             } => vec![
                 item("Renomear", Action::Rename),
                 item("Fechar", Action::Close),
-                item("Nova cópia de trabalho", Action::NewWorktree),
-                item("Abrir cópia de trabalho...", Action::OpenWorktree),
-                item("Abrir na janela secundária", Action::JanelaSecundaria),
+                item("Nova Cópia de Trabalho", Action::NewWorktree),
+                item("Abrir Cópia de Trabalho...", Action::OpenWorktree),
+                item("Abrir na Janela Secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Workspace {
                 is_linked_worktree: true,
@@ -30,8 +30,8 @@ impl ClientContextMenuOverlay {
             } => vec![
                 item("Renomear", Action::Rename),
                 item("Fechar", Action::Close),
-                item("Apagar cópia de trabalho...", Action::RemoveWorktree),
-                item("Abrir na janela secundária", Action::JanelaSecundaria),
+                item("Apagar Cópia de Trabalho...", Action::RemoveWorktree),
+                item("Abrir na Janela Secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Workspace {
                 has_worktree_children: true,
@@ -42,22 +42,22 @@ impl ClientContextMenuOverlay {
                 item("Renomear", Action::Rename),
                 item(
                     if *close_group {
-                        "Fechar grupo"
+                        "Fechar Grupo"
                     } else {
                         "Fechar"
                     },
                     Action::Close,
                 ),
-                item("Nova cópia de trabalho", Action::NewWorktree),
-                item("Abrir cópia de trabalho...", Action::OpenWorktree),
+                item("Nova Cópia de Trabalho", Action::NewWorktree),
+                item("Abrir Cópia de Trabalho...", Action::OpenWorktree),
                 item(
                     if *collapsed { "Expandir" } else { "Recolher" },
                     Action::ToggleGroup,
                 ),
-                item("Abrir na janela secundária", Action::JanelaSecundaria),
+                item("Abrir na Janela Secundária", Action::JanelaSecundaria),
             ],
             ClientContextMenuTarget::Tab { .. } => vec![
-                item("Nova aba", Action::NewTab),
+                item("Nova Aba", Action::NewTab),
                 item("Renomear", Action::Rename),
                 item("Fechar", Action::Close),
             ],
@@ -67,26 +67,26 @@ impl ClientContextMenuOverlay {
                 right_click_passthrough,
                 ..
             } => {
-                let mut items = vec![item("Renomear painel", Action::RenamePane)];
+                let mut items = vec![item("Renomear Painel", Action::RenamePane)];
                 if *has_manual_label {
-                    items.push(item("Limpar nome do painel", Action::ClearPaneName));
+                    items.push(item("Limpar Nome do Painel", Action::ClearPaneName));
                 }
                 if source_pane_id.is_some() {
-                    items.push(item("Trocar com painel ativo", Action::SwapWithFocusedPane));
+                    items.push(item("Trocar com Painel Ativo", Action::SwapWithFocusedPane));
                 }
                 items.extend([
-                    item("Dividir à direita", Action::SplitRight),
-                    item("Dividir abaixo", Action::SplitDown),
+                    item("Dividir à Direita", Action::SplitRight),
+                    item("Dividir Abaixo", Action::SplitDown),
                     item("Zoom", Action::Zoom),
                     item(
                         if *right_click_passthrough {
-                            "Usar menu do Pretorian"
+                            "Usar Menu do Pretorian"
                         } else {
-                            "Enviar clique direito ao painel"
+                            "Enviar Clique Direito ao Painel"
                         },
                         Action::ToggleRightClickPassthrough,
                     ),
-                    item("Fechar painel", Action::ClosePane),
+                    item("Fechar Painel", Action::ClosePane),
                 ]);
                 items
             }
@@ -253,7 +253,7 @@ impl ClientShellState {
                     .map(|workspace| workspace.label.clone());
                 if let Some(label) = label {
                     self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-                        title: "renomear espaço",
+                        title: "Renomear Pasta",
                         input: TextEditor::new(&label, false),
                         target: ClientRenameTarget::Workspace { workspace_id },
                     }));
@@ -300,6 +300,11 @@ impl ClientShellState {
     ) {
         use crate::api::schema::{Method, TabTarget};
 
+        if action == ClientContextMenuAction::NewTab {
+            self.open_new_tab_for_workspace(workspace_id);
+            return;
+        }
+
         self.push_endpoint_method(
             Method::TabFocus(TabTarget {
                 tab_id: tab_id.clone(),
@@ -307,44 +312,7 @@ impl ClientShellState {
             outcome,
         );
         match action {
-            ClientContextMenuAction::NewTab => {
-                if crate::terminal_effects::painel_gerenciado() {
-                    self.open_new_tab_level_menu();
-                } else if self.config.prompt_new_tab_name {
-                    let default_name = (self
-                        .snapshot
-                        .as_deref()
-                        .map(|snapshot| {
-                            snapshot
-                                .tabs
-                                .iter()
-                                .filter(|tab| tab.workspace_id == workspace_id)
-                                .count()
-                        })
-                        .unwrap_or(0)
-                        + 1)
-                    .to_string();
-                    self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-                        title: "nova aba",
-                        input: TextEditor::new(&default_name, true),
-                        target: ClientRenameTarget::NewTab {
-                            workspace_id,
-                            default_name,
-                        },
-                    }));
-                } else {
-                    self.push_endpoint_method(
-                        Method::TabCreate(crate::api::schema::TabCreateParams {
-                            workspace_id: Some(workspace_id),
-                            cwd: None,
-                            focus: true,
-                            label: None,
-                            env: Default::default(),
-                        }),
-                        outcome,
-                    );
-                }
-            }
+            ClientContextMenuAction::NewTab => self.open_new_tab_for_workspace(workspace_id),
             ClientContextMenuAction::Rename => {
                 let tab = self
                     .snapshot
@@ -352,7 +320,7 @@ impl ClientShellState {
                     .and_then(|snapshot| snapshot.tabs.iter().find(|tab| tab.tab_id == tab_id));
                 if let Some(tab) = tab {
                     self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-                        title: "renomear aba",
+                        title: "Renomear Aba",
                         input: TextEditor::new(&tab.label, false),
                         target: ClientRenameTarget::Tab {
                             tab_id,
@@ -393,7 +361,7 @@ impl ClientShellState {
                         .and_then(|pane| pane.label.clone())
                 });
                 self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
-                    title: "renomear painel",
+                    title: "Renomear Painel",
                     input: TextEditor::new(label.as_deref().unwrap_or_default(), label.is_none()),
                     target: ClientRenameTarget::Pane { pane_id },
                 }));

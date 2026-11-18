@@ -254,10 +254,10 @@ mod tests {
             actual.remove("pane.link.resolve").as_deref(),
             Some("f5e4a3e01453ae7b188f127ce951c12c20e0bebcc17cc364eeb6d1a01fd5bf81")
         );
-        // Pretorian: o botão "layout" troca a direção da divisão sem fechar painel.
+        // Pretorian: pasta secundária na segunda metade da conversa.
         assert_eq!(
-            actual.remove("pane.move").as_deref(),
-            Some("eaed63cf205db2dc043ecce9e1a79cdca7f6e2521b364226bbf3121affadce7c")
+            actual.remove("client_shell.secondary.set").as_deref(),
+            Some("92fc0343474f1b72c6694b902dd356dc75c3639173976f020f55fbaa7fb402a1")
         );
 
         assert_eq!(

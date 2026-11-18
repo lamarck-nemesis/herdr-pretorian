@@ -8,6 +8,7 @@ pub(super) struct TextEditor {
     cursor: usize,
     replace_on_type: bool,
     killed: String,
+    multiline: bool,
 }
 
 impl std::ops::Deref for TextEditor {
@@ -35,6 +36,38 @@ impl TextEditor {
         editor.insert(text);
         editor.replace_on_type = replace_on_type;
         editor
+    }
+
+    pub fn multiline(text: &str) -> Self {
+        let mut editor = Self {
+            multiline: true,
+            ..Self::default()
+        };
+        editor.insert(text);
+        editor
+    }
+
+    fn vertical_cursor(&self, down: bool) -> usize {
+        let start = self.text[..self.cursor].rfind('\n').map_or(0, |i| i + 1);
+        let column = self.text[start..self.cursor].chars().count();
+        let target = if down {
+            self.text[self.cursor..]
+                .find('\n')
+                .map(|i| self.cursor + i + 1)
+        } else if start > 0 {
+            Some(self.text[..start - 1].rfind('\n').map_or(0, |i| i + 1))
+        } else {
+            None
+        };
+        let Some(target) = target else {
+            return self.cursor;
+        };
+        let line = self.text[target..].split('\n').next().unwrap_or("");
+        target
+            + line
+                .char_indices()
+                .nth(column)
+                .map_or(line.len(), |(i, _)| i)
     }
 
     pub fn as_str(&self) -> &str {
@@ -71,6 +104,7 @@ impl TextEditor {
         let mut chars = text.chars().peekable();
         while let Some(ch) = chars.next() {
             match ch {
+                '\r' | '\n' | '\t' if self.multiline => normalized.push(ch),
                 '\r' => {
                     if chars.peek() == Some(&'\n') {
                         chars.next();
@@ -164,6 +198,9 @@ impl TextEditor {
         if key.kind == KeyEventKind::Release {
             return None;
         }
+        if self.multiline && key.code == KeyCode::Enter && key.modifiers.is_empty() {
+            return Some(self.insert("\n"));
+        }
         if matches!(key.code, KeyCode::Enter | KeyCode::Esc) {
             return None;
         }
@@ -182,6 +219,8 @@ impl TextEditor {
             let alt = modifiers == KeyModifiers::ALT;
             let plain = modifiers.is_empty();
             let movement = match code {
+                KeyCode::Up if plain && self.multiline => Some(self.vertical_cursor(false)),
+                KeyCode::Down if plain && self.multiline => Some(self.vertical_cursor(true)),
                 KeyCode::Left if plain => Some(self.previous()),
                 KeyCode::Char('b') if ctrl => Some(self.previous()),
                 KeyCode::Right if plain => Some(self.next()),
@@ -196,6 +235,7 @@ impl TextEditor {
             };
             if let Some(position) = movement {
                 self.cursor = position;
+                self.repair_cursor();
                 self.replace_on_type = false;
             } else {
                 match code {
@@ -264,6 +304,69 @@ impl TextEditor {
     }
 }
 
+pub(super) fn render_multiline(
+    buffer: &mut ratatui::buffer::Buffer,
+    area: ratatui::layout::Rect,
+    editor: &TextEditor,
+    style: ratatui::style::Style,
+) -> Option<crate::protocol::CursorState> {
+    let area = area.intersection(buffer.area);
+    if area.is_empty() {
+        return None;
+    }
+    let mut rows: Vec<String> = vec![String::new()];
+    let (mut x, mut y) = (0usize, 0usize);
+    let mut cursor = (0usize, 0usize);
+    for (index, grapheme) in editor.text.grapheme_indices(true) {
+        if index == editor.cursor {
+            cursor = (x, y);
+        }
+        if matches!(grapheme, "\n" | "\r" | "\r\n") {
+            rows.push(String::new());
+            y += 1;
+            x = 0;
+            continue;
+        }
+        let shown = if grapheme == "\t" { "    " } else { grapheme };
+        let width = shown.width().min(usize::from(area.width));
+        if x + width > usize::from(area.width) {
+            rows.push(String::new());
+            y += 1;
+            x = 0;
+        }
+        if index == editor.cursor {
+            cursor = (x, y);
+        }
+        rows[y].push_str(shown);
+        x += width;
+        if x == usize::from(area.width) {
+            rows.push(String::new());
+            y += 1;
+            x = 0;
+        }
+    }
+    if editor.cursor == editor.text.len() {
+        cursor = (x, y);
+    }
+    let first = cursor.1.saturating_sub(usize::from(area.height) - 1);
+    for dy in 0..area.height {
+        for dx in 0..area.width {
+            buffer[(area.x + dx, area.y + dy)]
+                .set_symbol(" ")
+                .set_style(style);
+        }
+        if let Some(line) = rows.get(first + usize::from(dy)) {
+            buffer.set_stringn(area.x, area.y + dy, line, usize::from(area.width), style);
+        }
+    }
+    Some(crate::protocol::CursorState {
+        x: area.x + cursor.0 as u16,
+        y: area.y + (cursor.1 - first) as u16,
+        visible: true,
+        shape: 0,
+    })
+}
+
 pub(super) fn render(
     buffer: &mut ratatui::buffer::Buffer,
     area: ratatui::layout::Rect,
@@ -303,6 +406,32 @@ mod tests {
                     .any(|(i, _)| i == editor.cursor)
         );
         result
+    }
+
+    #[test]
+    fn multiline_preserva_quebras_tab_e_navega_sem_alterar_editor_simples() {
+        let mut editor = TextEditor::multiline("ação\r\n😀\tX");
+        assert_eq!(editor.as_str(), "ação\r\n😀\tX");
+        key(&mut editor, KeyCode::Enter, KeyModifiers::NONE);
+        key(&mut editor, KeyCode::Char('Z'), KeyModifiers::NONE);
+        assert!(editor.ends_with("X\nZ"));
+        key(&mut editor, KeyCode::Up, KeyModifiers::NONE);
+        assert!(editor.cursor < editor.len() - 1);
+        let mut simple = TextEditor::new("ação\r\n😀\tX", false);
+        assert_eq!(simple.as_str(), "ação 😀 X");
+        assert!(simple
+            .handle_key(&crate::input::TerminalKey::new(
+                KeyCode::Enter,
+                KeyModifiers::NONE
+            ))
+            .is_none());
+        use ratatui::{buffer::Buffer, layout::Rect, style::Style};
+        let rect = Rect::new(0, 0, 5, 2);
+        let mut buffer = Buffer::empty(rect);
+        let before = editor.clone();
+        let cursor = render_multiline(&mut buffer, rect, &editor, Style::default()).unwrap();
+        assert!(cursor.x < 5 && cursor.y < 2);
+        assert_eq!(editor, before);
     }
 
     #[test]

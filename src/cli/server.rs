@@ -14,6 +14,7 @@ pub(super) fn run_server_command(args: &[String]) -> std::io::Result<Option<i32>
 
     match subcommand {
         "stop" => server_stop(&args[1..]).map(Some),
+        "stop-if-matches" => server_stop_if_matches(&args[1..]).map(Some),
         "live-handoff" => server_live_handoff(&args[1..]).map(Some),
         "--handoff-import" => Ok(None),
         "reload-config" => server_reload_config(&args[1..]).map(Some),
@@ -48,6 +49,30 @@ fn server_stop(args: &[String]) -> std::io::Result<i32> {
             Ok(1)
         }
     }
+}
+
+fn server_stop_if_matches(args: &[String]) -> std::io::Result<i32> {
+    let [flag, json] = args else {
+        eprintln!("Uso: herdr server stop-if-matches --panes-json JSON");
+        return Ok(2);
+    };
+    if flag != "--panes-json" || json.len() > 1_048_576 {
+        eprintln!("Inventário de conversas inválido.");
+        return Ok(2);
+    }
+    let panes = match serde_json::from_str(json) {
+        Ok(panes) => panes,
+        Err(_) => {
+            eprintln!("Inventário de conversas inválido.");
+            return Ok(2);
+        }
+    };
+    super::print_response(&super::send_request(&Request {
+        id: "cli:server:stop-if-matches".into(),
+        method: Method::ServerStopIfMatches(crate::api::schema::ServerStopIfMatchesParams {
+            panes,
+        }),
+    })?)
 }
 
 fn server_reload_config(args: &[String]) -> std::io::Result<i32> {
