@@ -200,6 +200,13 @@ pub(crate) fn install_codex() -> io::Result<CodexInstallPaths> {
         10,
         None,
     )?;
+    ensure_command_hook(
+        hooks,
+        "UserPromptSubmit",
+        hook_command(&hook_path, Some("prompt")),
+        5,
+        None,
+    )?;
     remove_legacy_bash_hook_file(&hook_path)?;
 
     write_config(&hooks_path, serde_json::to_string_pretty(&hooks_file)?)?;
@@ -625,6 +632,8 @@ pub(crate) fn uninstall_codex() -> io::Result<CodexUninstallResult> {
                 remove_hook_commands(hooks, "SessionStart", &hook_path, Some("session"))?;
             updated_hooks |=
                 remove_hook_commands(hooks, "UserPromptSubmit", &hook_path, Some("working"))?;
+            updated_hooks |=
+                remove_hook_commands(hooks, "UserPromptSubmit", &hook_path, Some("prompt"))?;
             updated_hooks |=
                 remove_hook_commands(hooks, "PreToolUse", &hook_path, Some("working"))?;
             updated_hooks |=

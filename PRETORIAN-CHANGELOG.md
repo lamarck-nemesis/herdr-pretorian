@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.10.0] - 2026-11-19
+
+### Adicionado
+- A integração do Codex repassa o pedido enviado ao auxiliar de atividade da estação.
+
 ## [0.9.0] - 2026-11-18
 
 ### Adicionado
