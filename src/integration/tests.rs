@@ -1496,7 +1496,7 @@ fn codex_v2_integration_status_is_outdated() {
 
     assert_eq!(codex.path, hook_path);
     assert_eq!(codex.installed_version, Some(2));
-    assert_eq!(codex.expected_version, 11);
+    assert_eq!(codex.expected_version, 12);
     assert_eq!(codex.state, IntegrationStatusKind::Outdated);
 
     std::env::remove_var("HOME");
@@ -1527,7 +1527,13 @@ fn install_codex_writes_hook_and_updates_hooks_and_config() {
         .as_str()
         .unwrap()
         .contains(" session"));
-    assert!(hooks["hooks"].get("UserPromptSubmit").is_none());
+    assert!(hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        .as_str()
+        .unwrap()
+        .ends_with(" prompt"));
+    assert!(hooks["hooks"]["UserPromptSubmit"][0]
+        .get("matcher")
+        .is_none());
     assert!(hooks["hooks"].get("PreToolUse").is_none());
     assert!(hooks["hooks"].get("PermissionRequest").is_none());
     assert!(hooks["hooks"].get("Stop").is_none());
@@ -1536,6 +1542,45 @@ fn install_codex_writes_hook_and_updates_hooks_and_config() {
     assert!(config.contains("[features]"));
     assert!(config.contains("hooks = true"));
     assert!(!config.contains("codex_hooks"));
+
+    std::env::remove_var("HOME");
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn install_codex_leaves_integration_status_current_and_uninstall_removes_both_hooks() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let home = base.join("home");
+    let codex_dir = home.join(".codex");
+    fs::create_dir_all(&codex_dir).unwrap();
+    std::env::set_var("HOME", &home);
+
+    install_codex().unwrap();
+    install_codex().unwrap();
+
+    let statuses = installed_integration_statuses();
+    let codex = statuses
+        .iter()
+        .find(|status| status.target == crate::api::schema::IntegrationTarget::Codex)
+        .unwrap();
+    assert_eq!(codex.installed_version, Some(CODEX_INTEGRATION_VERSION));
+    assert_eq!(codex.state, IntegrationStatusKind::Current);
+
+    let hooks: Value =
+        serde_json::from_str(&fs::read_to_string(codex_dir.join("hooks.json")).unwrap()).unwrap();
+    assert_eq!(hooks["hooks"]["SessionStart"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        hooks["hooks"]["UserPromptSubmit"].as_array().unwrap().len(),
+        1
+    );
+
+    let result = uninstall_codex().unwrap();
+    assert!(result.updated_hooks);
+    let hooks: Value =
+        serde_json::from_str(&fs::read_to_string(codex_dir.join("hooks.json")).unwrap()).unwrap();
+    assert!(hooks["hooks"].get("SessionStart").is_none());
+    assert!(hooks["hooks"].get("UserPromptSubmit").is_none());
 
     std::env::remove_var("HOME");
     let _ = fs::remove_dir_all(base);
@@ -1582,7 +1627,10 @@ fn install_codex_is_idempotent_for_hook_entries_and_feature_flag() {
     let config = fs::read_to_string(codex_dir.join("config.toml")).unwrap();
 
     assert_eq!(hooks["hooks"]["SessionStart"].as_array().unwrap().len(), 1);
-    assert!(hooks["hooks"].get("UserPromptSubmit").is_none());
+    assert_eq!(
+        hooks["hooks"]["UserPromptSubmit"].as_array().unwrap().len(),
+        1
+    );
     assert!(hooks["hooks"].get("PreToolUse").is_none());
     assert!(hooks["hooks"].get("PermissionRequest").is_none());
     assert!(hooks["hooks"].get("Stop").is_none());
@@ -1656,6 +1704,10 @@ fn install_codex_removes_turn_status_hooks_from_previous_integration() {
         hooks["hooks"]["UserPromptSubmit"][0]["hooks"],
         json!([{"type": "command", "command": "echo keep", "timeout": 10}])
     );
+    assert_eq!(
+        hooks["hooks"]["UserPromptSubmit"][1]["hooks"][0]["command"],
+        hook_command(&hook_path, Some("prompt"))
+    );
     assert!(hooks["hooks"].get("Stop").is_none());
     assert!(hooks["hooks"].get("Interrupt").is_none());
 
@@ -1678,7 +1730,7 @@ fn uninstall_codex_removes_herdr_hooks_and_leaves_config_alone() {
             "UserPromptSubmit": [{"hooks": [
                 {"type": "command", "command": format!("bash '{}' working", hook_path.display()), "timeout": 10},
                 {"type": "command", "command": "echo keep", "timeout": 10}
-            ]}],
+            ]}, {"hooks": [{"type": "command", "command": format!("bash '{}' prompt", hook_path.display()), "timeout": 5}]}],
             "PreToolUse": [{"hooks": [{"type": "command", "command": format!("bash '{}' working", hook_path.display()), "timeout": 10}]}],
             "PermissionRequest": [{"hooks": [{"type": "command", "command": format!("bash '{}' blocked", hook_path.display()), "timeout": 10}]}],
             "Stop": [{"hooks": [{"type": "command", "command": format!("bash '{}' idle", hook_path.display()), "timeout": 10}]}],
@@ -1710,6 +1762,10 @@ fn uninstall_codex_removes_herdr_hooks_and_leaves_config_alone() {
     assert!(hooks["hooks"].get("PermissionRequest").is_none());
     assert!(hooks["hooks"].get("Stop").is_none());
     assert!(hooks["hooks"].get("Interrupt").is_none());
+    assert_eq!(
+        hooks["hooks"]["UserPromptSubmit"].as_array().unwrap().len(),
+        1
+    );
     assert_eq!(
         hooks["hooks"]["UserPromptSubmit"][0]["hooks"]
             .as_array()
