@@ -1123,39 +1123,20 @@ fn secao_usuario_grava_nome_e_pede_recarga() {
     state.handle_input_bytes(b" Ana ");
     let aplicado = state.handle_input_bytes(b"\r");
 
-    assert!(matches!(
-        state.overlay,
-        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            nome_somente_leitura: true,
-            ..
-        }))
-    ));
     state.cancel_settings_overlay();
-    state.open_settings_overlay();
-    assert!(matches!(
-        state.overlay,
-        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            nome_somente_leitura: true,
-            ..
-        }))
-    ));
     let restored: Config = toml::from_str(&std::fs::read_to_string(&caminho).unwrap()).unwrap();
     let mut reopened = ClientShellState::new(ClientShellConfig::from_config(&restored));
     reopened.open_settings_overlay();
-    assert!(matches!(
-        reopened.overlay,
-        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            nome_somente_leitura: true,
-            ..
-        }))
-    ));
+    reopened.handle_input_bytes(b"\x03Ana Silva");
+    reopened.select_settings_choice(3);
+    reopened.apply_settings_choice(&mut ClientShellInput::default());
 
     let gravado = std::fs::read_to_string(&caminho).expect("config gravado");
     std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(gravado.contains("[pretorian]"), "{gravado}");
-    assert!(gravado.contains("nome = \"Ana\""), "{gravado}");
+    assert!(gravado.contains("nome = \"Ana Silva\""), "{gravado}");
     assert!(
         aplicado.actions.iter().any(|action| matches!(
             action,
@@ -1166,13 +1147,6 @@ fn secao_usuario_grava_nome_e_pede_recarga() {
         aplicado.actions
     );
     assert_eq!(state.config.nome_usuario.as_deref(), Some("Ana"));
-    assert!(matches!(
-        state.overlay,
-        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
-            section: ClientSettingsSection::Usuario,
-            ..
-        }))
-    ));
 }
 
 #[test]
