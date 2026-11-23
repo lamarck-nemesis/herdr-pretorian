@@ -239,6 +239,7 @@ struct State {
     selected: Option<(String, Value, usize)>,
     audio_script: Option<(String, String)>,
     too_small: bool,
+    confirm_quit: bool,
 }
 impl State {
     fn attendances(&self) -> &[Value] {
@@ -409,7 +410,18 @@ impl State {
             self.input.push_str(clean);
         }
     }
+    /// Sair com ação pendente ou incerta exige repetir o pedido de saída.
     fn request_quit(&mut self) -> bool {
+        if (self.pending || self.uncertain) && !self.confirm_quit {
+            self.confirm_quit = true;
+            self.notice = if self.uncertain {
+                "Há uma ação com resultado incerto. Pressione q de novo para sair mesmo assim."
+            } else {
+                "Há uma ação em andamento. Pressione q de novo para sair mesmo assim."
+            }
+            .into();
+            return false;
+        }
         true
     }
     fn retry(&mut self, tx: &Sender<Request>) {
@@ -454,6 +466,14 @@ impl State {
     /// Ponto de entrada do teclado: ignora combinações com Ctrl/Alt nas ações.
     /// Ctrl+C só pede para sair (com a mesma confirmação do `q`), nunca age.
     fn handle_key(&mut self, tx: &Sender<Request>, event: KeyEvent) -> bool {
+        let quit_key = match event.code {
+            KeyCode::Char('q') => event.modifiers.is_empty(),
+            KeyCode::Char('c' | 'C') => event.modifiers == KeyModifiers::CONTROL,
+            _ => false,
+        };
+        if !quit_key {
+            self.confirm_quit = false;
+        }
         if self.too_small {
             // Janela pequena: só a saída continua disponível.
             return (matches!(event.code, KeyCode::Char('q'))
@@ -1570,6 +1590,33 @@ mod tests {
         s.schedule_editing = true;
         s.paste("08:00-11:00 abc");
         assert_eq!(s.schedule_rows[0], "08:00-11:00 ");
+    }
+    #[test]
+    fn quit_with_pending_or_uncertain_action_needs_confirmation() {
+        let (tx, _rx) = mpsc::channel();
+        for uncertain in [false, true] {
+            let mut s = state();
+            s.pending = !uncertain;
+            s.uncertain = uncertain;
+            assert!(!s.handle_key(&tx, key('q', KeyModifiers::NONE)));
+            assert!(s.notice.contains("q de novo"));
+            assert!(s.handle_key(&tx, key('q', KeyModifiers::NONE)));
+            // Outra tecla cancela a confirmação.
+            let mut s = state();
+            s.uncertain = uncertain;
+            s.pending = !uncertain;
+            assert!(!s.handle_key(&tx, key('q', KeyModifiers::NONE)));
+            s.handle_key(&tx, KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+            assert!(!s.handle_key(&tx, key('q', KeyModifiers::NONE)));
+            // Ctrl+C segue a mesma regra.
+            let mut s = state();
+            s.uncertain = uncertain;
+            s.pending = !uncertain;
+            assert!(!s.handle_key(&tx, key('c', KeyModifiers::CONTROL)));
+            assert!(s.handle_key(&tx, key('c', KeyModifiers::CONTROL)));
+        }
+        let mut s = state();
+        assert!(s.handle_key(&tx, key('q', KeyModifiers::NONE)));
     }
     #[test]
     fn queue_notice_replaces_empty_queue_message() {
