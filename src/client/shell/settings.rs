@@ -12,12 +12,10 @@ impl ClientShellState {
             section: ClientSettingsSection::Usuario,
             selected: 0,
             nome: TextEditor::new(self.config.nome_usuario.as_deref().unwrap_or(""), false),
-            nome_somente_leitura: std::env::var_os("PRETORIAN_NOME_CENTAURO").is_some()
-                || self
-                    .config
-                    .nome_usuario
-                    .as_ref()
-                    .is_some_and(|nome| !nome.trim().is_empty()),
+            nome_somente_leitura: std::env::var("PRETORIAN_NOME_CENTAURO")
+                .ok()
+                .and_then(|nome| crate::config::sanitizar_nome(&nome))
+                .is_some(),
             dependencias: false,
             sound_enabled: self.config.sound_enabled,
             toast_delivery: self.config.toast_delivery,
@@ -184,25 +182,13 @@ impl ClientShellState {
                         super::pretorian_dependencias::pedir(&item.id);
                     }
                 } else if selected == 0 || selected == 1 {
-                    if settings.nome_somente_leitura {
-                        return;
-                    }
-                    let Some(nome) = crate::config::sanitizar_nome(settings.nome.as_str()) else {
-                        return;
-                    };
-                    if self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome) {
-                        if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut()
-                        {
-                            settings.nome = TextEditor::new(&nome, false);
-                            settings.nome_somente_leitura = true;
-                            settings.selected = 2;
-                        }
-                    }
+                    self.salvar_nome_local(outcome);
+                } else if selected == 3 {
+                    self.salvar_perfil(outcome);
                 } else if selected == 7 {
                     self.cancel_settings_overlay();
                 } else if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
                     match selected {
-                        3 => settings.sobre.request(true),
                         4 if settings.sobre.can_save() => {
                             settings.sobre.editor.clear();
                             settings.sobre.request(true);
@@ -237,6 +223,40 @@ impl ClientShellState {
                 }
             }
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
+        }
+    }
+
+    /// Devolve `false` só quando havia um nome a gravar e a gravação falhou.
+    fn salvar_nome_local(&mut self, outcome: &mut ClientShellInput) -> bool {
+        let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_ref() else {
+            return true;
+        };
+        if settings.nome_somente_leitura {
+            return true;
+        }
+        let Some(nome) = crate::config::sanitizar_nome(settings.nome.as_str()) else {
+            return true;
+        };
+        if self.config.nome_usuario.as_deref() == Some(&nome) {
+            return true;
+        }
+        if !self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome) {
+            return false;
+        }
+        if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+            settings.nome = TextEditor::new(&nome, false);
+        }
+        true
+    }
+
+    fn salvar_perfil(&mut self, outcome: &mut ClientShellInput) {
+        if !self.salvar_nome_local(outcome) {
+            return;
+        }
+        if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+            if settings.sobre.dirty() {
+                settings.sobre.request(true);
+            }
         }
     }
 
@@ -463,8 +483,10 @@ impl ClientShellState {
             && modifiers == KeyModifiers::CONTROL
             && matches!(code, KeyCode::Char('s') | KeyCode::Char('r'))
         {
-            if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
-                settings.sobre.request(code == KeyCode::Char('s'));
+            if code == KeyCode::Char('s') {
+                self.salvar_perfil(outcome);
+            } else if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+                settings.sobre.request(false);
             }
         } else if !settings.dependencias && settings.selected == 2 {
             if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {

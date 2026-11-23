@@ -33,7 +33,9 @@ impl PretorianConfig {
     }
 
     fn nome_com_identidade(&self, identidade: Option<&str>) -> Option<String> {
-        identidade.or(self.nome.as_deref()).and_then(sanitizar_nome)
+        identidade
+            .and_then(sanitizar_nome)
+            .or_else(|| self.nome.as_deref().and_then(sanitizar_nome))
     }
 }
 
@@ -100,7 +102,10 @@ mod tests {
             config.nome_com_identidade(None).as_deref(),
             Some("Nome local")
         );
-        assert_eq!(config.nome_com_identidade(Some("\u{7}")), None);
+        assert_eq!(
+            config.nome_com_identidade(Some("\u{7}")).as_deref(),
+            Some("Nome local")
+        );
         assert_eq!(config.nome.as_deref(), Some("Nome local"));
     }
 
@@ -128,6 +133,28 @@ mod tests {
 
         let config: Config = toml::from_str("[ui]\nwindow_title = \"{workspace}\"\n").unwrap();
         assert_eq!(config.window_title_efetivo(), "{workspace}");
+    }
+
+    #[test]
+    fn identidade_em_branco_ou_so_controle_cai_para_o_nome_do_config() {
+        let config: Config = toml::from_str("[pretorian]\nnome = \"Ana\"\n").unwrap();
+        let pretorian = &config.pretorian;
+        assert_eq!(
+            pretorian.nome_com_identidade(Some("Beto")).as_deref(),
+            Some("Beto")
+        );
+        for vazia in ["", "   ", "\u{7}\n"] {
+            assert_eq!(
+                pretorian.nome_com_identidade(Some(vazia)).as_deref(),
+                Some("Ana"),
+                "{vazia:?}"
+            );
+        }
+        assert_eq!(pretorian.nome_com_identidade(None).as_deref(), Some("Ana"));
+        assert_eq!(
+            PretorianConfig::default().nome_com_identidade(Some("  ")),
+            None
+        );
     }
 
     #[test]
