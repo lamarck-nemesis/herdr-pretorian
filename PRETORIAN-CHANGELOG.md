@@ -9,6 +9,11 @@ Mudanças relevantes do Herdr Pretorian, da mais recente para a mais antiga. O f
 
 ## [Não lançado]
 
+## [0.10.1] - 2026-11-23
+
+### Corrigido
+- As configurações salvam o nome e a apresentação do centauro e permitem reabrir a edição com os valores gravados.
+
 ## [0.10.0] - 2026-11-19
 
 ### Adicionado
