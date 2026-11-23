@@ -7,8 +7,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-    KeyModifiers, MouseEventKind,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -377,6 +377,37 @@ impl State {
             self.offline = true;
         }
         self.notice = error.message().to_owned();
+    }
+    /// Texto colado (bracketed paste) entra inteiro e só em campos de texto
+    /// abertos; fora deles é descartado, nunca interpretado como atalhos.
+    fn paste(&mut self, text: &str) {
+        if self.too_small {
+            return;
+        }
+        let clean: String = text
+            .chars()
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect();
+        let clean = clean.trim();
+        if clean.is_empty() {
+            return;
+        }
+        if self.abandon_mode == 2 {
+            let room = 2000usize.saturating_sub(self.input.chars().count());
+            self.input.extend(clean.chars().take(room));
+        } else if self.abandon_mode > 0 {
+        } else if self.schedule_open {
+            if self.schedule_editing {
+                let row = &mut self.schedule_rows[self.schedule_row];
+                row.extend(
+                    clean
+                        .chars()
+                        .filter(|c| c.is_ascii_digit() || [':', '-', ',', ' '].contains(c)),
+                );
+            }
+        } else if self.editing || self.completing {
+            self.input.push_str(clean);
+        }
     }
     fn request_quit(&mut self) -> bool {
         true
@@ -986,7 +1017,12 @@ pub fn run() -> io::Result<()> {
     let worker = thread::spawn(move || worker(rx, replies, worker_cancel));
     enable_raw_mode()?;
     let mut out = io::stdout();
-    if let Err(e) = execute!(out, EnterAlternateScreen, EnableMouseCapture) {
+    if let Err(e) = execute!(
+        out,
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        EnableBracketedPaste
+    ) {
         let _ = disable_raw_mode();
         return Err(e);
     }
@@ -1048,6 +1084,7 @@ pub fn run() -> io::Result<()> {
                             break;
                         }
                     }
+                    Event::Paste(text) => state.paste(&text),
                     Event::Mouse(m)
                         if matches!(
                             m.kind,
@@ -1163,7 +1200,12 @@ pub fn run() -> io::Result<()> {
     drop(tx);
     let _ = worker.join();
     let _ = disable_raw_mode();
-    let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
+    let _ = execute!(
+        io::stdout(),
+        DisableBracketedPaste,
+        DisableMouseCapture,
+        LeaveAlternateScreen
+    );
     result
 }
 
@@ -1496,6 +1538,38 @@ mod tests {
         s.apply_error("snapshot", HelperError::Uncertain("Tempo esgotado.".into()));
         assert!(!s.uncertain);
         assert!(s.offline);
+    }
+    #[test]
+    fn paste_enters_text_whole_and_never_triggers_actions() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = state();
+        s.paste("c1234fqpab");
+        assert!(rx.try_recv().is_err());
+        assert!(s.input.is_empty() && !s.editing);
+        s.action(&tx, KeyCode::Char('4'));
+        s.paste("olá 1 c\nq f");
+        assert_eq!(s.input, "olá 1 c q f");
+        assert!(rx.try_recv().is_err());
+        s.action(&tx, KeyCode::Enter);
+        let r = rx.try_recv().expect("mensagem");
+        assert_eq!(r.command, "agent");
+        assert_eq!(r.payload["text"], "olá 1 c q f");
+    }
+    #[test]
+    fn paste_is_ignored_in_small_window_and_menus() {
+        let mut s = state();
+        s.editing = true;
+        s.too_small = true;
+        s.paste("texto");
+        assert!(s.input.is_empty());
+        s.too_small = false;
+        s.editing = false;
+        s.schedule_open = true;
+        s.paste("08:00-11:00");
+        assert!(s.schedule_rows[0].is_empty());
+        s.schedule_editing = true;
+        s.paste("08:00-11:00 abc");
+        assert_eq!(s.schedule_rows[0], "08:00-11:00 ");
     }
     #[test]
     fn queue_notice_replaces_empty_queue_message() {
