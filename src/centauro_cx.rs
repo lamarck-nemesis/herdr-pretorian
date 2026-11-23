@@ -204,6 +204,7 @@ struct State {
     uncertain: bool,
     selected: Option<(String, Value, usize)>,
     audio_script: Option<(String, String)>,
+    too_small: bool,
 }
 impl State {
     fn attendances(&self) -> &[Value] {
@@ -361,6 +362,16 @@ impl State {
     /// Ponto de entrada do teclado: ignora combinações com Ctrl/Alt nas ações.
     /// Ctrl+C só pede para sair (com a mesma confirmação do `q`), nunca age.
     fn handle_key(&mut self, tx: &Sender<Request>, event: KeyEvent) -> bool {
+        if self.too_small {
+            // Janela pequena: só a saída continua disponível.
+            return (matches!(event.code, KeyCode::Char('q'))
+                && !event
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                || event.modifiers == KeyModifiers::CONTROL
+                    && matches!(event.code, KeyCode::Char('c' | 'C')))
+                && self.request_quit();
+        }
         if event
             .modifiers
             .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
@@ -556,6 +567,12 @@ impl State {
     }
 }
 
+const MIN_WIDTH: u16 = 85;
+const MIN_HEIGHT: u16 = 24;
+fn is_too_small(width: u16, height: u16) -> bool {
+    width < MIN_WIDTH || height < MIN_HEIGHT
+}
+
 fn layout(area: Rect) -> Vec<Rect> {
     Layout::default()
         .direction(Direction::Horizontal)
@@ -583,7 +600,7 @@ fn box_text<'a>(title: &'a str, lines: Vec<Line<'a>>, active: bool) -> Paragraph
 }
 fn draw(frame: &mut Frame, s: &State) {
     let area = frame.area();
-    if area.width < 85 || area.height < 24 {
+    if is_too_small(area.width, area.height) {
         frame.render_widget(Paragraph::new("Amplie a janela para pelo menos 85 colunas e 24 linhas. Os dados permanecem disponíveis." ).wrap(Wrap { trim: true }), area);
         return;
     }
@@ -977,6 +994,8 @@ pub fn run() -> io::Result<()> {
                     }
                 }
             }
+            let size = terminal.size()?;
+            state.too_small = is_too_small(size.width, size.height);
             terminal.draw(|f| draw(f, &state))?;
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
@@ -991,6 +1010,9 @@ pub fn run() -> io::Result<()> {
                             MouseEventKind::ScrollDown | MouseEventKind::ScrollUp
                         ) =>
                     {
+                        if state.too_small {
+                            continue;
+                        }
                         let size = terminal.size()?;
                         let cols = layout(Rect::new(0, 0, size.width, size.height));
                         let down = m.kind == MouseEventKind::ScrollDown;
@@ -1010,7 +1032,7 @@ pub fn run() -> io::Result<()> {
                     Event::Mouse(m) if m.kind == MouseEventKind::Down(event::MouseButton::Left) => {
                         let size = terminal.size()?;
                         let area = Rect::new(0, 0, size.width, size.height);
-                        if area.width >= 85 && area.height >= 24 {
+                        if !is_too_small(area.width, area.height) {
                             if state.abandon_mode > 0 {
                                 let dialog = Rect::new(
                                     area.x + area.width / 6,
@@ -1355,6 +1377,31 @@ mod tests {
         assert!(rx.try_recv().is_err());
         assert!(!s.handle_key(&tx, key('c', KeyModifiers::NONE)));
         assert_eq!(rx.try_recv().expect("claim").command, "claim");
+    }
+    #[test]
+    fn small_window_blocks_keyboard_actions_but_allows_quit() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = state();
+        s.too_small = true;
+        for c in ['c', 'a', 'p', '1', '2', '3', '4', 'f', 'h', 'b', 'r', 'x'] {
+            assert!(!s.handle_key(&tx, key(c, KeyModifiers::NONE)));
+        }
+        assert!(!s.handle_key(&tx, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)));
+        assert!(!s.handle_key(&tx, KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)));
+        assert!(rx.try_recv().is_err());
+        assert!(!s.editing && !s.completing && !s.schedule_open && !s.pending);
+        assert_eq!(s.focus, 0);
+        assert!(s.handle_key(&tx, key('q', KeyModifiers::NONE)));
+        assert!(s.handle_key(&tx, key('c', KeyModifiers::CONTROL)));
+        s.too_small = false;
+        s.handle_key(&tx, key('c', KeyModifiers::NONE));
+        assert_eq!(rx.try_recv().expect("claim").command, "claim");
+    }
+    #[test]
+    fn minimum_size_is_85_by_24() {
+        assert!(is_too_small(84, 24));
+        assert!(is_too_small(85, 23));
+        assert!(!is_too_small(85, 24));
     }
     #[test]
     fn queue_notice_replaces_empty_queue_message() {
