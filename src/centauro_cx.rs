@@ -7,7 +7,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -315,6 +316,9 @@ impl State {
             self.notice = "Enviando...".into();
         }
     }
+    fn request_quit(&mut self) -> bool {
+        true
+    }
     fn retry(&mut self, tx: &Sender<Request>) {
         if !self.uncertain || self.pending || self.offline {
             return;
@@ -353,6 +357,20 @@ impl State {
                 }
             }
         }
+    }
+    /// Ponto de entrada do teclado: ignora combinações com Ctrl/Alt nas ações.
+    /// Ctrl+C só pede para sair (com a mesma confirmação do `q`), nunca age.
+    fn handle_key(&mut self, tx: &Sender<Request>, event: KeyEvent) -> bool {
+        if event
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            return event.modifiers.contains(KeyModifiers::CONTROL)
+                && !event.modifiers.contains(KeyModifiers::ALT)
+                && matches!(event.code, KeyCode::Char('c' | 'C'))
+                && self.request_quit();
+        }
+        self.action(tx, event.code)
     }
     fn action(&mut self, tx: &Sender<Request>, key: KeyCode) -> bool {
         if self.abandon_mode > 0 {
@@ -475,7 +493,7 @@ impl State {
             return false;
         }
         match key {
-            KeyCode::Char('q') => return true,
+            KeyCode::Char('q') => return self.request_quit(),
             KeyCode::Char('r') => self.retry(tx),
             KeyCode::Char('x') if self.uncertain => {
                 self.uncertain = false;
@@ -963,7 +981,7 @@ pub fn run() -> io::Result<()> {
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
                     Event::Key(k) if k.kind == KeyEventKind::Press => {
-                        if state.action(&tx, k.code) {
+                        if state.handle_key(&tx, k) {
                             break;
                         }
                     }
@@ -1307,6 +1325,36 @@ mod tests {
         s.action(&tx, KeyCode::Enter);
         assert!(rx.try_recv().is_err());
         assert!(s.notice.contains("mudou"));
+    }
+    fn key(c: char, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(c), modifiers)
+    }
+    #[test]
+    fn control_and_alt_keys_never_trigger_actions() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = state();
+        for c in ['c', 'a', 'p', '1', '2', '3', '4', 'f', 'h', 'b', 'q'] {
+            for m in [
+                KeyModifiers::CONTROL,
+                KeyModifiers::ALT,
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            ] {
+                let quit = s.handle_key(&tx, key(c, m));
+                assert!(!quit || (c == 'c' && m == KeyModifiers::CONTROL));
+            }
+        }
+        assert!(rx.try_recv().is_err());
+        assert!(!s.pending && !s.editing && !s.completing && !s.schedule_open);
+        assert_eq!(s.abandon_mode, 0);
+    }
+    #[test]
+    fn ctrl_c_quits_instead_of_claiming() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = state();
+        assert!(s.handle_key(&tx, key('c', KeyModifiers::CONTROL)));
+        assert!(rx.try_recv().is_err());
+        assert!(!s.handle_key(&tx, key('c', KeyModifiers::NONE)));
+        assert_eq!(rx.try_recv().expect("claim").command, "claim");
     }
     #[test]
     fn queue_notice_replaces_empty_queue_message() {
