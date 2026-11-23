@@ -29,12 +29,30 @@ struct Request {
 }
 struct Reply {
     command: &'static str,
-    result: Result<Value, String>,
+    result: Result<Value, HelperError>,
 }
 
-fn helper(command: &str, payload: &Value, cancel: &AtomicBool) -> Result<Value, String> {
-    let python = std::env::var_os("PRETORIAN_CX_PYTHON").ok_or("Auxiliar não configurado")?;
-    let script = std::env::var_os("PRETORIAN_CX_HELPER").ok_or("Auxiliar não configurado")?;
+/// Definitivo: o auxiliar terminou normalmente e respondeu com erro (ou nem
+/// foi iniciado), então a ação não foi aplicada. Incerto: timeout, cancelamento
+/// ou falha do processo/da resposta, quando o efeito é desconhecido.
+#[derive(Debug, Clone, PartialEq)]
+enum HelperError {
+    Definitive(String),
+    Uncertain(String),
+}
+impl HelperError {
+    fn message(&self) -> &str {
+        match self {
+            Self::Definitive(m) | Self::Uncertain(m) => m,
+        }
+    }
+}
+
+fn helper(command: &str, payload: &Value, cancel: &AtomicBool) -> Result<Value, HelperError> {
+    let python = std::env::var_os("PRETORIAN_CX_PYTHON")
+        .ok_or_else(|| HelperError::Definitive("Auxiliar não configurado".into()))?;
+    let script = std::env::var_os("PRETORIAN_CX_HELPER")
+        .ok_or_else(|| HelperError::Definitive("Auxiliar não configurado".into()))?;
     let mut child = Command::new(python)
         .arg(script)
         .arg(command)
@@ -42,12 +60,19 @@ fn helper(command: &str, payload: &Value, cancel: &AtomicBool) -> Result<Value, 
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|_| "Não foi possível iniciar o auxiliar")?;
-    let input =
-        serde_json::to_vec(payload).map_err(|_| "Não foi possível preparar a solicitação")?;
-    let mut stdin = child.stdin.take().ok_or("Entrada indisponível")?;
+        .map_err(|_| HelperError::Definitive("Não foi possível iniciar o auxiliar".into()))?;
+    let input = serde_json::to_vec(payload)
+        .map_err(|_| HelperError::Definitive("Não foi possível preparar a solicitação".into()))?;
+    let unc = |m: &str| HelperError::Uncertain(m.to_owned());
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| unc("Entrada indisponível"))?;
     let writer = thread::spawn(move || stdin.write_all(&input));
-    let mut stdout = child.stdout.take().ok_or("Resposta indisponível")?;
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| unc("Resposta indisponível"))?;
     let reader = thread::spawn(move || {
         let mut bytes = Vec::new();
         stdout.read_to_end(&mut bytes).map(|_| bytes)
@@ -57,7 +82,7 @@ fn helper(command: &str, payload: &Value, cancel: &AtomicBool) -> Result<Value, 
         if cancel.load(Ordering::Relaxed) || started.elapsed() >= Duration::from_secs(15) {
             let _ = child.kill();
             let _ = child.wait();
-            return Err("Tempo esgotado ou operação cancelada. Confira o atendimento antes de tentar novamente.".into());
+            return Err(unc("Tempo esgotado ou operação cancelada. Confira o atendimento antes de tentar novamente."));
         }
         match child.try_wait() {
             Ok(Some(status)) => break status,
@@ -65,29 +90,38 @@ fn helper(command: &str, payload: &Value, cancel: &AtomicBool) -> Result<Value, 
             Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err("Falha ao aguardar o auxiliar".into());
+                return Err(unc("Falha ao aguardar o auxiliar"));
             }
         }
     };
     writer
         .join()
-        .map_err(|_| "Falha ao enviar solicitação")?
-        .map_err(|_| "Falha ao enviar solicitação")?;
+        .map_err(|_| unc("Falha ao enviar solicitação"))?
+        .map_err(|_| unc("Falha ao enviar solicitação"))?;
     let bytes = reader
         .join()
-        .map_err(|_| "Falha ao ler resposta")?
-        .map_err(|_| "Falha ao ler resposta")?;
+        .map_err(|_| unc("Falha ao ler resposta"))?
+        .map_err(|_| unc("Falha ao ler resposta"))?;
     let value: Value =
-        serde_json::from_slice(&bytes).map_err(|_| "Resposta inválida do serviço")?;
-    if !status.success()
-        || value.get("error").is_some()
-        || value.get("ok") == Some(&Value::Bool(false))
-    {
-        return Err(value
+        serde_json::from_slice(&bytes).map_err(|_| unc("Resposta inválida do serviço"))?;
+    parse_output(status.success(), value)
+}
+
+/// Interpreta a saída de um auxiliar que terminou e entregou JSON válido.
+/// Erro explícito com saída normal é definitivo; saída anormal é incerta.
+fn parse_output(exited_normally: bool, value: Value) -> Result<Value, HelperError> {
+    let failed = value.get("error").is_some() || value.get("ok") == Some(&Value::Bool(false));
+    if !exited_normally || failed {
+        let message = value
             .get("error")
             .and_then(Value::as_str)
             .unwrap_or("Serviço indisponível")
-            .to_owned());
+            .to_owned();
+        return Err(if exited_normally {
+            HelperError::Definitive(message)
+        } else {
+            HelperError::Uncertain(message)
+        });
     }
     Ok(value.get("data").cloned().unwrap_or(value))
 }
@@ -316,6 +350,33 @@ impl State {
             self.last_request = Some(request);
             self.notice = "Enviando...".into();
         }
+    }
+    /// Aplica a falha de uma resposta. Só marca "incerto" quando o efeito de
+    /// uma ação de escrita é desconhecido (timeout, cancelamento, falha de processo).
+    fn apply_error(&mut self, command: &str, error: HelperError) {
+        self.right_scroll = 0;
+        let mutating = self.last_request.as_ref().is_some_and(|request| {
+            request.command == command
+                && matches!(
+                    request.command,
+                    "claim" | "choose" | "agent" | "complete" | "abandon"
+                )
+        });
+        if mutating {
+            if matches!(error, HelperError::Uncertain(_)) {
+                self.uncertain = true;
+                self.notice = format!("{} Resultado incerto. r repete a mesma solicitação; x libera após conferência.", error.message());
+                return;
+            }
+            // Erro definitivo: nada foi aplicado; libera a escolha local.
+            self.selected = None;
+            self.last_request = None;
+            self.uncertain = false;
+        }
+        if command == "snapshot" || command == "heartbeat" {
+            self.offline = true;
+        }
+        self.notice = error.message().to_owned();
     }
     fn request_quit(&mut self) -> bool {
         true
@@ -974,24 +1035,7 @@ pub fn run() -> io::Result<()> {
                             }
                         }
                     }
-                    Err(error) => {
-                        state.right_scroll = 0;
-                        if state.last_request.as_ref().is_some_and(|request| {
-                            request.command == reply.command
-                                && matches!(
-                                    request.command,
-                                    "claim" | "choose" | "agent" | "complete" | "abandon"
-                                )
-                        }) {
-                            state.uncertain = true;
-                            state.notice = format!("{error} Resultado incerto. r repete a mesma solicitação; x libera após conferência.");
-                            continue;
-                        }
-                        if reply.command == "snapshot" || reply.command == "heartbeat" {
-                            state.offline = true;
-                        }
-                        state.notice = error;
-                    }
+                    Err(error) => state.apply_error(reply.command, error),
                 }
             }
             let size = terminal.size()?;
@@ -1292,7 +1336,10 @@ mod tests {
         });
         thread::sleep(Duration::from_millis(150));
         cancel.store(true, Ordering::Relaxed);
-        assert!(thread.join().expect("join").is_err());
+        assert!(matches!(
+            thread.join().expect("join"),
+            Err(HelperError::Uncertain(_))
+        ));
         assert!(started.elapsed() < Duration::from_secs(3));
         if let Some(v) = previous_python {
             std::env::set_var("PRETORIAN_CX_PYTHON", v);
@@ -1402,6 +1449,53 @@ mod tests {
         assert!(is_too_small(84, 24));
         assert!(is_too_small(85, 23));
         assert!(!is_too_small(85, 24));
+    }
+    #[test]
+    fn json_error_with_normal_exit_is_definitive() {
+        assert_eq!(
+            parse_output(true, json!({"error":"Sem permissão"})),
+            Err(HelperError::Definitive("Sem permissão".into()))
+        );
+        assert_eq!(
+            parse_output(true, json!({"ok":false})),
+            Err(HelperError::Definitive("Serviço indisponível".into()))
+        );
+        assert!(matches!(
+            parse_output(false, json!({"error":"caiu"})),
+            Err(HelperError::Uncertain(_))
+        ));
+        assert_eq!(
+            parse_output(true, json!({"data":{"x":1}})),
+            Ok(json!({"x":1}))
+        );
+    }
+    #[test]
+    fn definitive_error_does_not_mark_uncertain_but_failure_does() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = state();
+        s.action(&tx, KeyCode::Char('2'));
+        rx.try_recv().expect("choice");
+        s.pending = false;
+        s.apply_error("choose", HelperError::Definitive("Revisão antiga".into()));
+        assert!(!s.uncertain);
+        assert!(s.selected.is_none());
+        assert_eq!(s.notice, "Revisão antiga");
+        assert!(!s.notice.contains("incerto"));
+        s.action(&tx, KeyCode::Char('c'));
+        assert_eq!(rx.try_recv().expect("nova ação liberada").command, "claim");
+        s.pending = false;
+        s.apply_error("claim", HelperError::Uncertain("Tempo esgotado.".into()));
+        assert!(s.uncertain);
+        assert!(s.notice.contains("Resultado incerto"));
+        s.action(&tx, KeyCode::Char('c'));
+        assert!(rx.try_recv().is_err());
+    }
+    #[test]
+    fn read_only_failures_never_mark_uncertain() {
+        let mut s = state();
+        s.apply_error("snapshot", HelperError::Uncertain("Tempo esgotado.".into()));
+        assert!(!s.uncertain);
+        assert!(s.offline);
     }
     #[test]
     fn queue_notice_replaces_empty_queue_message() {
