@@ -226,28 +226,33 @@ impl ClientShellState {
         }
     }
 
-    fn salvar_nome_local(&mut self, outcome: &mut ClientShellInput) {
+    /// Devolve `false` só quando havia um nome a gravar e a gravação falhou.
+    fn salvar_nome_local(&mut self, outcome: &mut ClientShellInput) -> bool {
         let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_ref() else {
-            return;
+            return true;
         };
         if settings.nome_somente_leitura {
-            return;
+            return true;
         }
         let Some(nome) = crate::config::sanitizar_nome(settings.nome.as_str()) else {
-            return;
+            return true;
         };
         if self.config.nome_usuario.as_deref() == Some(&nome) {
-            return;
+            return true;
         }
-        if self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome) {
-            if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
-                settings.nome = TextEditor::new(&nome, false);
-            }
+        if !self.save_settings_edit(crate::config::ConfigEdit::Nome(&nome), outcome) {
+            return false;
         }
+        if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
+            settings.nome = TextEditor::new(&nome, false);
+        }
+        true
     }
 
     fn salvar_perfil(&mut self, outcome: &mut ClientShellInput) {
-        self.salvar_nome_local(outcome);
+        if !self.salvar_nome_local(outcome) {
+            return;
+        }
         if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut() {
             if settings.sobre.dirty() {
                 settings.sobre.request(true);
