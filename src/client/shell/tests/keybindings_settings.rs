@@ -1102,51 +1102,231 @@ fn secao_usuario_lista_dependencias_e_pede_a_acao() {
     assert!(!pedido_bloqueado, "item bloqueado não gera pedido");
 }
 
-#[test]
-fn secao_usuario_grava_nome_e_pede_recarga() {
-    let dir = std::env::temp_dir().join(format!(
-        "pretorian-nome-usuario-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    let caminho = dir.join("config.toml");
-    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &caminho);
+struct AmbientePerfil {
+    dir: std::path::PathBuf,
+    config: std::path::PathBuf,
+}
 
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+impl AmbientePerfil {
+    /// Isola config, identidade do centauro e ponte do Sobre Você deste teste.
+    fn novo(texto_sobre: Option<&str>) -> Self {
+        let dir = std::env::temp_dir().canonicalize().unwrap().join(format!(
+            "pretorian-perfil-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let config = dir.join("config.toml");
+        std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &config);
+        std::env::remove_var("PRETORIAN_NOME_CENTAURO");
+        std::env::remove_var("PRETORIAN_SOBRE_VOCE");
+        if let Some(texto) = texto_sobre {
+            let ponte = dir.join("ponte");
+            crate::platform::create_remote_private_dir(&ponte).unwrap();
+            let mut arquivo =
+                crate::platform::create_private_state_file(&ponte.join("estado.json")).unwrap();
+            std::io::Write::write_all(
+                &mut arquivo,
+                &serde_json::to_vec(&serde_json::json!({
+                    "version": 1, "revision": 1, "text": texto,
+                    "status": "ready", "message": "", "requestId": null
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            std::env::set_var("PRETORIAN_SOBRE_VOCE", &ponte);
+        }
+        Self { dir, config }
+    }
+
+    fn pedido_sobre(&self) -> Option<serde_json::Value> {
+        let bytes = std::fs::read(self.dir.join("ponte").join("request.json")).ok()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
+    fn nome_gravado(&self) -> Option<String> {
+        let texto = std::fs::read_to_string(&self.config).ok()?;
+        toml::from_str::<Config>(&texto).ok()?.pretorian.nome
+    }
+}
+
+impl Drop for AmbientePerfil {
+    fn drop(&mut self) {
+        std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
+        std::env::remove_var("PRETORIAN_NOME_CENTAURO");
+        std::env::remove_var("PRETORIAN_SOBRE_VOCE");
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+fn estado_com_perfil(nome: Option<&str>) -> ClientShellState {
+    let mut config = ClientShellConfig::from_config(&Config::default());
+    config.nome_usuario = nome.map(str::to_owned);
+    let mut state = ClientShellState::new(config);
     state.set_snapshot(Box::new(snapshot()));
     state.set_pane_surface(surface());
     state.open_settings_overlay();
-    state.handle_input_bytes(b" Ana ");
-    let aplicado = state.handle_input_bytes(b"\r");
+    state
+}
 
-    state.cancel_settings_overlay();
-    let restored: Config = toml::from_str(&std::fs::read_to_string(&caminho).unwrap()).unwrap();
-    let mut reopened = ClientShellState::new(ClientShellConfig::from_config(&restored));
-    reopened.open_settings_overlay();
-    reopened.handle_input_bytes(b"\x03Ana Silva");
-    reopened.select_settings_choice(3);
-    reopened.apply_settings_choice(&mut ClientShellInput::default());
+fn definir_nome(state: &mut ClientShellState, nome: &str) {
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_mut() else {
+        panic!("Configurações");
+    };
+    settings.nome = TextEditor::new(nome, false);
+}
 
-    let gravado = std::fs::read_to_string(&caminho).expect("config gravado");
-    std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
-    let _ = std::fs::remove_dir_all(&dir);
+fn escrever_sobre(state: &mut ClientShellState, texto: &str) {
+    state.select_settings_choice(2);
+    assert!(state.insert_overlay_text(texto));
+    state.select_settings_choice(0);
+}
 
-    assert!(gravado.contains("[pretorian]"), "{gravado}");
-    assert!(gravado.contains("nome = \"Ana Silva\""), "{gravado}");
-    assert!(
-        aplicado.actions.iter().any(|action| matches!(
+fn pede_recarga(outcome: &ClientShellInput) -> bool {
+    outcome.actions.iter().any(|action| {
+        matches!(
             action,
             ClientShellAction::Endpoint { request, .. }
                 if matches!(request.method, crate::api::schema::Method::ServerReloadConfig(_))
-        )),
-        "{:?}",
-        aplicado.actions
-    );
+        )
+    })
+}
+
+#[test]
+fn secao_usuario_grava_nome_pelo_enter_e_reabre_editavel() {
+    let ambiente = AmbientePerfil::novo(None);
+    let mut state = estado_com_perfil(None);
+    state.handle_input_bytes(b" Ana ");
+    let aplicado = state.handle_input_bytes(b"\r");
+
+    assert!(pede_recarga(&aplicado), "{:?}", aplicado.actions);
     assert_eq!(state.config.nome_usuario.as_deref(), Some("Ana"));
+    assert_eq!(ambiente.nome_gravado().as_deref(), Some("Ana"));
+
+    let restaurado: Config =
+        toml::from_str(&std::fs::read_to_string(&ambiente.config).unwrap()).unwrap();
+    let mut reaberto = ClientShellState::new(ClientShellConfig::from_config(&restaurado));
+    reaberto.open_settings_overlay();
+    let Some(ClientShellOverlay::Settings(settings)) = reaberto.overlay.as_ref() else {
+        panic!("Configurações");
+    };
+    assert!(!settings.nome_somente_leitura, "nome local segue editável");
+    assert_eq!(settings.selected, 0);
+    assert_eq!(settings.nome.as_str(), "Ana");
+
+    definir_nome(&mut reaberto, "");
+    reaberto.handle_input_bytes(b"Ana Silva");
+    reaberto.handle_input_bytes(b"\x13");
+    assert_eq!(ambiente.nome_gravado().as_deref(), Some("Ana Silva"));
+}
+
+#[test]
+fn identidade_valida_do_centauro_torna_o_nome_somente_leitura() {
+    let _ambiente = AmbientePerfil::novo(None);
+    std::env::set_var("PRETORIAN_NOME_CENTAURO", "Pessoa sintética");
+    let state = estado_com_perfil(None);
+    let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+        panic!("Configurações");
+    };
+    assert!(settings.nome_somente_leitura);
+    assert_eq!(settings.selected, 2);
+}
+
+#[test]
+fn identidade_em_branco_ou_so_controle_mantem_o_nome_editavel_e_concorda_com_o_efetivo() {
+    let _ambiente = AmbientePerfil::novo(None);
+    for vazia in ["", "   ", "\u{7}\n"] {
+        std::env::set_var("PRETORIAN_NOME_CENTAURO", vazia);
+        let state = estado_com_perfil(Some("Ana"));
+        let Some(ClientShellOverlay::Settings(settings)) = state.overlay.as_ref() else {
+            panic!("Configurações");
+        };
+        assert!(!settings.nome_somente_leitura, "{vazia:?}");
+        assert_eq!(settings.selected, 0, "{vazia:?}");
+        let config: Config = toml::from_str("[pretorian]\nnome = \"Ana\"\n").unwrap();
+        assert_eq!(config.pretorian.nome_efetivo().as_deref(), Some("Ana"));
+    }
+}
+
+#[test]
+fn ctrl_s_grava_nome_e_envia_sobre_voce_somente_se_alterado() {
+    let ambiente = AmbientePerfil::novo(Some("Texto inicial"));
+    let mut state = estado_com_perfil(None);
+    definir_nome(&mut state, "Ana");
+    escrever_sobre(&mut state, " mais");
+    let saida = state.handle_input_bytes(b"\x13");
+    assert!(pede_recarga(&saida), "{:?}", saida.actions);
+    assert_eq!(ambiente.nome_gravado().as_deref(), Some("Ana"));
+    let pedido = ambiente.pedido_sobre().expect("pedido de salvar");
+    assert_eq!(pedido["action"], "save");
+    assert_eq!(pedido["text"], "Texto inicial mais");
+    drop(ambiente);
+
+    let ambiente = AmbientePerfil::novo(Some("Texto inicial"));
+    let mut state = estado_com_perfil(None);
+    definir_nome(&mut state, "Beto");
+    let saida = state.handle_input_bytes(b"\x13");
+    assert!(pede_recarga(&saida), "{:?}", saida.actions);
+    assert_eq!(ambiente.nome_gravado().as_deref(), Some("Beto"));
+    let pedido = ambiente.pedido_sobre();
+    assert!(
+        pedido.as_ref().is_none_or(|p| p["action"] != "save"),
+        "{pedido:?}"
+    );
+}
+
+#[test]
+fn ctrl_s_sem_mudancas_nao_grava_nem_envia() {
+    let ambiente = AmbientePerfil::novo(Some("Texto inicial"));
+    let mut state = estado_com_perfil(Some("Ana"));
+    let saida = state.handle_input_bytes(b"\x13");
+    assert!(saida.actions.is_empty(), "{:?}", saida.actions);
+    assert!(!ambiente.config.exists());
+    let pedido = ambiente.pedido_sobre();
+    assert!(
+        pedido.as_ref().is_none_or(|p| p["action"] != "save"),
+        "{pedido:?}"
+    );
+}
+
+#[test]
+fn botao_salvar_so_envia_sobre_voce_quando_alterado() {
+    let ambiente = AmbientePerfil::novo(Some("Texto inicial"));
+    let mut state = estado_com_perfil(Some("Ana"));
+    state.select_settings_choice(3);
+    let saida = state.handle_input_bytes(b"\r");
+    assert!(saida.actions.is_empty(), "{:?}", saida.actions);
+    let pedido = ambiente.pedido_sobre();
+    assert!(
+        pedido.as_ref().is_none_or(|p| p["action"] != "save"),
+        "{pedido:?}"
+    );
+
+    escrever_sobre(&mut state, " mais");
+    state.select_settings_choice(3);
+    state.apply_settings_choice(&mut ClientShellInput::default());
+    let pedido = ambiente.pedido_sobre().expect("pedido de salvar");
+    assert_eq!(pedido["action"], "save");
+    assert_eq!(pedido["text"], "Texto inicial mais");
+}
+
+#[test]
+fn falha_ao_gravar_o_nome_aborta_o_salvar_perfil() {
+    let ambiente = AmbientePerfil::novo(Some("Texto inicial"));
+    // Um diretório no lugar do arquivo faz a gravação do nome falhar.
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &ambiente.dir);
+    let mut state = estado_com_perfil(None);
+    definir_nome(&mut state, "Ana");
+    escrever_sobre(&mut state, " mais");
+    let saida = state.handle_input_bytes(b"\x13");
+    assert!(!pede_recarga(&saida), "{:?}", saida.actions);
+    assert!(
+        ambiente.pedido_sobre().is_none(),
+        "Sobre Você não deve ser enviado"
+    );
 }
 
 #[test]

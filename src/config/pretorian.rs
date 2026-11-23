@@ -102,7 +102,10 @@ mod tests {
             config.nome_com_identidade(None).as_deref(),
             Some("Nome local")
         );
-        assert_eq!(config.nome_com_identidade(Some("\u{7}")), None);
+        assert_eq!(
+            config.nome_com_identidade(Some("\u{7}")).as_deref(),
+            Some("Nome local")
+        );
         assert_eq!(config.nome.as_deref(), Some("Nome local"));
     }
 
