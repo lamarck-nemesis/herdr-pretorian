@@ -16,6 +16,7 @@ mod agent_view_eval;
 mod api;
 mod app;
 mod build_info;
+mod centauro_cx;
 mod checksum;
 mod cli;
 mod client;
@@ -523,6 +524,10 @@ fn main() -> io::Result<()> {
             std::process::exit(2);
         }
     };
+    if raw_args.len() == 2 && raw_args[1] == "--pretorian-cx-capabilities" {
+        println!("{{\"version\":1}}");
+        return Ok(());
+    }
     if raw_args.len() == 2 && raw_args[1] == "--pretorian-capabilities" {
         println!(
             "{}",
@@ -546,6 +551,9 @@ fn main() -> io::Result<()> {
         .map_err(|erro| io::Error::new(io::ErrorKind::InvalidInput, erro))?;
         println!("{escolha}");
         return Ok(());
+    }
+    if raw_args.len() == 1 && std::env::var("PRETORIAN_CX").as_deref() == Ok("1") {
+        return centauro_cx::run();
     }
     #[cfg(windows)]
     if let Some(result) = platform::maybe_activate_desktop_notification(&raw_args) {
